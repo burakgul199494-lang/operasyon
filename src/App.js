@@ -925,7 +925,7 @@ const LandingMenu = ({ onNavigate, user, onLogout, onProfile }) => {
       {/* Üst Bar */}
       <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Operasyon Portal</h1>
+          <h1 className="text-xl font-bold text-slate-800">Operasyon Portalı</h1>
           <p className="text-xs text-slate-500">
             Hoşgeldin, {user.displayName || user.email}
           </p>
