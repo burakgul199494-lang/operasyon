@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Search,
   ArrowLeft,
-  ChevronDown, // <--- BUNU EKLE2
+  ChevronDown, // <--- BUNU EKLE
   Calendar,
   AlertCircle,
   ChevronRight,
