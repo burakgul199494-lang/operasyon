@@ -472,34 +472,64 @@ const AdminPanel = ({
     }
   };
 
-  // --- KAYDET: sadece dolu hücreler, tek metrik, batch ile yaz ---
+// --- YENİ KAYDETME MANTIĞI: Sadece değişenleri ve silinenleri işler ---
   const handleSave = async () => {
     let recordsToUpdate = [];
 
     UNITS.forEach((unit) => {
       const unitRow = gridData[unit] || {};
       MONTH_INDICES.forEach((month) => {
+        // 1. Ekrandaki güncel değer
         const rawValue = unitRow[month];
-        if (rawValue === undefined || rawValue === null) return;
+        const cleanStr = String(rawValue || "").trim().replace(",", ".");
 
-        const cleanStr = String(rawValue).trim().replace(",", ".");
-        if (cleanStr === "" || cleanStr.toLowerCase() === "undefined") return;
+        // 2. Veritabanındaki orijinal değer (Karşılaştırma için)
+        const originalRecord = allData.find(
+          (d) =>
+            d.unit === unit &&
+            d.year === parseInt(selectedYear) &&
+            d.month === month
+        );
+        const originalValue = originalRecord ? originalRecord[selectedMetric] : null;
 
-        const parsed = parseFloat(cleanStr);
-        if (Number.isNaN(parsed)) return;
+        // --- DEĞER HESAPLAMA ---
+        let finalValue = null;
 
-        const finalValue = selectedMetric.includes("Kargo")
-          ? Math.round(parsed)
-          : Number(parsed.toFixed(2));
+        if (cleanStr !== "") {
+          const parsed = parseFloat(cleanStr);
+          if (!Number.isNaN(parsed)) {
+            finalValue = selectedMetric.includes("Kargo")
+              ? Math.round(parsed)
+              : Number(parsed.toFixed(2));
+          } else {
+            return; // Sayısal olmayan değer girildiyse işlem yapma
+          }
+        }
+
+        // --- DEĞİŞİKLİK KONTROLÜ (DIFFING) ---
+        // A) Silme: Eskiden değer vardı ama şimdi boş (null)
+        const isDeleted = (originalValue !== null && originalValue !== undefined) && (finalValue === null);
+
+        // B) Güncelleme: Değer değişmiş
+        const isChanged = (originalValue !== finalValue);
+
+        // Eğer silinme yoksa VE değer değişmemişse listeye ekleme (Google'ı yorma)
+        if (!isDeleted && originalValue === finalValue) {
+          return;
+        }
+        
+        // Eğer ikisi de boşsa işlem yapma
+        if ((originalValue === null || originalValue === undefined) && finalValue === null) {
+          return;
+        }
 
         const docId = `${unit}-${selectedYear}-${month}`;
-
         const record = {
           id: docId,
           unit,
           year: parseInt(selectedYear),
           month,
-          [selectedMetric]: finalValue,
+          [selectedMetric]: finalValue, // Silinecekse null gider
         };
 
         recordsToUpdate.push(record);
@@ -507,14 +537,14 @@ const AdminPanel = ({
     });
 
     if (recordsToUpdate.length === 0) {
-      alert("Kaydedilecek veri bulunamadı. Önce tabloya değer giriniz.");
+      alert("Herhangi bir değişiklik algılanmadı.");
       return;
     }
 
     try {
-      await onSaveBatch(recordsToUpdate); // gerçek yazma burada
+      await onSaveBatch(recordsToUpdate); 
       setPendingChanges(false);
-      alert("Veriler başarıyla kaydedildi.");
+      alert(`${recordsToUpdate.length} kayıt başarıyla güncellendi.`);
     } catch (error) {
       console.error("Kayıt hatası:", error);
       alert("Kayıt sırasında bir hata oluştu.");
