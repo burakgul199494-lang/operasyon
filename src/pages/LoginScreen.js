@@ -41,7 +41,7 @@ const LoginScreen = ({ onLogin, loading, error }) => {
             </div>
           </div>
           <button type="submit" disabled={loading} className="w-full mt-8 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2">
-            {loading ? "Giriş..." : "Sisteme Giriş Yap"}
+            {loading ? "Girişe Hazır Ol Bebek..." : "Sisteme Giriş Yap"}
           </button>
         </form>
       </div>
