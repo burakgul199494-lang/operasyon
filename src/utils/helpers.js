@@ -1,7 +1,17 @@
+// Sayı Formatlama (Tam sayılarda virgülsüz, oranlarda virgüllü gösterir)
 export const formatNumber = (num) => {
   if (num === undefined || num === null || num === "") return "-";
+  
   const n = parseFloat(num);
-  return isNaN(n) ? "-" : n.toFixed(2).replace(".", ",");
+  if (isNaN(n)) return "-";
+
+  // Eğer sayı tam sayı ise (Örn: 557) düz yaz
+  if (Number.isInteger(n)) {
+    return n.toLocaleString("tr-TR"); 
+  }
+
+  // Eğer sayı küsuratlı ise (Örn: 94.5) 2 basamak göster (94,50)
+  return n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 export const formatDate = (timestamp) => {
@@ -26,10 +36,10 @@ export const METRIC_TYPES = [
   { id: "smsOrani", label: "SMS Oranı %", color: "orange" },
   { id: "eAtfOrani", label: "E-ATF Oranı %", color: "orange" },
   { id: "elektronikIhbar", label: "E-İhbar %", color: "orange" },
-  // HACİM GRUBU
+  // HACİM GRUBU - BELGE
   { id: "gelenKargo", label: "Gelen Kargo (Belge Sayısı)", color: "green" },
   { id: "gidenKargo", label: "Giden Kargo (Belge Sayısı)", color: "green" },
-  // YENİ EKLENENLER
+  // HACİM GRUBU - KARGO ADET
   { id: "gelenAdet", label: "Gelen Kargo (Kargo Sayısı)", color: "emerald" },
   { id: "gidenAdet", label: "Giden Kargo (Kargo Sayısı)", color: "emerald" },
 ];
