@@ -1,8 +1,7 @@
 export const formatNumber = (num) => {
   if (num === undefined || num === null || num === "") return "-";
   const n = parseFloat(num);
-  if (isNaN(n)) return "-";
-  return n.toFixed(2).replace(".", ",");
+  return isNaN(n) ? "-" : n.toFixed(2).replace(".", ",");
 };
 
 export const formatDate = (timestamp) => {
@@ -27,8 +26,12 @@ export const METRIC_TYPES = [
   { id: "smsOrani", label: "SMS Oranı %", color: "orange" },
   { id: "eAtfOrani", label: "E-ATF Oranı %", color: "orange" },
   { id: "elektronikIhbar", label: "E-İhbar %", color: "orange" },
-  { id: "gelenKargo", label: "Gelen Kargo", color: "green" },
-  { id: "gidenKargo", label: "Giden Kargo", color: "green" },
+  // HACİM GRUBU
+  { id: "gelenKargo", label: "Gelen Kargo (Desi)", color: "green" },
+  { id: "gidenKargo", label: "Giden Kargo (Desi)", color: "green" },
+  // YENİ EKLENENLER
+  { id: "gelenAdet", label: "Gelen Adet", color: "emerald" },
+  { id: "gidenAdet", label: "Giden Adet", color: "emerald" },
 ];
 
 export const UNITS = [
