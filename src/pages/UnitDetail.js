@@ -14,40 +14,35 @@ const UnitDetail = ({ allData, onBack, onChangeUnit }) => {
   const selectedUnit = unitName; 
   const navigate = useNavigate();
 
-  // Varsayılan değerler (Başlangıçta şimdiki zaman)
+  // Varsayılan değerler
   const [showYearAvg, setShowYearAvg] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   
   const availableYears = [2024, 2025, 2026];
 
-  // --- DÜZELTME KODU BAŞLANGICI ---
-  // Bu useEffect, sayfa açıldığında veya veriler yüklendiğinde çalışır.
-  // O birimin en son hangi ayda verisi varsa otomatik onu seçer.
+  // --- OTO-SEÇİM (EN GÜNCEL VERİ) ---
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
 
-    // 1. Bu birime ait tüm verileri filtrele
-    const unitRecords = allData.filter(d => d.unit === selectedUnit);
+    // Sadece bu birime ait ve "teslimPerformansi" değeri DOLU olan verileri al
+    const unitRecords = allData.filter(d => 
+      d.unit === selectedUnit && 
+      d.teslimPerformansi !== null && 
+      d.teslimPerformansi !== undefined && 
+      d.teslimPerformansi !== ""
+    );
 
     if (unitRecords.length > 0) {
-      // 2. Verileri tarihe göre sırala (En yeniden en eskiye: 2024 Kasım > 2024 Ekim)
       unitRecords.sort((a, b) => (b.year - a.year) || (b.month - a.month));
-
-      // 3. En güncel kaydı bul
       const latestRecord = unitRecords[0];
-
-      // 4. Seçili tarihi güncelle (Eğer zaten seçili değilse)
-      // Bu kontrolü yapmazsak kullanıcı manuel ay değiştirdiğinde sürekli en sona atar, o yüzden sadece ilk açılışta veya veri değişiminde yapsın istiyoruz.
-      // Ancak basitlik adına, veri yüklendiğinde en sonu göstermesi yeterli:
       setSelectedYear(latestRecord.year);
       setSelectedMonth(latestRecord.month);
     }
   }, [allData, selectedUnit]); 
-  // --- DÜZELTME KODU BİTİŞİ ---
 
 
-  // --- HESAPLAMA MANTIĞI ---
+  // --- VERİ HESAPLAMA ---
   const currentData = useMemo(() => {
     if (!selectedUnit) return null;
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
@@ -81,6 +76,13 @@ const UnitDetail = ({ allData, onBack, onChangeUnit }) => {
     : (selectedUnit === "BÖLGE" ? null : allData.find(d => d.unit === "BÖLGE" && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth)));
   
   const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 94;
+
+  // --- KRİTİK DÜZELTME: Veri var mı kontrolü ---
+  // Sadece displayData objesinin olması yetmez, içindeki ana verinin de dolu olması lazım.
+  const hasValidData = displayData && 
+                       displayData.teslimPerformansi !== null && 
+                       displayData.teslimPerformansi !== undefined && 
+                       displayData.teslimPerformansi !== "";
 
   // --- RENDER ---
   return (
@@ -137,7 +139,8 @@ const UnitDetail = ({ allData, onBack, onChangeUnit }) => {
       </div>
 
       <div className="p-4 space-y-4">
-        {displayData ? (
+        {/* displayData yerine hasValidData kontrolü yapıyoruz */}
+        {hasValidData ? (
           <>
             <div className={`rounded-2xl shadow-lg mb-4 relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 shadow-red-200 text-white" : "bg-gradient-to-br from-emerald-500 to-green-700 shadow-emerald-200 text-white"}`}>
               <div className="p-5 pb-4">
