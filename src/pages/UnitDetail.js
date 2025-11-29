@@ -138,11 +138,11 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                     <div className="flex justify-between items-end">
                         <div className="text-center flex-1 border-r border-slate-100">
                             <div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gelenKargo)}</div>
-                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Desi</div>
+                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo Adedi</div>
                         </div>
                         <div className="text-center flex-1">
                             <div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gelenAdet)}</div>
-                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Adet</div>
+                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge Sayısı</div>
                         </div>
                     </div>
                 </div>
@@ -156,11 +156,11 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                     <div className="flex justify-between items-end">
                         <div className="text-center flex-1 border-r border-slate-100">
                             <div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gidenKargo)}</div>
-                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Desi</div>
+                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo Adedi</div>
                         </div>
                         <div className="text-center flex-1">
                             <div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gidenAdet)}</div>
-                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Adet</div>
+                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge Sayısı</div>
                         </div>
                     </div>
                 </div>
