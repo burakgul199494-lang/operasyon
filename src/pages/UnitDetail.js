@@ -1,52 +1,50 @@
 import React, { useState, useMemo } from "react";
+// YENİ: URL'den parametre okumak için useParams eklendi
+import { useParams, useNavigate } from "react-router-dom"; 
 import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box } from "lucide-react";
+
+// Import yollarına dikkat et (helpers ve components klasörlerine çıkıyoruz)
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
-const UnitDetail = ({ selectedUnit, initialYear, initialMonth, allData, onBack, onChangeUnit }) => {
-  const [showYearAvg, setShowYearAvg] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(initialYear);
-  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+const UnitDetail = ({ allData, onBack, onChangeUnit }) => {
+  // URL'deki :unitName parametresini alıyoruz (App.js'de tanımlamıştık)
+  const { unitName } = useParams();
+  
+  // Artık selectedUnit state değil, URL'den gelen değerdir
+  const selectedUnit = unitName; 
 
+  const navigate = useNavigate(); // Sayfa yönlendirmesi için
+
+  const [showYearAvg, setShowYearAvg] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const availableYears = [2024, 2025, 2026];
 
-  // Aylık Veriyi Bul
+  // --- HESAPLAMA MANTIĞI AYNI ---
   const currentData = useMemo(() => {
     if (!selectedUnit) return null;
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [allData, selectedUnit, selectedYear, selectedMonth]);
 
-  // Yıllık Ortalama Hesaplama
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
     if (yearRecords.length === 0) return null;
-
     const fields = ["teslimPerformansi", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo"];
-    const totals = {};
-    const counts = {};
+    const totals = {}; const counts = {};
     fields.forEach(f => { totals[f] = 0; counts[f] = 0; });
-
     yearRecords.forEach(record => {
       fields.forEach(field => {
         const val = record[field];
-        if (val !== undefined && val !== null && val !== "") {
-          totals[field] += parseFloat(val);
-          counts[field] += 1;
-        }
+        if (val !== undefined && val !== null && val !== "") { totals[field] += parseFloat(val); counts[field] += 1; }
       });
     });
-
     const averages = {};
     fields.forEach(field => {
       if (counts[field] > 0) {
-        if (field === "gelenKargo" || field === "gidenKargo") {
-          averages[field] = Math.round(totals[field]);
-        } else {
-          averages[field] = (totals[field] / counts[field]).toFixed(2);
-        }
-      } else {
-        averages[field] = 0;
-      }
+        if (field === "gelenKargo" || field === "gidenKargo") { averages[field] = Math.round(totals[field]); } 
+        else { averages[field] = (totals[field] / counts[field]).toFixed(2); }
+      } else { averages[field] = 0; }
     });
     return averages;
   };
@@ -55,9 +53,10 @@ const UnitDetail = ({ selectedUnit, initialYear, initialMonth, allData, onBack, 
   let displayRegionData = showYearAvg
     ? (selectedUnit === "BÖLGE" ? null : calculateYearlyAverage("BÖLGE"))
     : (selectedUnit === "BÖLGE" ? null : allData.find(d => d.unit === "BÖLGE" && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth)));
-
+  
   const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 94;
 
+  // --- RENDER ---
   return (
     <div className="pb-24 bg-slate-50 min-h-screen">
       <div className="bg-white sticky top-0 z-20 shadow-sm border-b border-slate-100">
@@ -67,7 +66,12 @@ const UnitDetail = ({ selectedUnit, initialYear, initialMonth, allData, onBack, 
           </button>
           <div className="flex-1 min-w-0">
             <div className="relative flex items-center w-full max-w-[250px]">
-              <select value={selectedUnit} onChange={(e) => onChangeUnit(e.target.value)} className="appearance-none bg-transparent text-lg font-bold text-slate-800 w-full pr-8 outline-none cursor-pointer truncate py-1 z-10">
+              {/* Select değiştiğinde onChangeUnit prop'unu (navigate) tetikliyoruz */}
+              <select 
+                value={selectedUnit} 
+                onChange={(e) => onChangeUnit(e.target.value)} 
+                className="appearance-none bg-transparent text-lg font-bold text-slate-800 w-full pr-8 outline-none cursor-pointer truncate py-1 z-10"
+              >
                 {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
               <ChevronDown size={18} className="absolute right-0 text-slate-400 pointer-events-none" />
@@ -86,6 +90,8 @@ const UnitDetail = ({ selectedUnit, initialYear, initialMonth, allData, onBack, 
             {showYearAvg ? "Aylık Gör" : "Yıl Ort."}
           </button>
         </div>
+        
+        {/* Yıl ve Ay Seçimi */}
         <div className="pl-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
           <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 text-slate-800 font-bold text-sm py-1.5 px-3 rounded-lg border-none focus:ring-0 shrink-0">
             {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
