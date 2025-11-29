@@ -1,9 +1,15 @@
+// src/App.js
+
 import React, { useState, useEffect } from "react";
+// Router için gerekli importlar
+import { Routes, Route, useNavigate } from "react-router-dom";
+
+// Firebase ve Config
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { collection, onSnapshot, doc, writeBatch } from "firebase/firestore";
 import { auth, db, appId } from "./config/firebase";
 
-// Sayfa Importları
+// Sayfa Importları (Dosyaların bölündüğü varsayılıyor)
 import LoginScreen from "./pages/LoginScreen";
 import LandingMenu from "./pages/LandingMenu";
 import Dashboard from "./pages/Dashboard";
@@ -15,22 +21,17 @@ import UserProfileModal from "./components/UserProfileModal";
 import { Lock } from "lucide-react"; 
 
 export default function App() {
-  const [view, setView] = useState("menu");
   const [user, setUser] = useState(null);
   const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Seçim State'leri
-  const [selectedUnit, setSelectedUnit] = useState(null);
-  const [initialYear, setInitialYear] = useState(new Date().getFullYear());
-  const [initialMonth, setInitialMonth] = useState(new Date().getMonth() + 1);
+  // Router yönlendirmesi için
+  const navigate = useNavigate();
 
-  // Modal State'leri
-  const [isAdminOpen, setAdminOpen] = useState(false);
-  const [isProfileOpen, setProfileOpen] = useState(false);
+  // Modal State'leri (Global kalması gerekenler)
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  const [isProfileOpen, setProfileOpen] = useState(false);
   const [availableYears, setAvailableYears] = useState([2024, 2025, 2026]);
 
   // Mobil Zoom Fix
@@ -64,42 +65,42 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Fonksiyonlar
+  // --- FONKSİYONLAR ---
+
   const handleAppLogin = async (email, password) => {
-    try { await signInWithEmailAndPassword(auth, email, password); setView("menu"); } 
-    catch (e) { alert("Hatalı giriş"); }
+    try { 
+      await signInWithEmailAndPassword(auth, email, password); 
+      navigate("/"); // Başarılı girişte ana sayfaya git
+    } catch (e) { alert("Hatalı giriş"); }
   };
 
   const handleAppLogout = async () => {
-    if (window.confirm("Çıkış?")) { await signOut(auth); setView("menu"); }
+    if (window.confirm("Çıkış?")) { 
+      await signOut(auth); 
+      navigate("/"); // Çıkışta ana path'e dön (Login ekranı karşılar)
+    }
   };
 
-  const handleUnitSelect = (unit) => {
-    setSelectedUnit(unit);
-    // İsteğe bağlı: Burada en son verinin olduğu yılı otomatik seçtirebiliriz, 
-    // ama şimdilik varsayılan (güncel) yıl kalsın.
-    setView("detail");
-    window.scrollTo(0, 0);
-  };
-
+  // Menüden yönlendirme
   const handleNavigateFromMenu = (target) => {
     if (target === "admin") setShowLoginModal(true);
-    else if (target === "dashboard") setView("dashboard");
-    else if (target === "notes") setView("notes");
+    else if (target === "dashboard") navigate("/dashboard");
+    else if (target === "notes") navigate("/notes");
   };
 
+  // Admin Modal Girişi
   const handleAdminLogin = () => {
     if (adminPassword === "Marvel3535") {
       setShowLoginModal(false);
-      setAdminOpen(true);
       setAdminPassword("");
+      navigate("/admin"); // Admin sayfasına git
     } else {
       alert("Hatalı şifre!");
     }
   };
 
+  // Admin Panel Kayıt İşlemi
   const handleSaveBatch = async (records) => {
-    setIsSaving(true);
     try {
         const chunkSize = 400;
         for (let i = 0; i < records.length; i += chunkSize) {
@@ -111,59 +112,69 @@ export default function App() {
             });
             await batch.commit();
         }
-    } catch(e) { console.error(e); } 
-    finally { setIsSaving(false); }
+    } catch(e) { console.error(e); throw e; } 
   };
 
   if (loading) return <div>Yükleniyor...</div>;
+
+  // Kullanıcı yoksa Login Ekranı
   if (!user) return <LoginScreen onLogin={handleAppLogin} loading={false} error="" />;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 safe-area-pb">
       
-      {view === "menu" && (
-        <LandingMenu
-          user={user}
-          onNavigate={handleNavigateFromMenu}
-          onLogout={handleAppLogout}
-          onProfile={() => setProfileOpen(true)}
-        />
-      )}
+      {/* ROUTER YAPISI: Sayfa geçişleri burada yönetilir */}
+      <Routes>
+        
+        {/* Ana Menü */}
+        <Route path="/" element={
+          <LandingMenu
+            user={user}
+            onNavigate={handleNavigateFromMenu}
+            onLogout={handleAppLogout}
+            onProfile={() => setProfileOpen(true)}
+          />
+        } />
 
-      {view === "dashboard" && (
-        <Dashboard 
-            onUnitClick={handleUnitSelect} 
-            onNavigateMenu={() => setView("menu")} 
-        />
-      )}
+        {/* Birim Listesi */}
+        <Route path="/dashboard" element={
+          <Dashboard 
+            onUnitClick={(unit) => navigate(`/detail/${unit}`)} 
+            onNavigateMenu={() => navigate("/")} 
+          />
+        } />
 
-      {view === "detail" && (
-        <UnitDetail
-          selectedUnit={selectedUnit}
-          initialYear={initialYear}
-          initialMonth={initialMonth}
-          allData={allData}
-          onBack={() => setView("dashboard")}
-          onChangeUnit={(u) => setSelectedUnit(u)}
-        />
-      )}
+        {/* Detay Sayfası (URL Parametresi alır: /detail/ADATEPE) */}
+        <Route path="/detail/:unitName" element={
+          <UnitDetail
+            allData={allData}
+            onBack={() => navigate("/dashboard")}
+            onChangeUnit={(u) => navigate(`/detail/${u}`)}
+          />
+        } />
 
-      {view === "notes" && (
-        <NotesPage user={user} onClose={() => setView("menu")} />
-      )}
+        {/* Notlar */}
+        <Route path="/notes" element={
+          <NotesPage user={user} onClose={() => navigate("/")} />
+        } />
 
-      {isAdminOpen && (
-        <AdminPanel
-          allData={allData}
-          onSaveBatch={handleSaveBatch}
-          onClose={() => { setAdminOpen(false); setView("menu"); }}
-          availableYears={availableYears}
-          setAvailableYears={setAvailableYears}
-          isSaving={isSaving}
-          isLoadingData={false}
-        />
-      )}
+        {/* Admin Paneli */}
+        <Route path="/admin" element={
+          <AdminPanel
+            allData={allData}
+            onSaveBatch={handleSaveBatch}
+            onClose={() => navigate("/")}
+            availableYears={availableYears}
+            setAvailableYears={setAvailableYears}
+            isSaving={false}
+            isLoadingData={false}
+          />
+        } />
 
+      </Routes>
+
+      {/* GLOBAL MODALLAR (URL'den bağımsız açılanlar) */}
+      
       {isProfileOpen && (
         <UserProfileModal user={user} onClose={() => setProfileOpen(false)} />
       )}
