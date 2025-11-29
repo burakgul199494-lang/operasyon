@@ -16,6 +16,16 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
   const MONTH_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const FLEET_COLUMNS = ["car", "motor", "parcaBasi"];
 
+  // YENİ: Yıl Ekleme Fonksiyonu
+  const handleAddYear = () => {
+    // Listede olmayan bir sonraki yılı bul (Örn: 2026 ise 2027 yap)
+    const nextYear = availableYears[availableYears.length - 1] + 1;
+    // App.js'deki listeyi güncelle
+    setAvailableYears([...availableYears, nextYear]);
+    // Seçimi yeni yıla getir
+    setSelectedYear(nextYear);
+  };
+
   // Performans Verilerini Yükle
   useEffect(() => {
     if (activeTab !== "performance") return;
@@ -169,8 +179,6 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
       if (nextElement) { nextElement.focus(); nextElement.select(); setSelection({ start: { r: nextR, c: nextC }, end: { r: nextR, c: nextC }, isDragging: false }); }
     }
   };
-
-  const handleAddYear = () => { const nextYear = availableYears[availableYears.length - 1] + 1; setAvailableYears([...availableYears, nextYear]); setSelectedYear(nextYear); };
   
   const handleSave = async () => {
     if (activeTab === "performance") {
@@ -186,7 +194,6 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
             if (cleanStr !== "") {
               const p = parseFloat(cleanStr);
               if (!Number.isNaN(p)) {
-                // GÜNCELLEME: Hem "Kargo" (Desi) hem de "Adet" içerenler tam sayıya yuvarlansın
                 finalVal = (selectedMetric.includes("Kargo") || selectedMetric.includes("Adet")) 
                     ? Math.round(p) 
                     : Number(p.toFixed(2));
@@ -250,7 +257,20 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
         {activeTab === "performance" && (
             <>
                 <div className="p-3 flex gap-3 items-center justify-between border-b border-slate-200 bg-white">
-                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-300 shadow-sm"><span className="text-xs font-bold text-slate-500 uppercase">Yıl:</span><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent font-bold text-slate-800 outline-none">{availableYears.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
+                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-300 shadow-sm">
+                      <span className="text-xs font-bold text-slate-500 uppercase">Yıl:</span>
+                      <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent font-bold text-slate-800 outline-none">
+                        {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                      {/* DÜZELTME: Yıl Ekleme Butonu Buraya Eklendi */}
+                      <button 
+                        onClick={handleAddYear} 
+                        className="ml-2 bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 transition-colors"
+                        title="Yeni Yıl Ekle"
+                      >
+                        <Plus size={12} /> Ekle
+                      </button>
+                    </div>
                     <button onClick={() => { if(window.confirm("Bu tablodaki veriler temizlensin mi?")) { const ng={}; UNITS.forEach(u=>{ng[u]={};MONTH_INDICES.forEach(m=>ng[u][m]="")}); setGridData(ng); setPendingChanges(true); } }} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Temizle</button>
                 </div>
                 <div className="px-2 py-2 flex gap-2 overflow-x-auto no-scrollbar bg-slate-50 border-b border-slate-200">
