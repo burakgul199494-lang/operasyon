@@ -1,27 +1,53 @@
-import React, { useState, useMemo } from "react";
-// YENİ: URL'den parametre okumak için useParams eklendi
+import React, { useState, useMemo, useEffect } from "react";
+// Router hookları
 import { useParams, useNavigate } from "react-router-dom"; 
+// İkonlar
 import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box } from "lucide-react";
 
-// Import yollarına dikkat et (helpers ve components klasörlerine çıkıyoruz)
+// Helper importları
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
 const UnitDetail = ({ allData, onBack, onChangeUnit }) => {
-  // URL'deki :unitName parametresini alıyoruz (App.js'de tanımlamıştık)
+  // URL'den birim adını al
   const { unitName } = useParams();
-  
-  // Artık selectedUnit state değil, URL'den gelen değerdir
   const selectedUnit = unitName; 
+  const navigate = useNavigate();
 
-  const navigate = useNavigate(); // Sayfa yönlendirmesi için
-
+  // Varsayılan değerler (Başlangıçta şimdiki zaman)
   const [showYearAvg, setShowYearAvg] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  
   const availableYears = [2024, 2025, 2026];
 
-  // --- HESAPLAMA MANTIĞI AYNI ---
+  // --- DÜZELTME KODU BAŞLANGICI ---
+  // Bu useEffect, sayfa açıldığında veya veriler yüklendiğinde çalışır.
+  // O birimin en son hangi ayda verisi varsa otomatik onu seçer.
+  useEffect(() => {
+    if (!allData || allData.length === 0 || !selectedUnit) return;
+
+    // 1. Bu birime ait tüm verileri filtrele
+    const unitRecords = allData.filter(d => d.unit === selectedUnit);
+
+    if (unitRecords.length > 0) {
+      // 2. Verileri tarihe göre sırala (En yeniden en eskiye: 2024 Kasım > 2024 Ekim)
+      unitRecords.sort((a, b) => (b.year - a.year) || (b.month - a.month));
+
+      // 3. En güncel kaydı bul
+      const latestRecord = unitRecords[0];
+
+      // 4. Seçili tarihi güncelle (Eğer zaten seçili değilse)
+      // Bu kontrolü yapmazsak kullanıcı manuel ay değiştirdiğinde sürekli en sona atar, o yüzden sadece ilk açılışta veya veri değişiminde yapsın istiyoruz.
+      // Ancak basitlik adına, veri yüklendiğinde en sonu göstermesi yeterli:
+      setSelectedYear(latestRecord.year);
+      setSelectedMonth(latestRecord.month);
+    }
+  }, [allData, selectedUnit]); 
+  // --- DÜZELTME KODU BİTİŞİ ---
+
+
+  // --- HESAPLAMA MANTIĞI ---
   const currentData = useMemo(() => {
     if (!selectedUnit) return null;
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
@@ -66,7 +92,6 @@ const UnitDetail = ({ allData, onBack, onChangeUnit }) => {
           </button>
           <div className="flex-1 min-w-0">
             <div className="relative flex items-center w-full max-w-[250px]">
-              {/* Select değiştiğinde onChangeUnit prop'unu (navigate) tetikliyoruz */}
               <select 
                 value={selectedUnit} 
                 onChange={(e) => onChangeUnit(e.target.value)} 
@@ -91,7 +116,6 @@ const UnitDetail = ({ allData, onBack, onChangeUnit }) => {
           </button>
         </div>
         
-        {/* Yıl ve Ay Seçimi */}
         <div className="pl-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
           <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 text-slate-800 font-bold text-sm py-1.5 px-3 rounded-lg border-none focus:ring-0 shrink-0">
             {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
