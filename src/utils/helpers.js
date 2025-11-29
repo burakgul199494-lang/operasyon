@@ -27,11 +27,11 @@ export const METRIC_TYPES = [
   { id: "eAtfOrani", label: "E-ATF Oranı %", color: "orange" },
   { id: "elektronikIhbar", label: "E-İhbar %", color: "orange" },
   // HACİM GRUBU
-  { id: "gelenKargo", label: "Gelen Kargo (Desi)", color: "green" },
-  { id: "gidenKargo", label: "Giden Kargo (Desi)", color: "green" },
+  { id: "gelenKargo", label: "Gelen Kargo (Belge Sayısı)", color: "green" },
+  { id: "gidenKargo", label: "Giden Kargo (Belge Sayısı)", color: "green" },
   // YENİ EKLENENLER
-  { id: "gelenAdet", label: "Gelen Adet", color: "emerald" },
-  { id: "gidenAdet", label: "Giden Adet", color: "emerald" },
+  { id: "gelenAdet", label: "Gelen Kargo (Kargo Sayısı)", color: "emerald" },
+  { id: "gidenAdet", label: "Giden Kargo (Kargo Sayısı)", color: "emerald" },
 ];
 
 export const UNITS = [
