@@ -1,23 +1,32 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, X } from "lucide-react";
+import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Package, Zap } from "lucide-react";
 import { UNITS, METRIC_TYPES, MONTH_NAMES } from "../utils/helpers";
-// YENİ: Firestore setDoc importu
-import { doc, setDoc } from "firebase/firestore";
+import { doc, writeBatch } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
 
 const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
+  // --- STATE YÖNETİMİ ---
+  const [activeTab, setActiveTab] = useState("performance"); // 'performance' veya 'fleet'
+  
+  // 1. PERFORMANS VERİLERİ İÇİN STATE
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMetric, setSelectedMetric] = useState("teslimPerformansi");
   const [gridData, setGridData] = useState({});
+  
+  // 2. FİLO VERİLERİ İÇİN STATE (YENİ)
+  const [fleetGrid, setFleetGrid] = useState({}); // { "ADATEPE": { car: 2, motor: 1, parcaBasi: 0 } }
+
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
+  
   const MONTH_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  const FLEET_COLUMNS = ["car", "motor", "parcaBasi"]; // Filo tablosu sütunları
 
-  // YENİ: Araç Modal State'leri
-  const [showVehicleModal, setShowVehicleModal] = useState(false);
-  const [vehicleForm, setVehicleForm] = useState({ unit: UNITS[0], car: "", motor: "" });
+  // --- BAŞLANGIÇ VERİLERİNİ YÜKLEME ---
 
+  // A) Performans Verilerini Grid'e Dök
   useEffect(() => {
+    if (activeTab !== "performance") return;
     const newGrid = {};
     UNITS.forEach((unit) => {
       newGrid[unit] = {};
@@ -28,23 +37,35 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
     });
     setGridData(newGrid);
     setPendingChanges(false);
-  }, [selectedYear, selectedMetric, allData]);
+  }, [selectedYear, selectedMetric, allData, activeTab]);
 
-  // Mouse selection logic (Aynı kaldı)
+  // B) Filo Verilerini Grid'e Dök (YENİ)
+  useEffect(() => {
+    if (activeTab !== "fleet") return;
+    const newFleetGrid = {};
+    UNITS.forEach((unit) => {
+      // unitInfo prop'undan gelen veriyi alıyoruz
+      const info = unitInfo[unit] || {};
+      newFleetGrid[unit] = {
+        car: info.car || "",
+        motor: info.motor || "",
+        parcaBasi: info.parcaBasi || ""
+      };
+    });
+    setFleetGrid(newFleetGrid);
+    setPendingChanges(false);
+  }, [unitInfo, activeTab]);
+
+  // --- ORTAK FONKSİYONLAR (Mouse/Klavye) ---
   useEffect(() => {
     const handleWindowMouseUp = () => { if (selection.isDragging) setSelection((prev) => ({ ...prev, isDragging: false })); };
     window.addEventListener("mouseup", handleWindowMouseUp);
     return () => window.removeEventListener("mouseup", handleWindowMouseUp);
   }, [selection.isDragging]);
 
-  const handleInputChange = (unit, month, value) => {
-    setGridData((prev) => ({ ...prev, [unit]: { ...prev[unit], [month]: value } }));
-    setPendingChanges(true);
-  };
-  
-  // Selection handlers (Aynı kaldı)
   const handleMouseDown = (r, c) => { setSelection({ start: { r, c }, end: { r, c }, isDragging: true }); };
   const handleMouseEnter = (r, c) => { if (selection.isDragging) setSelection((prev) => ({ ...prev, end: { r, c } })); };
+  
   const isCellSelected = (r, c) => {
     if (!selection.start || !selection.end) return false;
     const minR = Math.min(selection.start.r, selection.end.r);
@@ -54,8 +75,15 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
     return r >= minR && r <= maxR && c >= minC && c <= maxC;
   };
 
-  // Paste handler (Aynı kaldı)
-  const handlePaste = (e, startUnitIndex, startMonthIndex) => {
+  const handleFocus = (e, r, c) => { e.target.select(); if (!selection.isDragging) setSelection({ start: { r, c }, end: { r, c }, isDragging: false }); };
+
+  // --- PERFORMANS İŞLEMLERİ (ESKİ) ---
+  const handlePerformanceChange = (unit, month, value) => {
+    setGridData((prev) => ({ ...prev, [unit]: { ...prev[unit], [month]: value } }));
+    setPendingChanges(true);
+  };
+
+  const handlePerformancePaste = (e, startUnitIndex, startMonthIndex) => {
     e.preventDefault();
     const clipboardData = e.clipboardData.getData("text");
     const rows = clipboardData.split(/\r\n|\n|\r/).filter((row) => row.trim() !== "");
@@ -81,8 +109,52 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
     setPendingChanges(true);
   };
 
-  // Keyboard navigation (Aynı kaldı)
-  const handleKeyDown = (e, unitIndex, monthIndex) => {
+  // --- FİLO İŞLEMLERİ (YENİ) ---
+  const handleFleetChange = (unit, colKey, value) => {
+    setFleetGrid((prev) => ({
+      ...prev,
+      [unit]: { ...prev[unit], [colKey]: value }
+    }));
+    setPendingChanges(true);
+  };
+
+  const handleFleetPaste = (e, startUnitIndex, startColIndex) => {
+    e.preventDefault();
+    const clipboardData = e.clipboardData.getData("text");
+    const rows = clipboardData.split(/\r\n|\n|\r/).filter((row) => row.trim() !== "");
+    
+    setFleetGrid((prev) => {
+      const newData = { ...prev };
+      rows.forEach((row, rowIndex) => {
+        const targetUnitIndex = startUnitIndex + rowIndex;
+        if (targetUnitIndex >= UNITS.length) return;
+        
+        const unitName = UNITS[targetUnitIndex];
+        const cells = row.split("\t"); // Excelden kopyalanan satırın hücreleri
+        
+        // Eğer o birim henüz gridde yoksa oluştur
+        if (!newData[unitName]) newData[unitName] = { car: "", motor: "", parcaBasi: "" };
+
+        cells.forEach((cellValue, cellIndex) => {
+          // Başlangıç sütununa göre hangi özelliğe (car, motor, pb) denk geldiğini bul
+          const targetColIndex = startColIndex + cellIndex;
+          if (targetColIndex >= FLEET_COLUMNS.length) return;
+          
+          const colKey = FLEET_COLUMNS[targetColIndex]; // 'car', 'motor' veya 'parcaBasi'
+          let cleanValue = cellValue.trim().replace(",", ".");
+          if (cleanValue === "") cleanValue = "";
+          
+          newData[unitName][colKey] = cleanValue;
+        });
+      });
+      return newData;
+    });
+    setPendingChanges(true);
+  };
+
+  // --- ORTAK KLAVYE YÖNETİMİ ---
+  const handleKeyDown = (e, unitIndex, colIndex) => {
+    // Delete tuşu (Ortak)
     if (e.key === "Delete") {
       e.preventDefault();
       if (selection.start && selection.end) {
@@ -90,90 +162,114 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
         const maxR = Math.max(selection.start.r, selection.end.r);
         const minC = Math.min(selection.start.c, selection.end.c);
         const maxC = Math.max(selection.start.c, selection.end.c);
-        setGridData((prev) => {
-          const newData = { ...prev };
-          for (let r = minR; r <= maxR; r++) {
-            const unitName = UNITS[r];
-            if (newData[unitName]) {
-              newData[unitName] = { ...newData[unitName] };
-              for (let c = minC; c <= maxC; c++) {
-                const month = MONTH_INDICES[c];
-                newData[unitName][month] = "";
-              }
-            }
-          }
-          return newData;
-        });
+        
+        if (activeTab === "performance") {
+           setGridData(prev => {
+             const newData = { ...prev };
+             for(let r=minR; r<=maxR; r++) {
+               const u = UNITS[r];
+               if(newData[u]) { newData[u] = {...newData[u]}; for(let c=minC; c<=maxC; c++) newData[u][MONTH_INDICES[c]] = ""; }
+             }
+             return newData;
+           });
+        } else {
+           setFleetGrid(prev => {
+             const newData = { ...prev };
+             for(let r=minR; r<=maxR; r++) {
+                const u = UNITS[r];
+                if(newData[u]) { newData[u] = {...newData[u]}; for(let c=minC; c<=maxC; c++) newData[u][FLEET_COLUMNS[c]] = ""; }
+             }
+             return newData;
+           });
+        }
         setPendingChanges(true);
-      } else {
-        const month = MONTH_INDICES[monthIndex];
-        handleInputChange(UNITS[unitIndex], month, "");
       }
       return;
     }
-    let nextUnitIndex = unitIndex;
-    let nextMonthIndex = monthIndex;
+
+    // Ok Tuşları (Ortak)
+    const maxCols = activeTab === "performance" ? 12 : 3;
+    let nextR = unitIndex;
+    let nextC = colIndex;
     let move = false;
-    if (e.key === "ArrowRight") { move = true; if (monthIndex < 11) nextMonthIndex++; }
-    else if (e.key === "ArrowLeft") { move = true; if (monthIndex > 0) nextMonthIndex--; }
-    else if (e.key === "ArrowDown") { move = true; if (unitIndex < UNITS.length - 1) nextUnitIndex++; }
-    else if (e.key === "ArrowUp") { move = true; if (unitIndex > 0) nextUnitIndex--; }
+
+    if (e.key === "ArrowRight") { move = true; if (colIndex < maxCols - 1) nextC++; }
+    else if (e.key === "ArrowLeft") { move = true; if (colIndex > 0) nextC--; }
+    else if (e.key === "ArrowDown") { move = true; if (unitIndex < UNITS.length - 1) nextR++; }
+    else if (e.key === "ArrowUp") { move = true; if (unitIndex > 0) nextR--; }
 
     if (move) {
       e.preventDefault();
-      const month = MONTH_INDICES[nextMonthIndex];
-      const nextId = `cell-${nextUnitIndex}-${month}`;
-      const element = document.getElementById(nextId);
-      if (element) {
-        element.focus();
-        element.select();
-        setSelection({ start: { r: nextUnitIndex, c: nextMonthIndex }, end: { r: nextUnitIndex, c: nextMonthIndex }, isDragging: false });
+      const colId = activeTab === "performance" ? MONTH_INDICES[nextC] : FLEET_COLUMNS[nextC];
+      const nextElement = document.getElementById(`cell-${activeTab}-${nextR}-${colId}`);
+      if (nextElement) {
+        nextElement.focus();
+        nextElement.select();
+        setSelection({ start: { r: nextR, c: nextC }, end: { r: nextR, c: nextC }, isDragging: false });
       }
     }
   };
 
-  const handleFocus = (e, r, c) => { e.target.select(); if (!selection.isDragging) setSelection({ start: { r, c }, end: { r, c }, isDragging: false }); };
-  const handleAddYear = () => { const nextYear = availableYears[availableYears.length - 1] + 1; setAvailableYears([...availableYears, nextYear]); setSelectedYear(nextYear); };
-  
+  // --- KAYDETME ---
   const handleSave = async () => {
-    let recordsToUpdate = [];
-    UNITS.forEach((unit) => {
-      const unitRow = gridData[unit] || {};
-      MONTH_INDICES.forEach((month) => {
-        const rawValue = unitRow[month];
-        const cleanStr = String(rawValue || "").trim().replace(",", ".");
-        const originalRecord = allData.find((d) => d.unit === unit && d.year === parseInt(selectedYear) && d.month === month);
-        const originalValue = originalRecord ? originalRecord[selectedMetric] : null;
-        let finalValue = null;
-        if (cleanStr !== "") {
-          const parsed = parseFloat(cleanStr);
-          if (!Number.isNaN(parsed)) {
-            finalValue = selectedMetric.includes("Kargo") ? Math.round(parsed) : Number(parsed.toFixed(2));
-          } else { return; }
-        }
-        const isDeleted = (originalValue !== null && originalValue !== undefined) && (finalValue === null);
-        if (!isDeleted && originalValue === finalValue) return;
-        if ((originalValue === null || originalValue === undefined) && finalValue === null) return;
-        const docId = `${unit}-${selectedYear}-${month}`;
-        recordsToUpdate.push({ id: docId, unit, year: parseInt(selectedYear), month, [selectedMetric]: finalValue });
-      });
-    });
-    if (recordsToUpdate.length === 0) { alert("Değişiklik yok."); return; }
-    try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert(`${recordsToUpdate.length} kayıt güncellendi.`); } catch (error) { console.error(error); alert("Hata oluştu."); }
-  };
+    if (activeTab === "performance") {
+        // Eski Kayıt Mantığı
+        let recordsToUpdate = [];
+        UNITS.forEach((unit) => {
+          const unitRow = gridData[unit] || {};
+          MONTH_INDICES.forEach((month) => {
+            const raw = unitRow[month];
+            const cleanStr = String(raw || "").trim().replace(",", ".");
+            const origRec = allData.find((d) => d.unit === unit && d.year === parseInt(selectedYear) && d.month === month);
+            const origVal = origRec ? origRec[selectedMetric] : null;
+            
+            let finalVal = null;
+            if (cleanStr !== "") {
+              const p = parseFloat(cleanStr);
+              if (!Number.isNaN(p)) finalVal = selectedMetric.includes("Kargo") ? Math.round(p) : Number(p.toFixed(2));
+              else return;
+            }
+            if ((origVal !== null && finalVal === null) || (origVal !== finalVal)) {
+                if(!((origVal === null || origVal === undefined) && finalVal === null)) {
+                    recordsToUpdate.push({ id: `${unit}-${selectedYear}-${month}`, unit, year: parseInt(selectedYear), month, [selectedMetric]: finalVal });
+                }
+            }
+          });
+        });
+        if (recordsToUpdate.length === 0) return alert("Değişiklik yok.");
+        try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert("Performans verileri kaydedildi."); } catch(e) { console.error(e); alert("Hata."); }
 
-  // YENİ: Araç Kaydetme Fonksiyonu
-  const handleSaveVehicles = async () => {
-    try {
-      await setDoc(doc(db, "artifacts", appId, "public", "data", "unit_info", vehicleForm.unit), {
-        car: vehicleForm.car,
-        motor: vehicleForm.motor
-      }, { merge: true });
-      alert(`${vehicleForm.unit} için araç sayıları güncellendi!`);
-      setShowVehicleModal(false);
-    } catch (e) {
-      console.error(e);
-      alert("Hata oluştu.");
+    } else {
+        // YENİ: Filo Kayıt Mantığı
+        try {
+            const batch = writeBatch(db);
+            let changeCount = 0;
+            
+            UNITS.forEach(unit => {
+                const row = fleetGrid[unit];
+                const original = unitInfo[unit] || {};
+                
+                // Değişiklik var mı kontrol et (Sadece değişenleri yaz)
+                if (row && (row.car != original.car || row.motor != original.motor || row.parcaBasi != original.parcaBasi)) {
+                    const ref = doc(db, "artifacts", appId, "public", "data", "unit_info", unit);
+                    batch.set(ref, { 
+                        car: row.car || "", 
+                        motor: row.motor || "", 
+                        parcaBasi: row.parcaBasi || "" 
+                    }, { merge: true });
+                    changeCount++;
+                }
+            });
+
+            if (changeCount === 0) return alert("Herhangi bir değişiklik yapmadınız.");
+            
+            await batch.commit();
+            setPendingChanges(false);
+            alert(`${changeCount} birimin filo bilgisi güncellendi.`);
+        } catch (e) {
+            console.error(e);
+            alert("Filo bilgileri kaydedilirken hata oluştu.");
+        }
     }
   };
 
@@ -181,20 +277,16 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col">
+      {/* HEADER */}
       <div className="bg-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between shadow-md gap-2">
         <div className="flex items-center gap-3">
           <Grid className="text-blue-400" size={24} />
           <div>
-            <h2 className="text-lg font-bold">Yıllık Veri Girişi</h2>
+            <h2 className="text-lg font-bold">Veri Giriş Paneli</h2>
             {pendingChanges && <span className="text-xs bg-yellow-500 text-black px-2 py-0.5 rounded font-bold">Kaydedilmemiş Değişiklikler Var</span>}
           </div>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          {/* YENİ: Araç Tanımla Butonu */}
-          <button onClick={() => setShowVehicleModal(true)} className="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg transition-colors flex items-center gap-2">
-            <Truck size={16} /> Araç Tanımla
-          </button>
-
           <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg transition-colors flex items-center gap-2" disabled={isSaving}>
             {isSaving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />} Kaydet
           </button>
@@ -204,57 +296,128 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
         </div>
       </div>
 
+      {/* TAB MENÜSÜ (Üstteki Seçim Alanı) */}
       <div className="bg-slate-100 border-b border-slate-200">
-        <div className="p-3 flex gap-3 items-center justify-between border-b border-slate-200">
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-md border border-slate-300 shadow-sm"><span className="text-xs font-bold text-slate-500 uppercase">Yıl:</span><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent font-bold text-slate-800 outline-none">{availableYears.map((y) => <option key={y} value={y}>{y}</option>)}</select><button onClick={handleAddYear} className="ml-2 p-1 bg-slate-200 hover:bg-blue-100 rounded-full"><Plus size={14} /></button></div>
-          <button onClick={() => { if(window.confirm("Temizlensin mi?")) { const ng={}; UNITS.forEach(u=>{ng[u]={};MONTH_INDICES.forEach(m=>ng[u][m]="")}); setGridData(ng); setPendingChanges(true); } }} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Temizle</button>
+        <div className="flex">
+            <button 
+                onClick={() => setActiveTab("performance")}
+                className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "performance" ? "bg-white text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:bg-slate-200"}`}
+            >
+                <Layers size={16} /> Yıllık Performans
+            </button>
+            <button 
+                onClick={() => setActiveTab("fleet")}
+                className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleet" ? "bg-white text-orange-600 border-b-2 border-orange-600" : "text-slate-500 hover:bg-slate-200"}`}
+            >
+                <Truck size={16} /> Filo Bilgileri (Sabit)
+            </button>
         </div>
-        <div className="px-2 py-2 flex gap-2 overflow-x-auto no-scrollbar">{METRIC_TYPES.map((metric) => (<button key={metric.id} onClick={() => setSelectedMetric(metric.id)} className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${selectedMetric === metric.id ? "bg-slate-800 text-white shadow-md transform scale-105" : "bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"}`}><Layers size={14} /> {metric.label}</button>))}</div>
+
+        {/* PERFORMANS ALT MENÜSÜ (Sadece Performans tabındaysa göster) */}
+        {activeTab === "performance" && (
+            <>
+                <div className="p-3 flex gap-3 items-center justify-between border-b border-slate-200 bg-white">
+                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-300 shadow-sm"><span className="text-xs font-bold text-slate-500 uppercase">Yıl:</span><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent font-bold text-slate-800 outline-none">{availableYears.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
+                    <button onClick={() => { if(window.confirm("Bu tablodaki veriler temizlensin mi?")) { const ng={}; UNITS.forEach(u=>{ng[u]={};MONTH_INDICES.forEach(m=>ng[u][m]="")}); setGridData(ng); setPendingChanges(true); } }} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Temizle</button>
+                </div>
+                <div className="px-2 py-2 flex gap-2 overflow-x-auto no-scrollbar bg-slate-50 border-b border-slate-200">
+                    {METRIC_TYPES.map((metric) => (<button key={metric.id} onClick={() => setSelectedMetric(metric.id)} className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${selectedMetric === metric.id ? "bg-slate-800 text-white shadow-md transform scale-105" : "bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"}`}><Layers size={14} /> {metric.label}</button>))}
+                </div>
+            </>
+        )}
+        
+        {/* FİLO ALT MENÜSÜ (Sadece Filo tabındaysa göster) */}
+        {activeTab === "fleet" && (
+             <div className="p-3 bg-orange-50 border-b border-orange-100 text-center text-xs text-orange-800 font-medium">
+                Bu alandaki veriler <strong>sabit verilerdir</strong>. Aydan aya değişmez. Excel'den (Araç | Motor | Parça Başı) sırasıyla kopyalayıp yapıştırabilirsiniz.
+             </div>
+        )}
       </div>
 
+      {/* --- GRID ALANI --- */}
       <div className="flex-1 overflow-auto bg-slate-5 select-none">
         <table className="w-full border-collapse text-sm bg-white">
-          <thead className="bg-slate-200 sticky top-0 z-10 shadow-sm"><tr><th className="p-3 text-left font-bold text-slate-700 border-r border-slate-300 w-48 sticky left-0 bg-slate-200 z-20">Birim ({UNITS.length})</th>{MONTH_INDICES.map((month) => <th key={month} className="p-2 w-24 text-center font-bold text-slate-700 border-r border-slate-300 bg-slate-100">{MONTH_NAMES[month]}</th>)}</tr></thead>
-          <tbody>{UNITS.map((unit, unitIndex) => { const data = gridData[unit] || {}; return (<tr key={unit} className="border-b border-slate-200 hover:bg-blue-50 transition-colors group"><td className="p-3 font-semibold text-slate-800 border-r border-slate-200 sticky left-0 bg-white group-hover:bg-blue-50 select-text shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{unit}</td>{MONTH_INDICES.map((month, monthArrIndex) => { const isSelected = isCellSelected(unitIndex, monthArrIndex); return (<td key={month} className="p-0 border-r border-slate-100 relative"><input id={`cell-${unitIndex}-${month}`} type="text" className={`w-full h-full p-2 text-center outline-none focus:z-10 relative transition-all text-slate-700 font-mono cursor-default ${isSelected ? "bg-blue-200 ring-1 ring-blue-400" : "bg-transparent focus:ring-2 focus:ring-blue-500 focus:bg-white"}`} placeholder="-" value={data[month] ?? ""} onChange={(e) => handleInputChange(unit, month, e.target.value)} onPaste={(e) => handlePaste(e, unitIndex, monthArrIndex)} onKeyDown={(e) => handleKeyDown(e, unitIndex, monthArrIndex)} onFocus={(e) => handleFocus(e, unitIndex, monthArrIndex)} onMouseDown={() => handleMouseDown(unitIndex, monthArrIndex)} onMouseEnter={() => handleMouseEnter(unitIndex, monthArrIndex)} autoComplete="off" /></td>); })}</tr>); })}</tbody>
+          <thead className="bg-slate-200 sticky top-0 z-10 shadow-sm">
+            <tr>
+              <th className="p-3 text-left font-bold text-slate-700 border-r border-slate-300 w-48 sticky left-0 bg-slate-200 z-20">Birim ({UNITS.length})</th>
+              {activeTab === "performance" ? (
+                  // Performans Başlıkları (Aylar)
+                  MONTH_INDICES.map((month) => <th key={month} className="p-2 w-24 text-center font-bold text-slate-700 border-r border-slate-300 bg-slate-100">{MONTH_NAMES[month]}</th>)
+              ) : (
+                  // Filo Başlıkları (Araç Tipleri)
+                  <>
+                    <th className="p-2 w-32 text-center font-bold text-blue-700 border-r border-slate-300 bg-blue-50"><div className="flex items-center justify-center gap-1"><Truck size={14}/> Araç</div></th>
+                    <th className="p-2 w-32 text-center font-bold text-orange-700 border-r border-slate-300 bg-orange-50"><div className="flex items-center justify-center gap-1"><Zap size={14}/> Motor</div></th>
+                    <th className="p-2 w-32 text-center font-bold text-purple-700 border-r border-slate-300 bg-purple-50"><div className="flex items-center justify-center gap-1"><Package size={14}/> P. Başı</div></th>
+                    {/* Boşluk doldurmak için */}
+                    <th className="bg-slate-50 border-none"></th>
+                  </>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {UNITS.map((unit, unitIndex) => {
+              return (
+                <tr key={unit} className="border-b border-slate-200 hover:bg-blue-50 transition-colors group">
+                  <td className="p-3 font-semibold text-slate-800 border-r border-slate-200 sticky left-0 bg-white group-hover:bg-blue-50 select-text shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{unit}</td>
+                  
+                  {activeTab === "performance" ? (
+                      // PERFORMANS HÜCRELERİ
+                      MONTH_INDICES.map((month, colIndex) => {
+                        const isSelected = isCellSelected(unitIndex, colIndex);
+                        const val = gridData[unit]?.[month] ?? "";
+                        return (
+                          <td key={month} className="p-0 border-r border-slate-100 relative">
+                            <input 
+                                id={`cell-performance-${unitIndex}-${month}`} 
+                                type="text" 
+                                className={`w-full h-full p-2 text-center outline-none focus:z-10 relative transition-all text-slate-700 font-mono cursor-default ${isSelected ? "bg-blue-200 ring-1 ring-blue-400" : "bg-transparent focus:ring-2 focus:ring-blue-500 focus:bg-white"}`} 
+                                placeholder="-" 
+                                value={val} 
+                                onChange={(e) => handleInputChange(unit, month, e.target.value)} 
+                                onPaste={(e) => handlePerformancePaste(e, unitIndex, colIndex)} 
+                                onKeyDown={(e) => handleKeyDown(e, unitIndex, colIndex)} 
+                                onFocus={(e) => handleFocus(e, unitIndex, colIndex)} 
+                                onMouseDown={() => handleMouseDown(unitIndex, colIndex)} 
+                                onMouseEnter={() => handleMouseEnter(unitIndex, colIndex)} 
+                                autoComplete="off" 
+                            />
+                          </td>
+                        );
+                      })
+                  ) : (
+                      // FİLO HÜCRELERİ (3 Sütun)
+                      FLEET_COLUMNS.map((colKey, colIndex) => {
+                          const isSelected = isCellSelected(unitIndex, colIndex);
+                          const val = fleetGrid[unit]?.[colKey] ?? "";
+                          return (
+                            <td key={colKey} className="p-0 border-r border-slate-100 relative">
+                                <input 
+                                    id={`cell-fleet-${unitIndex}-${colKey}`} 
+                                    type="text" 
+                                    className={`w-full h-full p-2 text-center outline-none focus:z-10 relative transition-all text-slate-700 font-mono cursor-default ${isSelected ? "bg-orange-200 ring-1 ring-orange-400" : "bg-transparent focus:ring-2 focus:ring-orange-500 focus:bg-white"}`} 
+                                    placeholder="0" 
+                                    value={val} 
+                                    onChange={(e) => handleFleetChange(unit, colKey, e.target.value)} 
+                                    onPaste={(e) => handleFleetPaste(e, unitIndex, colIndex)} 
+                                    onKeyDown={(e) => handleKeyDown(e, unitIndex, colIndex)} 
+                                    onFocus={(e) => handleFocus(e, unitIndex, colIndex)} 
+                                    onMouseDown={() => handleMouseDown(unitIndex, colIndex)} 
+                                    onMouseEnter={() => handleMouseEnter(unitIndex, colIndex)} 
+                                    autoComplete="off" 
+                                />
+                            </td>
+                          );
+                      })
+                  )}
+                  {/* Filo modunda sağ tarafı boş bırakmak için boş hücre */}
+                  {activeTab === "fleet" && <td></td>}
+                </tr>
+              );
+            })}
+          </tbody>
         </table>
       </div>
-
-      {/* YENİ: ARAÇ TANIMLAMA MODALI */}
-      {showVehicleModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 relative">
-            <button onClick={() => setShowVehicleModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={20}/></button>
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Truck className="text-orange-500"/> Araç/Motor Tanımla</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Birim Seç</label>
-                <select 
-                  value={vehicleForm.unit} 
-                  onChange={(e) => {
-                     const currentInfo = unitInfo?.[e.target.value] || {};
-                     setVehicleForm({ unit: e.target.value, car: currentInfo.car || "", motor: currentInfo.motor || "" });
-                  }} 
-                  className="w-full p-2 bg-slate-100 rounded-lg outline-none font-bold"
-                >
-                  {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Araç Sayısı</label>
-                  <input type="number" value={vehicleForm.car} onChange={(e) => setVehicleForm({...vehicleForm, car: e.target.value})} className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-orange-500" placeholder="0" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Motor Sayısı</label>
-                  <input type="number" value={vehicleForm.motor} onChange={(e) => setVehicleForm({...vehicleForm, motor: e.target.value})} className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-orange-500" placeholder="0" />
-                </div>
-              </div>
-              <button onClick={handleSaveVehicles} className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-slate-800">Kaydet</button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };
