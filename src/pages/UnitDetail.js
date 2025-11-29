@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom"; 
-// YENİ: Zap (veya Bike) ikonunu ekledik
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap } from "lucide-react";
+// YENİ: Package ikonu eklendi
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
@@ -10,7 +10,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const selectedUnit = unitName; 
   const navigate = useNavigate();
 
-  // YENİ: Seçili birimin araç bilgisini al
+  // Seçili birimin araç bilgisini al
   const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
 
   const [showYearAvg, setShowYearAvg] = useState(false);
@@ -111,34 +111,35 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               {displayRegionData && (<div className="bg-black/10 py-2 flex items-center justify-center gap-2 border-t border-white/10"><span className="text-[10px] uppercase opacity-80 font-bold">{showYearAvg ? "BÖLGE YILLIK ORT:" : "BÖLGE ORTALAMASI:"}</span><span className="text-sm font-bold">{formatNumber(displayRegionData.teslimPerformansi)}%</span></div>)}
             </div>
 
-            {/* YENİ: ARAÇ & MOTOR BİLGİSİ */}
+            {/* GÜNCEL FİLO DURUMU (Araç + Motor + Parça Başı) */}
             <div className="mb-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
               <div className="flex gap-2">
                 {/* Araç Kartı */}
-                <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
-                       <Truck size={20} />
-                     </div>
-                     <div>
-                       <p className="text-[10px] font-bold text-slate-400 uppercase">Araç</p>
-                       <p className="text-xl font-bold text-slate-800">{currentVehicles?.car || "0"}</p>
-                     </div>
+                <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-1">
+                     <Truck size={16} />
                    </div>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase">Araç</p>
+                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.car || "0"}</p>
                 </div>
 
                 {/* Motor Kartı */}
-                <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center">
-                       <Zap size={20} /> 
-                     </div>
-                     <div>
-                       <p className="text-[10px] font-bold text-slate-400 uppercase">Motor</p>
-                       <p className="text-xl font-bold text-slate-800">{currentVehicles?.motor || "0"}</p>
-                     </div>
+                <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-8 h-8 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center mb-1">
+                     <Zap size={16} /> 
                    </div>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase">Motor</p>
+                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.motor || "0"}</p>
+                </div>
+
+                {/* YENİ: Parça Başı Kartı */}
+                <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-1">
+                     <Package size={16} /> 
+                   </div>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase">P. Başı</p>
+                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.parcaBasi || "0"}</p>
                 </div>
               </div>
             </div>
