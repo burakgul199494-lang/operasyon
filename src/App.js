@@ -9,7 +9,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebas
 import { collection, onSnapshot, doc, writeBatch } from "firebase/firestore";
 import { auth, db, appId } from "./config/firebase";
 
-// Sayfa Importları (Dosyaların bölündüğü varsayılıyor)
+// Sayfa Importları
 import LoginScreen from "./pages/LoginScreen";
 import LandingMenu from "./pages/LandingMenu";
 import Dashboard from "./pages/Dashboard";
@@ -25,6 +25,9 @@ export default function App() {
   const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // YENİ: Araç/Motor bilgilerini tutacak state
+  const [unitInfo, setUnitInfo] = useState({});
+
   // Router yönlendirmesi için
   const navigate = useNavigate();
 
@@ -51,7 +54,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Data Listener
+  // 2. Data Listener (Performans Kayıtları)
   useEffect(() => {
     if (!user) {
       setAllData([]);
@@ -65,41 +68,53 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
+  // 3. YENİ: Unit Info Listener (Araç Bilgileri vb.)
+  useEffect(() => {
+    if (!user) return;
+    const colRef = collection(db, "artifacts", appId, "public", "data", "unit_info");
+    const unsubscribe = onSnapshot(colRef, (snap) => {
+      const infoMap = {};
+      snap.docs.forEach((d) => {
+        infoMap[d.id] = d.data(); // ID olarak birim ismini kullanacağız (örn: ADATEPE)
+      });
+      setUnitInfo(infoMap);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+
   // --- FONKSİYONLAR ---
 
   const handleAppLogin = async (email, password) => {
     try { 
       await signInWithEmailAndPassword(auth, email, password); 
-      navigate("/"); // Başarılı girişte ana sayfaya git
+      navigate("/"); 
     } catch (e) { alert("Hatalı giriş"); }
   };
 
   const handleAppLogout = async () => {
     if (window.confirm("Çıkış?")) { 
       await signOut(auth); 
-      navigate("/"); // Çıkışta ana path'e dön (Login ekranı karşılar)
+      navigate("/"); 
     }
   };
 
-  // Menüden yönlendirme
   const handleNavigateFromMenu = (target) => {
     if (target === "admin") setShowLoginModal(true);
     else if (target === "dashboard") navigate("/dashboard");
     else if (target === "notes") navigate("/notes");
   };
 
-  // Admin Modal Girişi
   const handleAdminLogin = () => {
     if (adminPassword === "Marvel3535") {
       setShowLoginModal(false);
       setAdminPassword("");
-      navigate("/admin"); // Admin sayfasına git
+      navigate("/admin"); 
     } else {
       alert("Hatalı şifre!");
     }
   };
 
-  // Admin Panel Kayıt İşlemi
   const handleSaveBatch = async (records) => {
     try {
         const chunkSize = 400;
@@ -117,16 +132,13 @@ export default function App() {
 
   if (loading) return <div>Yükleniyor...</div>;
 
-  // Kullanıcı yoksa Login Ekranı
   if (!user) return <LoginScreen onLogin={handleAppLogin} loading={false} error="" />;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 safe-area-pb">
       
-      {/* ROUTER YAPISI: Sayfa geçişleri burada yönetilir */}
       <Routes>
         
-        {/* Ana Menü */}
         <Route path="/" element={
           <LandingMenu
             user={user}
@@ -136,7 +148,6 @@ export default function App() {
           />
         } />
 
-        {/* Birim Listesi */}
         <Route path="/dashboard" element={
           <Dashboard 
             onUnitClick={(unit) => navigate(`/detail/${unit}`)} 
@@ -144,24 +155,23 @@ export default function App() {
           />
         } />
 
-        {/* Detay Sayfası (URL Parametresi alır: /detail/ADATEPE) */}
         <Route path="/detail/:unitName" element={
           <UnitDetail
             allData={allData}
+            unitInfo={unitInfo} // YENİ: Veriyi detaya gönderiyoruz
             onBack={() => navigate("/dashboard")}
             onChangeUnit={(u) => navigate(`/detail/${u}`)}
           />
         } />
 
-        {/* Notlar */}
         <Route path="/notes" element={
           <NotesPage user={user} onClose={() => navigate("/")} />
         } />
 
-        {/* Admin Paneli */}
         <Route path="/admin" element={
           <AdminPanel
             allData={allData}
+            unitInfo={unitInfo} // YENİ: Veriyi admine gönderiyoruz (düzenleme için)
             onSaveBatch={handleSaveBatch}
             onClose={() => navigate("/")}
             availableYears={availableYears}
@@ -172,8 +182,6 @@ export default function App() {
         } />
 
       </Routes>
-
-      {/* GLOBAL MODALLAR (URL'den bağımsız açılanlar) */}
       
       {isProfileOpen && (
         <UserProfileModal user={user} onClose={() => setProfileOpen(false)} />
