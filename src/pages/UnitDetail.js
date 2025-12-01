@@ -87,39 +87,39 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       <div className="p-4 space-y-4">
         {hasValidData ? (
           <>
-            {/* 1. GÜNCEL FİLO DURUMU (5 KUTU) */}
+            {/* 1. GÜNCEL FİLO DURUMU (5 KUTU - Sıkıştırılmış Mobil Uyumlu) */}
             <div className="mb-2">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+              <div className="flex gap-1">
                 {/* Özmal */}
-                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-1"><Truck size={16} /></div>
-                   <p className="text-[9px] font-bold text-slate-400 uppercase">Özmal</p>
-                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.ozmal || "0"}</p>
+                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Özmal</p>
+                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.ozmal || "0"}</p>
                 </div>
                 {/* Öz.Mas.Har */}
-                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-8 h-8 rounded-full bg-cyan-50 text-cyan-600 flex items-center justify-center mb-1"><Truck size={16} /></div>
-                   <p className="text-[9px] font-bold text-slate-400 uppercase truncate w-full" title="Öz.Mas.Har">Öz.M.Har</p>
-                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.ozMasHar || "0"}</p>
+                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-cyan-50 text-cyan-600 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5 whitespace-nowrap">Öz.M.H</p>
+                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.ozMasHar || "0"}</p>
                 </div>
                 {/* Kiralık */}
-                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-1"><Key size={16} /></div>
-                   <p className="text-[9px] font-bold text-slate-400 uppercase">Kiralık</p>
-                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.kiralik || "0"}</p>
+                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-0.5"><Key size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Kiralık</p>
+                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.kiralik || "0"}</p>
                 </div>
                 {/* Motor */}
-                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-8 h-8 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center mb-1"><Zap size={16} /></div>
-                   <p className="text-[9px] font-bold text-slate-400 uppercase">Motor</p>
-                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.motor || "0"}</p>
+                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center mb-0.5"><Zap size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Motor</p>
+                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.motor || "0"}</p>
                 </div>
                 {/* Parça Başı */}
-                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-1"><Package size={16} /></div>
-                   <p className="text-[9px] font-bold text-slate-400 uppercase">P.Başı</p>
-                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.parcaBasi || "0"}</p>
+                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-0.5"><Package size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">P.Başı</p>
+                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.parcaBasi || "0"}</p>
                 </div>
               </div>
             </div>
