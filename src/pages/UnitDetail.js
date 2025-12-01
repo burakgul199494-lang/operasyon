@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package } from "lucide-react";
+// YENİ: Key ikonu eklendi
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
@@ -16,6 +17,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const availableYears = [2024, 2025, 2026];
 
+  // Oto-Seçim
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
     const unitRecords = allData.filter(d => d.unit === selectedUnit && d.teslimPerformansi !== null && d.teslimPerformansi !== undefined && d.teslimPerformansi !== "");
@@ -35,7 +37,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
     if (yearRecords.length === 0) return null;
-    // YENİ: gelenAdet ve gidenAdet alanlarını da hesaplamaya katıyoruz
     const fields = ["teslimPerformansi", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"];
     const totals = {}; const counts = {};
     fields.forEach(f => { totals[f] = 0; counts[f] = 0; });
@@ -48,7 +49,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const averages = {};
     fields.forEach(field => {
       if (counts[field] > 0) {
-        // Hacim (Kargo) ve Adet bilgileri için yuvarlama yapıyoruz
         if (["gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"].includes(field)) { averages[field] = Math.round(totals[field]); } 
         else { averages[field] = (totals[field] / counts[field]).toFixed(2); }
       } else { averages[field] = 0; }
@@ -87,23 +87,38 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       <div className="p-4 space-y-4">
         {hasValidData ? (
           <>
-            {/* 1. GÜNCEL FİLO DURUMU (EN ÜSTE TAŞINDI) */}
+            {/* 1. GÜNCEL FİLO DURUMU (5 KUTU) */}
             <div className="mb-2">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
-              <div className="flex gap-2">
-                <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                {/* Özmal */}
+                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
                    <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-1"><Truck size={16} /></div>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase">Araç</p>
-                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.car || "0"}</p>
+                   <p className="text-[9px] font-bold text-slate-400 uppercase">Özmal</p>
+                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.ozmal || "0"}</p>
                 </div>
-                <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                {/* Öz.Mas.Har */}
+                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-8 h-8 rounded-full bg-cyan-50 text-cyan-600 flex items-center justify-center mb-1"><Truck size={16} /></div>
+                   <p className="text-[9px] font-bold text-slate-400 uppercase truncate w-full" title="Öz.Mas.Har">Öz.M.Har</p>
+                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.ozMasHar || "0"}</p>
+                </div>
+                {/* Kiralık */}
+                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-1"><Key size={16} /></div>
+                   <p className="text-[9px] font-bold text-slate-400 uppercase">Kiralık</p>
+                   <p className="text-lg font-bold text-slate-800">{currentVehicles?.kiralik || "0"}</p>
+                </div>
+                {/* Motor */}
+                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
                    <div className="w-8 h-8 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center mb-1"><Zap size={16} /></div>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase">Motor</p>
+                   <p className="text-[9px] font-bold text-slate-400 uppercase">Motor</p>
                    <p className="text-lg font-bold text-slate-800">{currentVehicles?.motor || "0"}</p>
                 </div>
-                <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                {/* Parça Başı */}
+                <div className="min-w-[70px] flex-1 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
                    <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-1"><Package size={16} /></div>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase">P. Başı</p>
+                   <p className="text-[9px] font-bold text-slate-400 uppercase">P.Başı</p>
                    <p className="text-lg font-bold text-slate-800">{currentVehicles?.parcaBasi || "0"}</p>
                 </div>
               </div>
@@ -125,43 +140,22 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             {/* 4. DİJİTAL */}
             <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">{showYearAvg ? "Yıllık Dijital Ort." : "Dijital"}</h3><div className="grid grid-cols-3 gap-2"><KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} /><KPICard title="E-ATF" value={displayData.eAtfOrani} comparisonValue={displayRegionData?.eAtfOrani} target={80} suffix="%" color={displayData.eAtfOrani <= 80 ? "red" : "green"} icon={FileText} /><KPICard title="E-İhbar" value={displayData.elektronikIhbar} comparisonValue={displayRegionData?.elektronikIhbar} target={90} suffix="%" color={displayData.elektronikIhbar <= 90 ? "red" : "green"} icon={Mail} /></div></div>
             
-            {/* 5. YENİ TASARIM: HACİM (GELEN / GİDEN - Kargo ve Adet) */}
+            {/* 5. HACİM (YENİ TASARIM) */}
             <div>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">{showYearAvg ? "Yıllık Hacim Ortalaması" : "Hacim"}</h3>
               <div className="grid grid-cols-2 gap-3">
-                {/* GELEN KUTUSU */}
                 <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-2 mb-3 border-b border-slate-100 pb-2">
-                        <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Truck size={16}/></div>
-                        <span className="text-sm font-bold text-slate-700">Gelen</span>
-                    </div>
+                    <div className="flex items-center gap-2 mb-3 border-b border-slate-100 pb-2"><div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700">Gelen</span></div>
                     <div className="flex justify-between items-end">
-                        <div className="text-center flex-1 border-r border-slate-100">
-                            <div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gelenKargo)}</div>
-                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div>
-                        </div>
-                        <div className="text-center flex-1">
-                            <div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gelenAdet)}</div>
-                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div>
-                        </div>
+                        <div className="text-center flex-1 border-r border-slate-100"><div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gelenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gelenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                     </div>
                 </div>
-
-                {/* GİDEN KUTUSU */}
                 <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-2 mb-3 border-b border-slate-100 pb-2">
-                        <div className="p-1.5 bg-green-50 text-green-600 rounded-lg"><Box size={16}/></div>
-                        <span className="text-sm font-bold text-slate-700">Giden</span>
-                    </div>
+                    <div className="flex items-center gap-2 mb-3 border-b border-slate-100 pb-2"><div className="p-1.5 bg-green-50 text-green-600 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700">Giden</span></div>
                     <div className="flex justify-between items-end">
-                        <div className="text-center flex-1 border-r border-slate-100">
-                            <div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gidenKargo)}</div>
-                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div>
-                        </div>
-                        <div className="text-center flex-1">
-                            <div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gidenAdet)}</div>
-                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div>
-                        </div>
+                        <div className="text-center flex-1 border-r border-slate-100"><div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gidenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gidenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                     </div>
                 </div>
               </div>
