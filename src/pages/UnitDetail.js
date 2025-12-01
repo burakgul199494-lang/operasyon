@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom"; 
-// YENİ: Key ikonu eklendi
 import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
@@ -87,7 +86,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       <div className="p-4 space-y-4">
         {hasValidData ? (
           <>
-            {/* 1. GÜNCEL FİLO DURUMU (5 KUTU - Sıkıştırılmış Mobil Uyumlu) */}
+            {/* 1. GÜNCEL FİLO DURUMU (6 KUTU - Sıkıştırılmış Mobil Uyumlu) */}
             <div className="mb-2">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
               <div className="flex gap-1">
@@ -108,6 +107,12 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                    <div className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-0.5"><Key size={12} /></div>
                    <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Kiralık</p>
                    <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.kiralik || "0"}</p>
+                </div>
+                {/* YENİ: Destek */}
+                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Destek</p>
+                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.destek || "0"}</p>
                 </div>
                 {/* Motor */}
                 <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
@@ -140,7 +145,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             {/* 4. DİJİTAL */}
             <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">{showYearAvg ? "Yıllık Dijital Ort." : "Dijital"}</h3><div className="grid grid-cols-3 gap-2"><KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} /><KPICard title="E-ATF" value={displayData.eAtfOrani} comparisonValue={displayRegionData?.eAtfOrani} target={80} suffix="%" color={displayData.eAtfOrani <= 80 ? "red" : "green"} icon={FileText} /><KPICard title="E-İhbar" value={displayData.elektronikIhbar} comparisonValue={displayRegionData?.elektronikIhbar} target={90} suffix="%" color={displayData.elektronikIhbar <= 90 ? "red" : "green"} icon={Mail} /></div></div>
             
-            {/* 5. HACİM (YENİ TASARIM) */}
+            {/* 5. HACİM */}
             <div>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">{showYearAvg ? "Yıllık Hacim Ortalaması" : "Hacim"}</h3>
               <div className="grid grid-cols-2 gap-3">
