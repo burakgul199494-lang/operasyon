@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-// YENİ: Key ikonu eklendi (Kiralık araçlar için)
-import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Package, Zap, Key } from "lucide-react";
+import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Package, Zap, Key, LifeBuoy } from "lucide-react";
 import { UNITS, METRIC_TYPES, MONTH_NAMES } from "../utils/helpers";
 import { doc, writeBatch, setDoc } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
@@ -16,17 +15,15 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
   
   const MONTH_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   
-  // YENİ: Filo Sütun Yapısı (5 Adet)
-  const FLEET_COLUMNS = ["ozmal", "ozMasHar", "kiralik", "motor", "parcaBasi"];
+  // YENİ: 6. Sütun "destek" eklendi
+  const FLEET_COLUMNS = ["ozmal", "ozMasHar", "kiralik", "destek", "motor", "parcaBasi"];
 
-  // YENİ: Yıl Ekleme Fonksiyonu
   const handleAddYear = () => {
     const nextYear = availableYears[availableYears.length - 1] + 1;
     setAvailableYears([...availableYears, nextYear]);
     setSelectedYear(nextYear);
   };
 
-  // Performans Verilerini Yükle
   useEffect(() => {
     if (activeTab !== "performance") return;
     const newGrid = {};
@@ -41,17 +38,16 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
     setPendingChanges(false);
   }, [selectedYear, selectedMetric, allData, activeTab]);
 
-  // Filo Verilerini Yükle
   useEffect(() => {
     if (activeTab !== "fleet") return;
     const newFleetGrid = {};
     UNITS.forEach((unit) => {
       const info = unitInfo[unit] || {};
-      // Veritabanından gelen verileri grid'e eşle
       newFleetGrid[unit] = {
         ozmal: info.ozmal || "",
         ozMasHar: info.ozMasHar || "",
         kiralik: info.kiralik || "",
+        destek: info.destek || "", // YENİ
         motor: info.motor || "",
         parcaBasi: info.parcaBasi || ""
       };
@@ -60,7 +56,6 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
     setPendingChanges(false);
   }, [unitInfo, activeTab]);
 
-  // Mouse selection logic
   useEffect(() => {
     const handleWindowMouseUp = () => { if (selection.isDragging) setSelection((prev) => ({ ...prev, isDragging: false })); };
     window.addEventListener("mouseup", handleWindowMouseUp);
@@ -91,7 +86,6 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
 
   const handleFocus = (e, r, c) => { e.target.select(); if (!selection.isDragging) setSelection({ start: { r, c }, end: { r, c }, isDragging: false }); };
 
-  // Paste Handlers
   const handlePerformancePaste = (e, startUnitIndex, startMonthIndex) => {
     e.preventDefault();
     const clipboardData = e.clipboardData.getData("text");
@@ -129,7 +123,7 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
         if (targetUnitIndex >= UNITS.length) return;
         const unitName = UNITS[targetUnitIndex];
         const cells = row.split("\t");
-        if (!newData[unitName]) newData[unitName] = { ozmal: "", ozMasHar: "", kiralik: "", motor: "", parcaBasi: "" };
+        if (!newData[unitName]) newData[unitName] = { ozmal: "", ozMasHar: "", kiralik: "", destek: "", motor: "", parcaBasi: "" };
         cells.forEach((cellValue, cellIndex) => {
           const targetColIndex = startColIndex + cellIndex;
           if (targetColIndex >= FLEET_COLUMNS.length) return;
@@ -169,8 +163,8 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
       }
       return;
     }
-    // Sütun sayısı: Performans ise 12, Filo ise 5
-    const maxCols = activeTab === "performance" ? 12 : 5;
+    // GÜNCELLENDİ: Fleet için maxCols 6 oldu
+    const maxCols = activeTab === "performance" ? 12 : 6;
     let nextR = unitIndex, nextC = colIndex, move = false;
     if (e.key === "ArrowRight") { move = true; if (colIndex < maxCols - 1) nextC++; }
     else if (e.key === "ArrowLeft") { move = true; if (colIndex > 0) nextC--; }
@@ -221,11 +215,12 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
                 const row = fleetGrid[unit];
                 const original = unitInfo[unit] || {};
                 
-                // 5 Alanı kontrol ediyoruz
+                // YENİ: Destek alanı eklendi
                 if (row && (
                     row.ozmal != original.ozmal || 
                     row.ozMasHar != original.ozMasHar || 
                     row.kiralik != original.kiralik || 
+                    row.destek != original.destek || 
                     row.motor != original.motor || 
                     row.parcaBasi != original.parcaBasi
                 )) {
@@ -234,6 +229,7 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
                         ozmal: row.ozmal || "", 
                         ozMasHar: row.ozMasHar || "", 
                         kiralik: row.kiralik || "", 
+                        destek: row.destek || "", 
                         motor: row.motor || "", 
                         parcaBasi: row.parcaBasi || "" 
                     }, { merge: true });
@@ -283,7 +279,7 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
                 </div>
             </>
         )}
-        {activeTab === "fleet" && (<div className="p-3 bg-orange-50 border-b border-orange-100 text-center text-xs text-orange-800 font-medium">Bu alandaki veriler <strong>sabit verilerdir</strong>. Excel'den (Özmal | Öz.Mas.Har. | Kiralık | Motor | Parçabaşı) sırasıyla kopyalayıp yapıştırabilirsiniz.</div>)}
+        {activeTab === "fleet" && (<div className="p-3 bg-orange-50 border-b border-orange-100 text-center text-xs text-orange-800 font-medium">Bu alandaki veriler <strong>sabit verilerdir</strong>. Excel'den (Özmal | Öz.Mas.Har. | Kiralık | Destek | Motor | Parçabaşı) sırasıyla kopyalayıp yapıştırabilirsiniz.</div>)}
       </div>
 
       <div className="flex-1 overflow-auto bg-slate-5 select-none">
@@ -298,6 +294,7 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
                     <th className="p-2 w-24 text-center font-bold text-blue-700 border-r border-slate-300 bg-blue-50"><div className="flex flex-col items-center justify-center gap-1"><Truck size={14}/> Özmal</div></th>
                     <th className="p-2 w-24 text-center font-bold text-cyan-700 border-r border-slate-300 bg-cyan-50"><div className="flex flex-col items-center justify-center gap-1"><Truck size={14}/> Öz.M.Har</div></th>
                     <th className="p-2 w-24 text-center font-bold text-indigo-700 border-r border-slate-300 bg-indigo-50"><div className="flex flex-col items-center justify-center gap-1"><Key size={14}/> Kiralık</div></th>
+                    <th className="p-2 w-24 text-center font-bold text-rose-700 border-r border-slate-300 bg-rose-50"><div className="flex flex-col items-center justify-center gap-1"><Truck size={14}/> Destek</div></th>
                     <th className="p-2 w-24 text-center font-bold text-orange-700 border-r border-slate-300 bg-orange-50"><div className="flex flex-col items-center justify-center gap-1"><Zap size={14}/> Motor</div></th>
                     <th className="p-2 w-24 text-center font-bold text-purple-700 border-r border-slate-300 bg-purple-50"><div className="flex flex-col items-center justify-center gap-1"><Package size={14}/> P.Başı</div></th>
                     <th className="bg-slate-50 border-none"></th>
