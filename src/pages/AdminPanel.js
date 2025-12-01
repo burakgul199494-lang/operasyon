@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Package, Zap } from "lucide-react";
+// YENİ: Key ikonu eklendi (Kiralık araçlar için)
+import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Package, Zap, Key } from "lucide-react";
 import { UNITS, METRIC_TYPES, MONTH_NAMES } from "../utils/helpers";
 import { doc, writeBatch, setDoc } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
@@ -14,15 +15,14 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
   
   const MONTH_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-  const FLEET_COLUMNS = ["car", "motor", "parcaBasi"];
+  
+  // YENİ: Filo Sütun Yapısı (5 Adet)
+  const FLEET_COLUMNS = ["ozmal", "ozMasHar", "kiralik", "motor", "parcaBasi"];
 
   // YENİ: Yıl Ekleme Fonksiyonu
   const handleAddYear = () => {
-    // Listede olmayan bir sonraki yılı bul (Örn: 2026 ise 2027 yap)
     const nextYear = availableYears[availableYears.length - 1] + 1;
-    // App.js'deki listeyi güncelle
     setAvailableYears([...availableYears, nextYear]);
-    // Seçimi yeni yıla getir
     setSelectedYear(nextYear);
   };
 
@@ -47,8 +47,11 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
     const newFleetGrid = {};
     UNITS.forEach((unit) => {
       const info = unitInfo[unit] || {};
+      // Veritabanından gelen verileri grid'e eşle
       newFleetGrid[unit] = {
-        car: info.car || "",
+        ozmal: info.ozmal || "",
+        ozMasHar: info.ozMasHar || "",
+        kiralik: info.kiralik || "",
         motor: info.motor || "",
         parcaBasi: info.parcaBasi || ""
       };
@@ -126,7 +129,7 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
         if (targetUnitIndex >= UNITS.length) return;
         const unitName = UNITS[targetUnitIndex];
         const cells = row.split("\t");
-        if (!newData[unitName]) newData[unitName] = { car: "", motor: "", parcaBasi: "" };
+        if (!newData[unitName]) newData[unitName] = { ozmal: "", ozMasHar: "", kiralik: "", motor: "", parcaBasi: "" };
         cells.forEach((cellValue, cellIndex) => {
           const targetColIndex = startColIndex + cellIndex;
           if (targetColIndex >= FLEET_COLUMNS.length) return;
@@ -166,7 +169,8 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
       }
       return;
     }
-    const maxCols = activeTab === "performance" ? 12 : 3;
+    // Sütun sayısı: Performans ise 12, Filo ise 5
+    const maxCols = activeTab === "performance" ? 12 : 5;
     let nextR = unitIndex, nextC = colIndex, move = false;
     if (e.key === "ArrowRight") { move = true; if (colIndex < maxCols - 1) nextC++; }
     else if (e.key === "ArrowLeft") { move = true; if (colIndex > 0) nextC--; }
@@ -216,10 +220,20 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
             UNITS.forEach(unit => {
                 const row = fleetGrid[unit];
                 const original = unitInfo[unit] || {};
-                if (row && (row.car != original.car || row.motor != original.motor || row.parcaBasi != original.parcaBasi)) {
+                
+                // 5 Alanı kontrol ediyoruz
+                if (row && (
+                    row.ozmal != original.ozmal || 
+                    row.ozMasHar != original.ozMasHar || 
+                    row.kiralik != original.kiralik || 
+                    row.motor != original.motor || 
+                    row.parcaBasi != original.parcaBasi
+                )) {
                     const ref = doc(db, "artifacts", appId, "public", "data", "unit_info", unit);
                     batch.set(ref, { 
-                        car: row.car || "", 
+                        ozmal: row.ozmal || "", 
+                        ozMasHar: row.ozMasHar || "", 
+                        kiralik: row.kiralik || "", 
                         motor: row.motor || "", 
                         parcaBasi: row.parcaBasi || "" 
                     }, { merge: true });
@@ -259,17 +273,8 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
                 <div className="p-3 flex gap-3 items-center justify-between border-b border-slate-200 bg-white">
                     <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-300 shadow-sm">
                       <span className="text-xs font-bold text-slate-500 uppercase">Yıl:</span>
-                      <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent font-bold text-slate-800 outline-none">
-                        {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
-                      </select>
-                      {/* DÜZELTME: Yıl Ekleme Butonu Buraya Eklendi */}
-                      <button 
-                        onClick={handleAddYear} 
-                        className="ml-2 bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 transition-colors"
-                        title="Yeni Yıl Ekle"
-                      >
-                        <Plus size={12} /> Ekle
-                      </button>
+                      <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent font-bold text-slate-800 outline-none">{availableYears.map((y) => <option key={y} value={y}>{y}</option>)}</select>
+                      <button onClick={handleAddYear} className="ml-2 bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 transition-colors"><Plus size={12} /> Ekle</button>
                     </div>
                     <button onClick={() => { if(window.confirm("Bu tablodaki veriler temizlensin mi?")) { const ng={}; UNITS.forEach(u=>{ng[u]={};MONTH_INDICES.forEach(m=>ng[u][m]="")}); setGridData(ng); setPendingChanges(true); } }} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Temizle</button>
                 </div>
@@ -278,7 +283,7 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
                 </div>
             </>
         )}
-        {activeTab === "fleet" && (<div className="p-3 bg-orange-50 border-b border-orange-100 text-center text-xs text-orange-800 font-medium">Bu alandaki veriler <strong>sabit verilerdir</strong>. Aydan aya değişmez.</div>)}
+        {activeTab === "fleet" && (<div className="p-3 bg-orange-50 border-b border-orange-100 text-center text-xs text-orange-800 font-medium">Bu alandaki veriler <strong>sabit verilerdir</strong>. Excel'den (Özmal | Öz.Mas.Har. | Kiralık | Motor | Parçabaşı) sırasıyla kopyalayıp yapıştırabilirsiniz.</div>)}
       </div>
 
       <div className="flex-1 overflow-auto bg-slate-5 select-none">
@@ -290,9 +295,11 @@ const AdminPanel = ({ allData, unitInfo, onSaveBatch, onClose, availableYears, s
                   MONTH_INDICES.map((month) => <th key={month} className="p-2 w-24 text-center font-bold text-slate-700 border-r border-slate-300 bg-slate-100">{MONTH_NAMES[month]}</th>)
               ) : (
                   <>
-                    <th className="p-2 w-32 text-center font-bold text-blue-700 border-r border-slate-300 bg-blue-50"><div className="flex items-center justify-center gap-1"><Truck size={14}/> Araç</div></th>
-                    <th className="p-2 w-32 text-center font-bold text-orange-700 border-r border-slate-300 bg-orange-50"><div className="flex items-center justify-center gap-1"><Zap size={14}/> Motor</div></th>
-                    <th className="p-2 w-32 text-center font-bold text-purple-700 border-r border-slate-300 bg-purple-50"><div className="flex items-center justify-center gap-1"><Package size={14}/> P. Başı</div></th>
+                    <th className="p-2 w-24 text-center font-bold text-blue-700 border-r border-slate-300 bg-blue-50"><div className="flex flex-col items-center justify-center gap-1"><Truck size={14}/> Özmal</div></th>
+                    <th className="p-2 w-24 text-center font-bold text-cyan-700 border-r border-slate-300 bg-cyan-50"><div className="flex flex-col items-center justify-center gap-1"><Truck size={14}/> Öz.M.Har</div></th>
+                    <th className="p-2 w-24 text-center font-bold text-indigo-700 border-r border-slate-300 bg-indigo-50"><div className="flex flex-col items-center justify-center gap-1"><Key size={14}/> Kiralık</div></th>
+                    <th className="p-2 w-24 text-center font-bold text-orange-700 border-r border-slate-300 bg-orange-50"><div className="flex flex-col items-center justify-center gap-1"><Zap size={14}/> Motor</div></th>
+                    <th className="p-2 w-24 text-center font-bold text-purple-700 border-r border-slate-300 bg-purple-50"><div className="flex flex-col items-center justify-center gap-1"><Package size={14}/> P.Başı</div></th>
                     <th className="bg-slate-50 border-none"></th>
                   </>
               )}
