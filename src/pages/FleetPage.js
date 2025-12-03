@@ -5,14 +5,19 @@ const FleetPage = ({ fleetData, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState(null);
 
-  // Arama mantığı
+  // YENİ: Türkçe Karakter Uyumlu Arama Mantığı
   const filteredList = useMemo(() => {
     if (!searchQuery.trim()) return [];
-    const lowerQ = searchQuery.toLowerCase();
-    return fleetData.filter(item => 
-      (item.plate && item.plate.toLowerCase().includes(lowerQ)) || 
-      (item.unit && item.unit.toLowerCase().includes(lowerQ))
-    );
+    
+    // Aramayı Türkçe uyumlu küçült
+    const lowerQ = searchQuery.toLocaleLowerCase('tr-TR');
+    
+    return fleetData.filter(item => {
+      // Verileri de Türkçe uyumlu küçülterek karşılaştır
+      const plateMatch = item.plate && item.plate.toLocaleLowerCase('tr-TR').includes(lowerQ);
+      const unitMatch = item.unit && item.unit.toLocaleLowerCase('tr-TR').includes(lowerQ);
+      return plateMatch || unitMatch;
+    });
   }, [fleetData, searchQuery]);
 
   return (
@@ -98,9 +103,7 @@ const FleetPage = ({ fleetData, onBack }) => {
 
             <div className="p-6 space-y-4">
               <DetailRow icon={User} label="Tedarikçi" value={selectedVehicle.supplier} />
-              {/* YENİ: Araç Cinsi Satırı */}
               <DetailRow icon={Truck} label="Araç Cinsi" value={selectedVehicle.vehicleType} />
-              
               <DetailRow icon={CarFront} label="Marka / Model" value={`${selectedVehicle.brand} ${selectedVehicle.model}`} />
               <DetailRow icon={Calendar} label="Model Yılı" value={selectedVehicle.year} />
               <DetailRow icon={PenTool} label="Çalışma Şekli" value={selectedVehicle.operationType} />
