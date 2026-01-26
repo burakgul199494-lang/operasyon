@@ -163,7 +163,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       comparisonValue={displayRegionData?.htfOrani} 
       target={1} 
       suffix="%" 
-      color={parseFloat(displayData.htfOrani) > 1 ? "red" : "green"} 
+      color={parseFloat(displayData.htfOrani) > 90 ? "red" : "green"} 
       icon={Activity} 
     />
     <KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} />
