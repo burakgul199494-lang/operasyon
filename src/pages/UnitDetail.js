@@ -161,7 +161,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       title="HTF" 
       value={displayData.htfOrani} 
       comparisonValue={displayRegionData?.htfOrani} 
-      target={1} 
+      target={90} 
       suffix="%" 
       color={parseFloat(displayData.htfOrani) > 90 ? "red" : "green"} 
       icon={Activity} 
