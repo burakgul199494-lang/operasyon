@@ -16,7 +16,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const availableYears = [2024, 2025, 2026];
 
-  // Oto-Seçime
+  // Oto-Seçim
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
     const unitRecords = allData.filter(d => d.unit === selectedUnit && d.teslimPerformansi !== null && d.teslimPerformansi !== undefined && d.teslimPerformansi !== "");
