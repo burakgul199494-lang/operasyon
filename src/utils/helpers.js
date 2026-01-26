@@ -30,6 +30,7 @@ export const MONTH_NAMES = [
 
 export const METRIC_TYPES = [
   { id: "teslimPerformansi", label: "Teslim Perf. %", color: "blue" },
+  { id: "htfOrani", label: "HTF Oranı %", color: "red" }, // <-- Bu satırı ekle
   { id: "rotaOrani", label: "Rota Oranı %", color: "indigo" },
   { id: "tvsOrani", label: "TVS Oranı %", color: "indigo" },
   { id: "checkInOrani", label: "Check-in %", color: "indigo" },
