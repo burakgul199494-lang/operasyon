@@ -36,7 +36,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
     if (yearRecords.length === 0) return null;
-    const fields = ["teslimPerformansi", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"];
+    const fields = ["teslimPerformansi", "htfOrani", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"];
     const totals = {}; const counts = {};
     fields.forEach(f => { totals[f] = 0; counts[f] = 0; });
     yearRecords.forEach(record => {
