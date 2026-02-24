@@ -60,7 +60,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     ? (selectedUnit === "BÖLGE" ? null : calculateYearlyAverage("BÖLGE"))
     : (selectedUnit === "BÖLGE" ? null : allData.find(d => d.unit === "BÖLGE" && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth)));
   
-  const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 94;
+  const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 95;
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
   return (
@@ -134,7 +134,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               <div className="p-5 pb-4">
                 <p className={`text-xs font-bold uppercase tracking-widest opacity-90 mb-2 ${isTeslimBasarisiz ? "text-red-100" : "text-emerald-100"}`}>{showYearAvg ? `${selectedYear} Ort. Teslim Perf.` : "Teslim Performansı"}</p>
                 <h2 className="text-5xl font-extrabold tracking-tight leading-none">{formatNumber(displayData.teslimPerformansi)}%</h2>
-                <p className="mt-2 text-xs font-medium inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %94</p>
+                <p className="mt-2 text-xs font-medium inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %95</p>
               </div>
               {displayRegionData && (<div className="bg-black/10 py-2 flex items-center justify-center gap-2 border-t border-white/10"><span className="text-[10px] uppercase opacity-80 font-bold">{showYearAvg ? "BÖLGE YILLIK ORT:" : "BÖLGE ORTALAMASI:"}</span><span className="text-sm font-bold">{formatNumber(displayRegionData.teslimPerformansi)}%</span></div>)}
             </div>
