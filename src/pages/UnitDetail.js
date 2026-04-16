@@ -16,7 +16,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const availableYears = [2024, 2025, 2026];
 
-  // Oto-Seçim
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
     const unitRecords = allData.filter(d => d.unit === selectedUnit && d.teslimPerformansi !== null && d.teslimPerformansi !== undefined && d.teslimPerformansi !== "");
@@ -64,75 +63,87 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
   return (
-    <div className="pb-24 bg-slate-50 min-h-screen">
-      <div className="bg-white sticky top-0 z-20 shadow-sm border-b border-slate-100">
+    <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-20 shadow-sm border-b border-slate-200 dark:border-slate-800">
         <div className="px-4 py-3 flex items-center gap-3">
-          <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 rounded-full flex-shrink-0"><ArrowLeft size={22} className="text-slate-600" /></button>
+          <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
+            <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
+          </button>
           <div className="flex-1 min-w-0">
             <div className="relative flex items-center w-full max-w-[250px]">
-              <select value={selectedUnit} onChange={(e) => onChangeUnit(e.target.value)} className="appearance-none bg-transparent text-lg font-bold text-slate-800 w-full pr-8 outline-none cursor-pointer truncate py-1 z-10">{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+              <select value={selectedUnit} onChange={(e) => onChangeUnit(e.target.value)} className="appearance-none bg-transparent text-lg font-bold text-slate-800 dark:text-white w-full pr-8 outline-none cursor-pointer truncate py-1 z-10">
+                {UNITS.map((u) => <option key={u} value={u} className="dark:bg-slate-800 dark:text-white">{u}</option>)}
+              </select>
               <ChevronDown size={18} className="absolute right-0 text-slate-400 pointer-events-none" />
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5"><Calendar size={10} />{showYearAvg ? (<span className="text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded">{selectedYear} YILLIK ORTALAMA</span>) : (<span>{selectedYear} Dönemi - {MONTH_NAMES[selectedMonth]}</span>)}</div>
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <Calendar size={10} />
+              {showYearAvg ? (<span className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded">{selectedYear} YILLIK ORTALAMA</span>) : (<span>{selectedYear} Dönemi - {MONTH_NAMES[selectedMonth]}</span>)}
+            </div>
           </div>
-          <button onClick={() => setShowYearAvg(!showYearAvg)} className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ${showYearAvg ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"}`}><TrendingUp size={14} className="mb-0.5" />{showYearAvg ? "Aylık Gör" : "Yıl Ort."}</button>
+          <button onClick={() => setShowYearAvg(!showYearAvg)} className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ${showYearAvg ? "bg-blue-600 dark:bg-blue-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"}`}>
+            <TrendingUp size={14} className="mb-0.5" />
+            {showYearAvg ? "Aylık Gör" : "Yıl Ort."}
+          </button>
         </div>
         <div className="pl-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
-          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 text-slate-800 font-bold text-sm py-1.5 px-3 rounded-lg border-none focus:ring-0 shrink-0">{availableYears.map((y) => <option key={y} value={y}>{y}</option>)}</select>
-          {!showYearAvg && (<><div className="w-[1px] h-8 bg-slate-200 shrink-0 mx-1"></div>{MONTH_NAMES.map((m, i) => { if (i === 0) return null; return (<button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all snap-center ${i === selectedMonth ? "bg-slate-800 text-white shadow-md" : "bg-white border border-slate-200 text-slate-500"}`}>{m}</button>); })}</>)}
+          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 px-3 rounded-lg border-none focus:ring-0 shrink-0">
+            {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {!showYearAvg && (<><div className="w-[1px] h-8 bg-slate-200 dark:bg-slate-700 shrink-0 mx-1"></div>{MONTH_NAMES.map((m, i) => { if (i === 0) return null; return (<button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all snap-center border ${i === selectedMonth ? "bg-slate-800 dark:bg-blue-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300"}`}>{m}</button>); })}</>)}
         </div>
       </div>
 
       <div className="p-4 space-y-4">
         {hasValidData ? (
           <>
-            {/* 1. GÜNCEL FİLO DURUMU (6 KUTU - Sıkıştırılmış Mobil Uyumlu) */}
+            {/* 1. GÜNCEL FİLO DURUMU */}
             <div className="mb-2">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
               <div className="flex gap-1">
                 {/* Özmal */}
-                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
                    <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Özmal</p>
-                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.ozmal || "0"}</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozmal || "0"}</p>
                 </div>
                 {/* Öz.Mas.Har */}
-                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-6 h-6 rounded-full bg-cyan-50 text-cyan-600 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
                    <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5 whitespace-nowrap">Öz.M.H</p>
-                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.ozMasHar || "0"}</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozMasHar || "0"}</p>
                 </div>
                 {/* Kiralık */}
-                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-0.5"><Key size={12} /></div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-0.5"><Key size={12} /></div>
                    <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Kiralık</p>
-                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.kiralik || "0"}</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.kiralik || "0"}</p>
                 </div>
-                {/* YENİ: Destek */}
-                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-6 h-6 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                {/* Destek */}
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
                    <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Destek</p>
-                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.destek || "0"}</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.destek || "0"}</p>
                 </div>
                 {/* Motor */}
-                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-6 h-6 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center mb-0.5"><Zap size={12} /></div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-0.5"><Zap size={12} /></div>
                    <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Motor</p>
-                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.motor || "0"}</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.motor || "0"}</p>
                 </div>
                 {/* Parça Başı */}
-                <div className="flex-1 bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                   <div className="w-6 h-6 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-0.5"><Package size={12} /></div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-0.5"><Package size={12} /></div>
                    <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">P.Başı</p>
-                   <p className="text-sm font-bold text-slate-800 leading-tight">{currentVehicles?.parcaBasi || "0"}</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.parcaBasi || "0"}</p>
                 </div>
               </div>
             </div>
 
             {/* 2. TESLİM PERFORMANSI */}
-            <div className={`rounded-2xl shadow-lg mb-4 relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 shadow-red-200 text-white" : "bg-gradient-to-br from-emerald-500 to-green-700 shadow-emerald-200 text-white"}`}>
+            <div className={`rounded-2xl shadow-lg mb-4 relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
               <div className="p-5 pb-4">
-                <p className={`text-xs font-bold uppercase tracking-widest opacity-90 mb-2 ${isTeslimBasarisiz ? "text-red-100" : "text-emerald-100"}`}>{showYearAvg ? `${selectedYear} Ort. Teslim Perf.` : "Teslim Performansı"}</p>
+                <p className={`text-xs font-bold uppercase tracking-widest opacity-90 mb-2`}>{showYearAvg ? `${selectedYear} Ort. Teslim Perf.` : "Teslim Performansı"}</p>
                 <h2 className="text-5xl font-extrabold tracking-tight leading-none">{formatNumber(displayData.teslimPerformansi)}%</h2>
                 <p className="mt-2 text-xs font-medium inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %95</p>
               </div>
@@ -141,39 +152,21 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
             {/* 3. OPERASYONEL */}
             <div>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">
                 {showYearAvg ? "Yıllık Operasyonel Ort." : "Operasyonel"}
               </h3>
               <div className="grid grid-cols-3 gap-2">
                 <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
                 <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
                 <KPICard title="Check-in" value={displayData.checkInOrani} comparisonValue={displayRegionData?.checkInOrani} target={90} suffix="%" color={displayData.checkInOrani <= 90 ? "red" : "green"} icon={CheckCircle2} />
-                
-                {/* YENİ EKLENEN KARTLAR (Hedef Kuralları ile Birlikte) */}
-                <KPICard 
-                  title="Ölçüm Tartım" 
-                  value={displayData.olcumTartim} 
-                  comparisonValue={displayRegionData?.olcumTartim} 
-                  target={0} 
-                  suffix="" 
-                  color={parseFloat(displayData.olcumTartim) > 0 ? "red" : "green"} 
-                  icon={Scale} 
-                />
-                <KPICard 
-                  title="K. Sende" 
-                  value={displayData.kontrolSende} 
-                  comparisonValue={displayRegionData?.kontrolSende} 
-                  target={90} 
-                  suffix="%" 
-                  color={parseFloat(displayData.kontrolSende) < 90 ? "red" : "green"} 
-                  icon={ShieldCheck} 
-                />
+                <KPICard title="Ölçüm Tartım" value={displayData.olcumTartim} comparisonValue={displayRegionData?.olcumTartim} target={0} suffix="" color={parseFloat(displayData.olcumTartim) > 0 ? "red" : "green"} icon={Scale} />
+                <KPICard title="K. Sende" value={displayData.kontrolSende} comparisonValue={displayRegionData?.kontrolSende} target={90} suffix="%" color={parseFloat(displayData.kontrolSende) < 90 ? "red" : "green"} icon={ShieldCheck} />
               </div>
             </div>
             
            {/* 4. DİJİTAL */}
             <div>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">
                 {showYearAvg ? "Yıllık Dijital Ort." : "Dijital"}
               </h3>
               <div className="grid grid-cols-2 gap-2">
@@ -186,27 +179,27 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
             {/* 5. HACİM */}
             <div>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">{showYearAvg ? "Yıllık Hacim Ortalaması" : "Hacim"}</h3>
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">{showYearAvg ? "Yıllık Hacim Ortalaması" : "Hacim"}</h3>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-2 mb-3 border-b border-slate-100 pb-2"><div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700">Gelen</span></div>
+                <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
                     <div className="flex justify-between items-end">
-                        <div className="text-center flex-1 border-r border-slate-100"><div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gelenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gelenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                        <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatNumber(displayData.gelenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatNumber(displayData.gelenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                     </div>
                 </div>
-                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-2 mb-3 border-b border-slate-100 pb-2"><div className="p-1.5 bg-green-50 text-green-600 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700">Giden</span></div>
+                <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
                     <div className="flex justify-between items-end">
-                        <div className="text-center flex-1 border-r border-slate-100"><div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gidenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 leading-none">{formatNumber(displayData.gidenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                        <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatNumber(displayData.gidenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatNumber(displayData.gidenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                     </div>
                 </div>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
             <Box size={48} className="mb-4 opacity-20" />
             <p className="text-sm">{showYearAvg ? `${selectedYear} yılına ait veri bulunamadı.` : "Bu dönem için veri girişi yapılmamış."}</p>
           </div>
