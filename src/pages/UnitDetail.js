@@ -62,40 +62,57 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 95;
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
-  // --- PDF OLUŞTURMA FONKSİYONU ---
+  // --- PDF OLUŞTURMA FONKSİYONU (GÜNCELLENMİŞ) ---
   const handleExportPDF = () => {
     if (!displayData) return;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const donemText = showYearAvg ? `${selectedYear} Yili Ortalamasi` : `${selectedYear} - ${MONTH_NAMES[selectedMonth]}`;
 
+    // Başlık Bölümü
     doc.setFontSize(18);
+    doc.setTextColor(40);
     doc.text("OPERASYON PERFORMANS RAPORU", 14, 22);
     
     doc.setFontSize(10);
+    doc.setTextColor(100);
     doc.text(`Birim: ${selectedUnit}`, 14, 30);
     doc.text(`Donem: ${donemText}`, 14, 35);
     doc.text(`Rapor Tarihi: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
 
+    // Tablo Satırları (Bölge Ortalaması Sütunu Eklendi)
     const tableRows = [
-      ["Teslim Performansi", `%${displayData.teslimPerformansi || "-"}`, "%95"],
-      ["Rota Orani", `%${displayData.rotaOrani || "-"}`, "%80"],
-      ["TVS Orani", `%${displayData.tvsOrani || "-"}`, "%90"],
-      ["Check-in Orani", `%${displayData.checkInOrani || "-"}`, "%90"],
-      ["SMS Orani", `%${displayData.smsOrani || "-"}`, "%50"],
-      ["E-ATF Orani", `%${displayData.eAtfOrani || "-"}`, "%80"],
-      ["Gelen Kargo (Belge)", formatNumber(displayData.gelenKargo), "-"],
-      ["Giden Kargo (Belge)", formatNumber(displayData.gidenKargo), "-"],
-      ["Olcum Tartim", formatNumber(displayData.olcumTartim), "-"],
+      ["Teslim Performansi", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
+      ["Rota Orani", `%${displayData.rotaOrani || "-"}`, `%${displayRegionData?.rotaOrani || "-"}`, "%80"],
+      ["TVS Orani", `%${displayData.tvsOrani || "-"}`, `%${displayRegionData?.tvsOrani || "-"}`, "%90"],
+      ["Check-in Orani", `%${displayData.checkInOrani || "-"}`, `%${displayRegionData?.checkInOrani || "-"}`, "%90"],
+      ["SMS Orani", `%${displayData.smsOrani || "-"}`, `%${displayRegionData?.smsOrani || "-"}`, "%50"],
+      ["E-ATF Orani", `%${displayData.eAtfOrani || "-"}`, `%${displayRegionData?.eAtfOrani || "-"}`, "%80"],
+      ["HTF Orani", `%${displayData.htfOrani || "-"}`, `%${displayRegionData?.htfOrani || "-"}`, "%90"],
+      ["Gelen Kargo (Belge)", formatNumber(displayData.gelenKargo), formatNumber(displayRegionData?.gelenKargo), "-"],
+      ["Giden Kargo (Belge)", formatNumber(displayData.gidenKargo), formatNumber(displayRegionData?.gidenKargo), "-"],
+      ["Olcum Tartim", formatNumber(displayData.olcumTartim), formatNumber(displayRegionData?.olcumTartim), "0"],
     ];
 
     doc.autoTable({
       startY: 45,
-      head: [['KPI Metrigi', 'Deger', 'Hedef']],
+      head: [['KPI Metrigi', 'Birim Degeri', 'Bolge Ort.', 'Hedef']],
       body: tableRows,
       theme: 'grid',
-      headStyles: { fillColor: [5, 150, 105] }, // Emerald rengi
+      headStyles: { fillColor: [5, 150, 105], halign: 'center' }, // Emerald Yeşil
+      columnStyles: {
+        1: { halign: 'center' },
+        2: { halign: 'center' },
+        3: { halign: 'center' }
+      },
+      styles: { fontSize: 9 }
     });
+
+    // Alt Bilgi
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text("Bu rapor Operasyon Portali uzerinden otomatik olarak olusturulmustur.", 14, finalY);
 
     doc.save(`${selectedUnit}_Performans_Raporu.pdf`);
   };
@@ -124,7 +141,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             {showYearAvg ? "Aylık Gör" : "Yıl Ort."}
           </button>
           
-          {/* YENİ PDF RAPOR BUTONU */}
           <button 
             onClick={handleExportPDF}
             className="flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border bg-emerald-600 text-white border-transparent shadow-md hover:bg-emerald-700 transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ml-1"
