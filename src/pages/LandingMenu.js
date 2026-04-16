@@ -1,70 +1,79 @@
 import React from "react";
-import { UserCog, LogOut, Lock, Activity, FileText, CarFront } from "lucide-react";
+import { UserCog, LogOut, Lock, Activity, FileText, CarFront, Moon, Sun } from "lucide-react";
 
-const LandingMenu = ({ onNavigate, user, onLogout, onProfile }) => {
+const LandingMenu = ({ onNavigate, user, onLogout, onProfile, isDarkMode, toggleDarkMode }) => {
   const isAdmin = user?.email?.toLowerCase() === "burak.gul@yurticikargo.com";
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex flex-col font-sans transition-colors duration-300">
+      <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border-b border-white/50 dark:border-slate-800/50 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-50">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Operasyon Portalı</h1>
-          <p className="text-xs text-slate-500">Hoşgeldin, {user.displayName || user.email}</p>
+          <h1 className="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 tracking-tight">Operasyon Portalı</h1>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Hoşgeldin, {user.displayName || user.email}</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={onProfile} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
+        <div className="flex gap-2 sm:gap-3">
+          <button onClick={toggleDarkMode} className="p-2.5 bg-white dark:bg-slate-800 shadow-sm text-slate-600 dark:text-yellow-400 rounded-xl hover:text-blue-600 dark:hover:text-yellow-300 hover:shadow-md transition-all duration-300 border border-transparent dark:border-slate-700">
+            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <button onClick={onProfile} className="p-2.5 bg-white dark:bg-slate-800 shadow-sm text-slate-600 dark:text-slate-300 rounded-xl hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md transition-all duration-300 border border-transparent dark:border-slate-700">
             <UserCog size={20} />
           </button>
-          <button onClick={onLogout} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+          <button onClick={onLogout} className="p-2.5 bg-white dark:bg-slate-800 shadow-sm text-slate-600 dark:text-slate-300 rounded-xl hover:text-red-600 dark:hover:text-red-400 hover:shadow-md transition-all duration-300 border border-transparent dark:border-slate-700">
             <LogOut size={20} />
           </button>
         </div>
       </div>
 
       <div className="flex-1 p-6 flex items-center justify-center">
-        <div className={`grid grid-cols-1 gap-6 w-full max-w-4xl ${isAdmin ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+        <div className={`grid grid-cols-1 gap-6 w-full max-w-5xl ${isAdmin ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           
-          {/* 1. ADMIN (Varsa) */}
+          {/* 1. ADMIN */}
           {isAdmin && (
-            <div onClick={() => onNavigate("admin")} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer group flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-slate-800 transition-colors">
-                <Lock size={32} className="text-slate-600 group-hover:text-white" />
+            <div onClick={() => onNavigate("admin")} className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white dark:border-slate-700 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col items-center text-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-slate-100 dark:bg-slate-700 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-slate-200 dark:group-hover:bg-slate-600"></div>
+              <div className="w-16 h-16 bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-600 dark:to-slate-800 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-slate-300 dark:shadow-slate-900 transition-transform duration-300 group-hover:scale-110 relative z-10">
+                <Lock size={28} className="text-white" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-2">Admin Veri Girişi</h3>
-              <p className="text-sm text-slate-500">Performans, Filo Sabitleri ve Araç Listesi girişi.</p>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 relative z-10">Admin Paneli</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium relative z-10">Performans ve Filo Sabitleri veri girişi.</p>
             </div>
           )}
 
           {/* 2. BİRİMLER (Dashboard) */}
-          <div onClick={() => onNavigate("dashboard")} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer group flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-colors">
-              <Activity size={32} className="text-blue-600 group-hover:text-white" />
+          <div onClick={() => onNavigate("dashboard")} className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white dark:border-slate-700 hover:shadow-[0_8px_30px_rgb(59,130,246,0.12)] dark:hover:shadow-[0_8px_30px_rgba(59,130,246,0.2)] hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col items-center text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/30 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-blue-100 dark:group-hover:bg-blue-800/40"></div>
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-blue-200 dark:shadow-none transition-transform duration-300 group-hover:scale-110 relative z-10">
+              <Activity size={28} className="text-white" />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Birimler</h3>
-            <p className="text-sm text-slate-500">Birimlerin performans verilerini ve KPI detaylarını görüntüle.</p>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 relative z-10">Birimler</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium relative z-10">Birimlerin performans verileri ve KPI detayları.</p>
           </div>
 
-          {/* 3. FİLO LİSTESİ (Sıralamada yukarı alındı) */}
-          <div onClick={() => onNavigate("fleet")} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-emerald-300 transition-all cursor-pointer group flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-emerald-500 transition-colors">
-              <CarFront size={32} className="text-emerald-500 group-hover:text-white" />
+          {/* 3. FİLO LİSTESİ */}
+          <div onClick={() => onNavigate("fleet")} className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white dark:border-slate-700 hover:shadow-[0_8px_30px_rgb(16,185,129,0.12)] dark:hover:shadow-[0_8px_30px_rgba(16,185,129,0.2)] hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col items-center text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 dark:bg-emerald-900/30 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-emerald-100 dark:group-hover:bg-emerald-800/40"></div>
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-green-600 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-emerald-200 dark:shadow-none transition-transform duration-300 group-hover:scale-110 relative z-10">
+              <CarFront size={28} className="text-white" />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Filo Listesi</h3>
-            <p className="text-sm text-slate-500">Tüm birimlerdeki araçları ara, listele ve detaylarını gör.</p>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 relative z-10">Filo Listesi</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium relative z-10">Tüm birimlerdeki araçları detaylı listele.</p>
           </div>
 
-          {/* 4. BİRİM NOTLARI (Sona alındı) */}
-          <div onClick={() => onNavigate("notes")} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-orange-300 transition-all cursor-pointer group flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-orange-500 transition-colors">
-              <FileText size={32} className="text-orange-500 group-hover:text-white" />
+          {/* 4. BİRİM NOTLARI */}
+          <div onClick={() => onNavigate("notes")} className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white dark:border-slate-700 hover:shadow-[0_8px_30px_rgb(249,115,22,0.12)] dark:hover:shadow-[0_8px_30px_rgba(249,115,22,0.2)] hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col items-center text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 dark:bg-orange-900/30 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-orange-100 dark:group-hover:bg-orange-800/40"></div>
+            <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-orange-200 dark:shadow-none transition-transform duration-300 group-hover:scale-110 relative z-10">
+              <FileText size={28} className="text-white" />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Birim Notları</h3>
-            <p className="text-sm text-slate-500">Birimlerle ilgili operasyonel notlar ekle ve yönet.</p>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 relative z-10">Birim Notları</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium relative z-10">Birimlerle ilgili operasyonel notları yönet.</p>
           </div>
 
         </div>
       </div>
-      <div className="text-center py-4 text-xs text-slate-400">v1.5.1 - Filo Entegrasyonu</div>
+      <div className="text-center py-6 text-xs font-semibold tracking-wider text-slate-400/80 dark:text-slate-500">
+        v1.7.0 - Dark Mode & Modern UI
+      </div>
     </div>
   );
 };
