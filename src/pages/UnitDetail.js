@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
@@ -36,7 +36,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
     if (yearRecords.length === 0) return null;
-    const fields = ["teslimPerformansi", "htfOrani", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"];
+    const fields = ["teslimPerformansi", "htfOrani", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "kontrolSende"];
     const totals = {}; const counts = {};
     fields.forEach(f => { totals[f] = 0; counts[f] = 0; });
     yearRecords.forEach(record => {
@@ -48,7 +48,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const averages = {};
     fields.forEach(field => {
       if (counts[field] > 0) {
-        if (["gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"].includes(field)) { averages[field] = Math.round(totals[field]); } 
+        if (["gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim"].includes(field)) { averages[field] = Math.round(totals[field]); } 
         else { averages[field] = (totals[field] / counts[field]).toFixed(2); }
       } else { averages[field] = 0; }
     });
@@ -140,37 +140,50 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             </div>
 
             {/* 3. OPERASYONEL */}
-<div>
-  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">
-    {showYearAvg ? "Yıllık Operasyonel Ort." : "Operasyonel"}
-  </h3>
-  <div className="grid grid-cols-3 gap-2">
-    <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
-    <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
-    <KPICard title="Check-in" value={displayData.checkInOrani} comparisonValue={displayRegionData?.checkInOrani} target={90} suffix="%" color={displayData.checkInOrani <= 90 ? "red" : "green"} icon={CheckCircle2} />
-  </div>
-</div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">
+                {showYearAvg ? "Yıllık Operasyonel Ort." : "Operasyonel"}
+              </h3>
+              <div className="grid grid-cols-3 gap-2">
+                <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
+                <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
+                <KPICard title="Check-in" value={displayData.checkInOrani} comparisonValue={displayRegionData?.checkInOrani} target={90} suffix="%" color={displayData.checkInOrani <= 90 ? "red" : "green"} icon={CheckCircle2} />
+                
+                {/* YENİ EKLENEN KARTLAR (Hedef Kuralları ile Birlikte) */}
+                <KPICard 
+                  title="Ölçüm Tartım" 
+                  value={displayData.olcumTartim} 
+                  comparisonValue={displayRegionData?.olcumTartim} 
+                  target={0} 
+                  suffix="" 
+                  color={parseFloat(displayData.olcumTartim) > 0 ? "red" : "green"} 
+                  icon={Scale} 
+                />
+                <KPICard 
+                  title="K. Sende" 
+                  value={displayData.kontrolSende} 
+                  comparisonValue={displayRegionData?.kontrolSende} 
+                  target={90} 
+                  suffix="%" 
+                  color={parseFloat(displayData.kontrolSende) < 90 ? "red" : "green"} 
+                  icon={ShieldCheck} 
+                />
+              </div>
+            </div>
             
            {/* 4. DİJİTAL */}
-<div>
-  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">
-    {showYearAvg ? "Yıllık Dijital Ort." : "Dijital"}
-  </h3>
-  <div className="grid grid-cols-2 gap-2"> {/* Burayı 2 yaptık ki 4 kart 2x2 otursun */}
-    <KPICard 
-      title="HTF" 
-      value={displayData.htfOrani} 
-      comparisonValue={displayRegionData?.htfOrani} 
-      target={90} 
-      suffix="%" 
-      color={parseFloat(displayData.htfOrani) > 90 ? "green" : "red"} 
-      icon={Activity} 
-    />
-    <KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} />
-    <KPICard title="E-ATF" value={displayData.eAtfOrani} comparisonValue={displayRegionData?.eAtfOrani} target={80} suffix="%" color={displayData.eAtfOrani <= 80 ? "red" : "green"} icon={FileText} />
-    <KPICard title="E-İhbar" value={displayData.elektronikIhbar} comparisonValue={displayRegionData?.elektronikIhbar} target={90} suffix="%" color={displayData.elektronikIhbar <= 90 ? "red" : "green"} icon={Mail} />
-  </div>
-</div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">
+                {showYearAvg ? "Yıllık Dijital Ort." : "Dijital"}
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <KPICard title="HTF" value={displayData.htfOrani} comparisonValue={displayRegionData?.htfOrani} target={90} suffix="%" color={parseFloat(displayData.htfOrani) > 90 ? "green" : "red"} icon={Activity} />
+                <KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} />
+                <KPICard title="E-ATF" value={displayData.eAtfOrani} comparisonValue={displayRegionData?.eAtfOrani} target={80} suffix="%" color={displayData.eAtfOrani <= 80 ? "red" : "green"} icon={FileText} />
+                <KPICard title="E-İhbar" value={displayData.elektronikIhbar} comparisonValue={displayRegionData?.elektronikIhbar} target={90} suffix="%" color={displayData.elektronikIhbar <= 90 ? "red" : "green"} icon={Mail} />
+              </div>
+            </div>
+
             {/* 5. HACİM */}
             <div>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">{showYearAvg ? "Yıllık Hacim Ortalaması" : "Hacim"}</h3>
