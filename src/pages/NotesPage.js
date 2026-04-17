@@ -5,7 +5,7 @@ import {
   Dna, Zap, FileText, X, Shuffle, CalendarPlus, CalendarDays, Check, AlertTriangle, Download, Ban, CheckCircle
 } from 'lucide-react';
 
-import { db, auth } from '../firebase';
+import { db, auth } from '../config/firebase';
 import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 
 // --- TÜRKİYE İL VE İLÇE VERİSİ ---
