@@ -528,23 +528,26 @@ export default function DenetimTakipApp({ onBack }) {
     try { await deleteDoc(doc(db, 'ortak_planlar', planId)); } catch (err) {}
   };
 
-  // EXCEL ÇIKTISI ALMA (Kayıtlar)
+// EXCEL ÇIKTISI ALMA (Kayıtlar)
   const handleExportExcel = () => {
     if (audits.length === 0) {
       setErrorMsg("Dışa aktarılacak kayıt bulunmuyor.");
       return;
     }
     let csvContent = "\uFEFF"; 
-    csvContent += "İl,İlçe,Birim Adı,Ziyaret Tarihi,Ziyareti Yapan,Not\n";
+    // DÜZELTME 1: Başlıklardaki virgülleri noktalı virgül (;) yaptık
+    csvContent += "İl;İlçe;Birim Adı;Ziyaret Tarihi;Ziyareti Yapan;Not\n";
 
     const sortedAudits = [...audits].sort((a,b) => new Date(b.date) - new Date(a.date));
 
     sortedAudits.forEach(audit => {
       const unit = units.find(u => u.id === audit.unitId) || { city: 'Bilinmiyor/Silinmiş', district: '-', name: 'Silinmiş Birim' };
-      const safeNote = audit.note ? `"${audit.note.replace(/"/g, '""')}"` : "";
+      const safeNote = audit.note ? `"${audit.note.replace(/"/g, '""')}"` : '""';
       const dateStr = formatDateDisplay(audit.date);
       const userStr = audit.userName || 'Bilinmeyen';
-      csvContent += `"${unit.city}","${unit.district}","${unit.name}","${dateStr}","${userStr}",${safeNote}\n`;
+      
+      // DÜZELTME 2: Değerleri birleştirirken virgül yerine noktalı virgül (;) kullanıyoruz
+      csvContent += `"${unit.city}";"${unit.district}";"${unit.name}";"${dateStr}";"${userStr}";${safeNote}\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -585,14 +588,15 @@ export default function DenetimTakipApp({ onBack }) {
 
     let csvContent = "\uFEFF"; 
 
-    const dateHeaders = sortedDates.map(d => `"${formatDateDisplay(d)}"`).join(',');
+    // DÜZELTME 3: Tarih başlıklarını noktalı virgülle (;) ayırıyoruz
+    const dateHeaders = sortedDates.map(d => `"${formatDateDisplay(d)}"`).join(';');
     csvContent += dateHeaders + "\n";
     
     for (let i = 0; i < maxRows; i++) {
       const row = sortedDates.map(d => {
         const unitName = plansByDate[d][i];
         return unitName ? `"${unitName}"` : '""';
-      }).join(',');
+      }).join(';'); // DÜZELTME 4: Sütunları noktalı virgülle (;) ayırıyoruz
       csvContent += row + "\n";
     }
 
