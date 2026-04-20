@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
@@ -14,6 +14,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [showYearAvg, setShowYearAvg] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [showPdfModal, setShowPdfModal] = useState(false); // PDF Modal State
   const availableYears = [2024, 2025, 2026];
 
   useEffect(() => {
@@ -62,8 +63,8 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 95;
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
-  // --- PDF OLUŞTURMA FONKSİYONU (GÜNCELLENMİŞ) ---
-  const handleExportPDF = () => {
+  // --- PDF OLUŞTURMA FONKSİYONU ---
+  const generatePDF = (type) => {
     if (!displayData) return;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -72,15 +73,15 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     // Başlık Bölümü
     doc.setFontSize(18);
     doc.setTextColor(40);
-    doc.text("OPERASYON PERFORMANS RAPORU", 14, 22);
+    const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON PERFORMANS RAPORU";
+    doc.text(title, 14, 22);
     
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Birim: ${selectedUnit}`, 14, 30);
     doc.text(`Donem: ${donemText}`, 14, 35);
-    doc.text(`Rapor Tarihi: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
+    doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
 
-    // Tablo Satırları (Bölge Ortalaması Sütunu Eklendi)
     const tableRows = [
       ["Teslim Performansi", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
       ["Rota Orani", `%${displayData.rotaOrani || "-"}`, `%${displayRegionData?.rotaOrani || "-"}`, "%80"],
@@ -99,22 +100,76 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       head: [['KPI Metrigi', 'Birim Degeri', 'Bolge Ort.', 'Hedef']],
       body: tableRows,
       theme: 'grid',
-      headStyles: { fillColor: [5, 150, 105], halign: 'center' }, // Emerald Yeşil
+      headStyles: { 
+        fillColor: type === 'defense' ? [220, 38, 38] : [5, 150, 105], // Savunma için Kırmızı, Rapor için Yeşil
+        halign: 'center' 
+      },
       columnStyles: {
         1: { halign: 'center' },
         2: { halign: 'center' },
         3: { halign: 'center' }
       },
-      styles: { fontSize: 9 }
+      styles: { fontSize: 9 },
+      didParseCell: function(data) {
+        // Savunma formu seçildiyse ve tablo satırlarındaysak
+        if (type === 'defense' && data.section === 'body') {
+          const metricName = data.row.raw[0];
+          const rawValueStr = data.row.raw[1];
+          let isFail = false;
+          
+          if (rawValueStr && rawValueStr !== '%-') {
+            const cleanStr = String(rawValueStr).replace('%', '').replace(/\./g, '').replace(',', '.');
+            const numValue = parseFloat(cleanStr);
+            
+            if (!isNaN(numValue)) {
+              if (metricName === "Teslim Performansi" && numValue < 95) isFail = true;
+              if (metricName === "Rota Orani" && numValue < 80) isFail = true;
+              if (metricName === "TVS Orani" && numValue < 90) isFail = true;
+              if (metricName === "Check-in Orani" && numValue < 90) isFail = true;
+              if (metricName === "SMS Orani" && numValue < 50) isFail = true;
+              if (metricName === "E-ATF Orani" && numValue < 80) isFail = true;
+              if (metricName === "HTF Orani" && numValue < 90) isFail = true;
+              if (metricName === "Olcum Tartim" && numValue > 0) isFail = true; // 0 olmalı
+            }
+          }
+
+          // Hedef altıysa satırı kırmızımsı yap
+          if (isFail) {
+            data.cell.styles.fillColor = [254, 226, 226]; // Açık kırmızı
+            data.cell.styles.textColor = [185, 28, 28]; // Koyu kırmızı yazı
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      }
     });
 
-    // Alt Bilgi
-    const finalY = doc.lastAutoTable.finalY + 10;
+    let finalY = doc.lastAutoTable.finalY + 10;
+    
+    // Savunma formu eklemeleri (Çizgiler ve İmza)
+    if (type === 'defense') {
+      doc.setFontSize(11);
+      doc.setTextColor(40);
+      doc.text("Aciklama / Savunma Icerigi:", 14, finalY);
+      
+      doc.setDrawColor(200);
+      for(let i=1; i<=6; i++) {
+          doc.line(14, finalY + (i*8), 196, finalY + (i*8));
+      }
+      
+      finalY += 60;
+      doc.setFontSize(10);
+      doc.text("Birim Yoneticisi Ad / Soyad:", 14, finalY);
+      doc.text("Imza:", 140, finalY);
+      finalY += 15;
+    }
+
     doc.setFontSize(8);
     doc.setTextColor(150);
-    doc.text("Bu rapor Operasyon Portali uzerinden otomatik olarak olusturulmustur.", 14, finalY);
+    doc.text("Bu belge Operasyon Portali uzerinden otomatik olarak olusturulmustur.", 14, finalY);
 
-    doc.save(`${selectedUnit}_Performans_Raporu.pdf`);
+    const fileName = type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Performans_Raporu.pdf`;
+    doc.save(fileName);
+    setShowPdfModal(false);
   };
 
   return (
@@ -141,12 +196,13 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             {showYearAvg ? "Aylık Gör" : "Yıl Ort."}
           </button>
           
+          {/* Rapor Butonu PDF Modalını açacak */}
           <button 
-            onClick={handleExportPDF}
+            onClick={() => setShowPdfModal(true)}
             className="flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border bg-emerald-600 text-white border-transparent shadow-md hover:bg-emerald-700 transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ml-1"
           >
             <FileDown size={14} className="mb-0.5" />
-            PDF Rapor
+            Belge Al
           </button>
         </div>
         <div className="pl-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
@@ -258,6 +314,50 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
           </div>
         )}
       </div>
+
+      {/* BELGE SEÇİM MODALI */}
+      {showPdfModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPdfModal(false)}>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <FileDown className="text-blue-600" size={20} /> Belge Dışa Aktar
+              </h3>
+              <button onClick={() => setShowPdfModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <button 
+                onClick={() => generatePDF('report')}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/50 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-emerald-200 dark:bg-emerald-800/50 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-emerald-800 dark:text-emerald-400">Performans Raporu</h4>
+                  <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">Standart aylık performans ve hacim tablosu.</p>
+                </div>
+              </button>
+              
+              <button 
+                onClick={() => generatePDF('defense')}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-rose-200 dark:bg-rose-800/50 flex items-center justify-center text-rose-700 dark:text-rose-400 shrink-0">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-rose-800 dark:text-rose-400">Savunma Formu</h4>
+                  <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">Hedef altı kalan metrikler tabloda renklendirilir ve imza alanı oluşturulur.</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
