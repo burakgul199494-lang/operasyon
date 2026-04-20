@@ -68,7 +68,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     if (!displayData) return;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    const donemText = showYearAvg ? `${selectedYear} Yili Ortalamasi` : `${selectedYear} - ${MONTH_NAMES[selectedMonth]}`;
+    const donemText = showYearAvg ? `${selectedYear} Yılı Ortalaması` : `${selectedYear} - ${MONTH_NAMES[selectedMonth]}`;
 
     // Başlık Bölümü
     doc.setFontSize(18);
@@ -79,26 +79,26 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Birim: ${selectedUnit}`, 14, 30);
-    doc.text(`Donem: ${donemText}`, 14, 35);
+    doc.text(`Dönem: ${donemText}`, 14, 35);
     doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
 
     const tableRows = [
-      ["Teslim Performansi", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
-      ["Rota Orani", `%${displayData.rotaOrani || "-"}`, `%${displayRegionData?.rotaOrani || "-"}`, "%80"],
-      ["TVS Orani", `%${displayData.tvsOrani || "-"}`, `%${displayRegionData?.tvsOrani || "-"}`, "%90"],
-      ["Check-in Orani", `%${displayData.checkInOrani || "-"}`, `%${displayRegionData?.checkInOrani || "-"}`, "%90"],
-      ["SMS Orani", `%${displayData.smsOrani || "-"}`, `%${displayRegionData?.smsOrani || "-"}`, "%50"],
-      ["E-ATF Orani", `%${displayData.eAtfOrani || "-"}`, `%${displayRegionData?.eAtfOrani || "-"}`, "%80"],
-      ["HTF Orani", `%${displayData.htfOrani || "-"}`, `%${displayRegionData?.htfOrani || "-"}`, "%90"],
+      ["Teslim Performansı", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
+      ["Rota Oranı", `%${displayData.rotaOrani || "-"}`, `%${displayRegionData?.rotaOrani || "-"}`, "%80"],
+      ["TVS Oranı", `%${displayData.tvsOrani || "-"}`, `%${displayRegionData?.tvsOrani || "-"}`, "%90"],
+      ["Check-in Oranı", `%${displayData.checkInOrani || "-"}`, `%${displayRegionData?.checkInOrani || "-"}`, "%90"],
+      ["SMS Oranı", `%${displayData.smsOrani || "-"}`, `%${displayRegionData?.smsOrani || "-"}`, "%50"],
+      ["E-ATF Oranı", `%${displayData.eAtfOrani || "-"}`, `%${displayRegionData?.eAtfOrani || "-"}`, "%80"],
+      ["HTF Oranı", `%${displayData.htfOrani || "-"}`, `%${displayRegionData?.htfOrani || "-"}`, "%90"],
       ["Kontrol Sende", `%${displayData.kontrolSende || "-"}`, `%${displayRegionData?.kontrolSende || "-"}`, "%90"],
       ["Gelen Kargo (Belge)", formatNumber(displayData.gelenKargo), formatNumber(displayRegionData?.gelenKargo), "-"],
       ["Giden Kargo (Belge)", formatNumber(displayData.gidenKargo), formatNumber(displayRegionData?.gidenKargo), "-"],
-      ["Olcum Tartim", formatNumber(displayData.olcumTartim), formatNumber(displayRegionData?.olcumTartim), "0"],
+      ["Ölçüm Tartım", formatNumber(displayData.olcumTartim), formatNumber(displayRegionData?.olcumTartim), "0"],
     ];
 
     doc.autoTable({
       startY: 45,
-      head: [['KPI Metrigi', 'Birim Degeri', 'Bolge Ort.', 'Hedef']],
+      head: [['KPI Metriği', 'Birim Değeri', 'Bölge Ort.', 'Hedef']],
       body: tableRows,
       theme: 'grid',
       headStyles: { 
@@ -123,15 +123,16 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             return parseFloat(String(rawValue[key]).replace(',', '.'));
           };
 
-          if (metricName === "Teslim Performansi" && parseVal('teslimPerformansi') !== null && parseVal('teslimPerformansi') < 95) isFail = true;
-          if (metricName === "Rota Orani" && parseVal('rotaOrani') !== null && parseVal('rotaOrani') < 80) isFail = true;
-          if (metricName === "TVS Orani" && parseVal('tvsOrani') !== null && parseVal('tvsOrani') < 90) isFail = true;
-          if (metricName === "Check-in Orani" && parseVal('checkInOrani') !== null && parseVal('checkInOrani') < 90) isFail = true;
-          if (metricName === "SMS Orani" && parseVal('smsOrani') !== null && parseVal('smsOrani') < 50) isFail = true;
-          if (metricName === "E-ATF Orani" && parseVal('eAtfOrani') !== null && parseVal('eAtfOrani') < 80) isFail = true;
-          if (metricName === "HTF Orani" && parseVal('htfOrani') !== null && parseVal('htfOrani') < 90) isFail = true;
+          // İsimler Türkçe karakterli güncellendiği için koşullar da ona göre ayarlandı
+          if (metricName === "Teslim Performansı" && parseVal('teslimPerformansi') !== null && parseVal('teslimPerformansi') < 95) isFail = true;
+          if (metricName === "Rota Oranı" && parseVal('rotaOrani') !== null && parseVal('rotaOrani') < 80) isFail = true;
+          if (metricName === "TVS Oranı" && parseVal('tvsOrani') !== null && parseVal('tvsOrani') < 90) isFail = true;
+          if (metricName === "Check-in Oranı" && parseVal('checkInOrani') !== null && parseVal('checkInOrani') < 90) isFail = true;
+          if (metricName === "SMS Oranı" && parseVal('smsOrani') !== null && parseVal('smsOrani') < 50) isFail = true;
+          if (metricName === "E-ATF Oranı" && parseVal('eAtfOrani') !== null && parseVal('eAtfOrani') < 80) isFail = true;
+          if (metricName === "HTF Oranı" && parseVal('htfOrani') !== null && parseVal('htfOrani') < 90) isFail = true;
           if (metricName === "Kontrol Sende" && parseVal('kontrolSende') !== null && parseVal('kontrolSende') < 90) isFail = true;
-          if (metricName === "Olcum Tartim" && parseVal('olcumTartim') !== null && parseVal('olcumTartim') > 0) isFail = true;
+          if (metricName === "Ölçüm Tartım" && parseVal('olcumTartim') !== null && parseVal('olcumTartim') > 0) isFail = true;
 
           // Hedef altıysa satırı komple açık kırmızı ve kalın font yap
           if (isFail) {
@@ -150,7 +151,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.setFontSize(10);
       doc.setTextColor(40);
       
-      const defenseText = "Sayin Birim Yoneticisi,\n\nYukaridaki tabloda kirmizi arka plan ile isaretlenmis olan metriklerde biriminizin sirket kalite hedeflerinin altinda kaldigi tespit edilmistir. Lutfen soz konusu hedeflere ulasilamama nedenlerini ve bu oranlari standartlarin uzerine cikarmak icin planladiginiz aksiyonlari asagiya detayli olarak aciklayiniz.";
+      const defenseText = "Sayın Birim Yöneticisi,\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda biriminizin şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.";
       
       // Metni PDF genişliğine göre otomatik kırp/böl
       const splitText = doc.splitTextToSize(defenseText, 180);
@@ -161,7 +162,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
-      doc.text("Aciklama / Savunma Icerigi:", 14, finalY);
+      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
       
       doc.setDrawColor(200);
       for(let i=1; i<=7; i++) {
@@ -171,14 +172,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       finalY += 75;
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.text("Birim Yoneticisi Ad / Soyad:", 14, finalY);
-      doc.text("Imza:", 140, finalY);
-      finalY += 15;
+      doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
+      doc.text("İmza:", 140, finalY);
     }
-
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    doc.text("Bu belge Operasyon Portali uzerinden otomatik olarak olusturulmustur.", 14, finalY);
 
     const fileName = type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Performans_Raporu.pdf`;
     doc.save(fileName);
