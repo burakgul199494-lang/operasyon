@@ -14,7 +14,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [showYearAvg, setShowYearAvg] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [showPdfModal, setShowPdfModal] = useState(false); // PDF Modal State
+  const [showPdfModal, setShowPdfModal] = useState(false);
   const availableYears = [2024, 2025, 2026];
 
   useEffect(() => {
@@ -90,6 +90,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       ["SMS Orani", `%${displayData.smsOrani || "-"}`, `%${displayRegionData?.smsOrani || "-"}`, "%50"],
       ["E-ATF Orani", `%${displayData.eAtfOrani || "-"}`, `%${displayRegionData?.eAtfOrani || "-"}`, "%80"],
       ["HTF Orani", `%${displayData.htfOrani || "-"}`, `%${displayRegionData?.htfOrani || "-"}`, "%90"],
+      ["Kontrol Sende", `%${displayData.kontrolSende || "-"}`, `%${displayRegionData?.kontrolSende || "-"}`, "%90"],
       ["Gelen Kargo (Belge)", formatNumber(displayData.gelenKargo), formatNumber(displayRegionData?.gelenKargo), "-"],
       ["Giden Kargo (Belge)", formatNumber(displayData.gidenKargo), formatNumber(displayRegionData?.gidenKargo), "-"],
       ["Olcum Tartim", formatNumber(displayData.olcumTartim), formatNumber(displayRegionData?.olcumTartim), "0"],
@@ -101,7 +102,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       body: tableRows,
       theme: 'grid',
       headStyles: { 
-        fillColor: type === 'defense' ? [220, 38, 38] : [5, 150, 105], // Savunma için Kırmızı, Rapor için Yeşil
+        fillColor: type === 'defense' ? [220, 38, 38] : [5, 150, 105], // Savunma: Kırmızı, Rapor: Yeşil
         halign: 'center' 
       },
       columnStyles: {
@@ -111,32 +112,31 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       },
       styles: { fontSize: 9 },
       didParseCell: function(data) {
-        // Savunma formu seçildiyse ve tablo satırlarındaysak
         if (type === 'defense' && data.section === 'body') {
           const metricName = data.row.raw[0];
-          const rawValueStr = data.row.raw[1];
           let isFail = false;
-          
-          if (rawValueStr && rawValueStr !== '%-') {
-            const cleanStr = String(rawValueStr).replace('%', '').replace(/\./g, '').replace(',', '.');
-            const numValue = parseFloat(cleanStr);
-            
-            if (!isNaN(numValue)) {
-              if (metricName === "Teslim Performansi" && numValue < 95) isFail = true;
-              if (metricName === "Rota Orani" && numValue < 80) isFail = true;
-              if (metricName === "TVS Orani" && numValue < 90) isFail = true;
-              if (metricName === "Check-in Orani" && numValue < 90) isFail = true;
-              if (metricName === "SMS Orani" && numValue < 50) isFail = true;
-              if (metricName === "E-ATF Orani" && numValue < 80) isFail = true;
-              if (metricName === "HTF Orani" && numValue < 90) isFail = true;
-              if (metricName === "Olcum Tartim" && numValue > 0) isFail = true; // 0 olmalı
-            }
-          }
 
-          // Hedef altıysa satırı kırmızımsı yap
+          // Veritabanındaki saf veriyi (state) kullanarak kıyaslıyoruz, hücre içi metni değil!
+          const rawValue = displayData || {};
+          const parseVal = (key) => {
+            if (rawValue[key] === undefined || rawValue[key] === null || rawValue[key] === "") return null;
+            return parseFloat(String(rawValue[key]).replace(',', '.'));
+          };
+
+          if (metricName === "Teslim Performansi" && parseVal('teslimPerformansi') !== null && parseVal('teslimPerformansi') < 95) isFail = true;
+          if (metricName === "Rota Orani" && parseVal('rotaOrani') !== null && parseVal('rotaOrani') < 80) isFail = true;
+          if (metricName === "TVS Orani" && parseVal('tvsOrani') !== null && parseVal('tvsOrani') < 90) isFail = true;
+          if (metricName === "Check-in Orani" && parseVal('checkInOrani') !== null && parseVal('checkInOrani') < 90) isFail = true;
+          if (metricName === "SMS Orani" && parseVal('smsOrani') !== null && parseVal('smsOrani') < 50) isFail = true;
+          if (metricName === "E-ATF Orani" && parseVal('eAtfOrani') !== null && parseVal('eAtfOrani') < 80) isFail = true;
+          if (metricName === "HTF Orani" && parseVal('htfOrani') !== null && parseVal('htfOrani') < 90) isFail = true;
+          if (metricName === "Kontrol Sende" && parseVal('kontrolSende') !== null && parseVal('kontrolSende') < 90) isFail = true;
+          if (metricName === "Olcum Tartim" && parseVal('olcumTartim') !== null && parseVal('olcumTartim') > 0) isFail = true;
+
+          // Hedef altıysa satırı komple açık kırmızı ve kalın font yap
           if (isFail) {
-            data.cell.styles.fillColor = [254, 226, 226]; // Açık kırmızı
-            data.cell.styles.textColor = [185, 28, 28]; // Koyu kırmızı yazı
+            data.cell.styles.fillColor = [254, 226, 226]; 
+            data.cell.styles.textColor = [185, 28, 28]; 
             data.cell.styles.fontStyle = 'bold';
           }
         }
@@ -145,19 +145,32 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
     let finalY = doc.lastAutoTable.finalY + 10;
     
-    // Savunma formu eklemeleri (Çizgiler ve İmza)
+    // --- SAVUNMA METNİ ---
     if (type === 'defense') {
-      doc.setFontSize(11);
+      doc.setFontSize(10);
       doc.setTextColor(40);
+      
+      const defenseText = "Sayin Birim Yoneticisi,\n\nYukaridaki tabloda kirmizi arka plan ile isaretlenmis olan metriklerde biriminizin sirket kalite hedeflerinin altinda kaldigi tespit edilmistir. Lutfen soz konusu hedeflere ulasilamama nedenlerini ve bu oranlari standartlarin uzerine cikarmak icin planladiginiz aksiyonlari asagiya detayli olarak aciklayiniz.";
+      
+      // Metni PDF genişliğine göre otomatik kırp/böl
+      const splitText = doc.splitTextToSize(defenseText, 180);
+      doc.text(splitText, 14, finalY);
+      
+      // Metin uzunluğuna göre yüksekliği ayarla
+      finalY += splitText.length * 5 + 10;
+      
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
       doc.text("Aciklama / Savunma Icerigi:", 14, finalY);
       
       doc.setDrawColor(200);
-      for(let i=1; i<=6; i++) {
+      for(let i=1; i<=7; i++) {
           doc.line(14, finalY + (i*8), 196, finalY + (i*8));
       }
       
-      finalY += 60;
+      finalY += 75;
       doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
       doc.text("Birim Yoneticisi Ad / Soyad:", 14, finalY);
       doc.text("Imza:", 140, finalY);
       finalY += 15;
@@ -196,7 +209,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             {showYearAvg ? "Aylık Gör" : "Yıl Ort."}
           </button>
           
-          {/* Rapor Butonu PDF Modalını açacak */}
           <button 
             onClick={() => setShowPdfModal(true)}
             className="flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border bg-emerald-600 text-white border-transparent shadow-md hover:bg-emerald-700 transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ml-1"
