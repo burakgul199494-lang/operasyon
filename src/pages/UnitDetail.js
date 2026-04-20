@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2 } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
@@ -15,6 +15,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false); // PDF Yükleme Durumu
   const availableYears = [2024, 2025, 2026];
 
   useEffect(() => {
@@ -63,119 +64,146 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 95;
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
+  // Blob verisini Base64'e çeviren yardımcı fonksiyon
+  const getBase64 = (blob) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
   // --- PDF OLUŞTURMA FONKSİYONU ---
-  const generatePDF = (type) => {
+  const generatePDF = async (type) => {
     if (!displayData) return;
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const donemText = showYearAvg ? `${selectedYear} Yili Ortalamasi` : `${selectedYear} - ${MONTH_NAMES[selectedMonth]}`;
+    setIsGeneratingPdf(true); // Yükleniyor durumunu başlat
 
-    // Başlık Bölümü (PDF'e özel İngilizce karakterler)
-    doc.setFontSize(18);
-    doc.setTextColor(40);
-    const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON PERFORMANS RAPORU";
-    doc.text(title, 14, 22);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Birim: ${selectedUnit}`, 14, 30);
-    doc.text(`Donem: ${donemText}`, 14, 35);
-    doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
 
-    const tableRows = [
-      ["Teslim Performansi", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
-      ["Rota Orani", `%${displayData.rotaOrani || "-"}`, `%${displayRegionData?.rotaOrani || "-"}`, "%80"],
-      ["TVS Orani", `%${displayData.tvsOrani || "-"}`, `%${displayRegionData?.tvsOrani || "-"}`, "%90"],
-      ["Check-in Orani", `%${displayData.checkInOrani || "-"}`, `%${displayRegionData?.checkInOrani || "-"}`, "%90"],
-      ["SMS Orani", `%${displayData.smsOrani || "-"}`, `%${displayRegionData?.smsOrani || "-"}`, "%50"],
-      ["E-ATF Orani", `%${displayData.eAtfOrani || "-"}`, `%${displayRegionData?.eAtfOrani || "-"}`, "%80"],
-      ["HTF Orani", `%${displayData.htfOrani || "-"}`, `%${displayRegionData?.htfOrani || "-"}`, "%90"],
-      ["Kontrol Sende", `%${displayData.kontrolSende || "-"}`, `%${displayRegionData?.kontrolSende || "-"}`, "%90"],
-      ["Gelen Kargo (Belge)", formatNumber(displayData.gelenKargo), formatNumber(displayRegionData?.gelenKargo), "-"],
-      ["Giden Kargo (Belge)", formatNumber(displayData.gidenKargo), formatNumber(displayRegionData?.gidenKargo), "-"],
-      ["Olcum Tartim", formatNumber(displayData.olcumTartim), formatNumber(displayRegionData?.olcumTartim), "0"],
-    ];
+      // 1. Türkçe destekli Roboto fontunu dinamik olarak çek ve PDF'e göm
+      try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+        const blob = await response.blob();
+        const base64Font = await getBase64(blob);
+        
+        doc.addFileToVFS("Roboto.ttf", base64Font);
+        doc.addFont("Roboto.ttf", "Roboto", "normal");
+        doc.setFont("Roboto");
+      } catch (e) {
+        console.warn("Font indirilemedi, varsayılan sistem fontu kullanılacak.", e);
+      }
 
-    doc.autoTable({
-      startY: 45,
-      head: [['KPI Metrigi', 'Birim Degeri', 'Bolge Ort.', 'Hedef']],
-      body: tableRows,
-      theme: 'grid',
-      headStyles: { 
-        fillColor: type === 'defense' ? [220, 38, 38] : [5, 150, 105], // Savunma: Kırmızı, Rapor: Yeşil
-        halign: 'center' 
-      },
-      columnStyles: {
-        1: { halign: 'center' },
-        2: { halign: 'center' },
-        3: { halign: 'center' }
-      },
-      styles: { fontSize: 9 },
-      didParseCell: function(data) {
-        if (type === 'defense' && data.section === 'body') {
-          const metricName = data.row.raw[0];
-          let isFail = false;
+      const donemText = showYearAvg ? `${selectedYear} Yılı Ortalaması` : `${selectedYear} - ${MONTH_NAMES[selectedMonth]}`;
 
-          const rawValue = displayData || {};
-          const parseVal = (key) => {
-            if (rawValue[key] === undefined || rawValue[key] === null || rawValue[key] === "") return null;
-            return parseFloat(String(rawValue[key]).replace(',', '.'));
-          };
+      // Başlık Bölümü
+      doc.setFontSize(18);
+      doc.setTextColor(40);
+      const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON PERFORMANS RAPORU";
+      doc.text(title, 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Birim: ${selectedUnit}`, 14, 30);
+      doc.text(`Dönem: ${donemText}`, 14, 35);
+      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
 
-          // Koşullar PDF içindeki İngilizce karakterli isimlere göre güncellendi
-          if (metricName === "Teslim Performansi" && parseVal('teslimPerformansi') !== null && parseVal('teslimPerformansi') < 95) isFail = true;
-          if (metricName === "Rota Orani" && parseVal('rotaOrani') !== null && parseVal('rotaOrani') < 80) isFail = true;
-          if (metricName === "TVS Orani" && parseVal('tvsOrani') !== null && parseVal('tvsOrani') < 90) isFail = true;
-          if (metricName === "Check-in Orani" && parseVal('checkInOrani') !== null && parseVal('checkInOrani') < 90) isFail = true;
-          if (metricName === "SMS Orani" && parseVal('smsOrani') !== null && parseVal('smsOrani') < 50) isFail = true;
-          if (metricName === "E-ATF Orani" && parseVal('eAtfOrani') !== null && parseVal('eAtfOrani') < 80) isFail = true;
-          if (metricName === "HTF Orani" && parseVal('htfOrani') !== null && parseVal('htfOrani') < 90) isFail = true;
-          if (metricName === "Kontrol Sende" && parseVal('kontrolSende') !== null && parseVal('kontrolSende') < 90) isFail = true;
-          if (metricName === "Olcum Tartim" && parseVal('olcumTartim') !== null && parseVal('olcumTartim') > 0) isFail = true;
+      const tableRows = [
+        ["Teslim Performansı", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
+        ["Rota Oranı", `%${displayData.rotaOrani || "-"}`, `%${displayRegionData?.rotaOrani || "-"}`, "%80"],
+        ["TVS Oranı", `%${displayData.tvsOrani || "-"}`, `%${displayRegionData?.tvsOrani || "-"}`, "%90"],
+        ["Check-in Oranı", `%${displayData.checkInOrani || "-"}`, `%${displayRegionData?.checkInOrani || "-"}`, "%90"],
+        ["SMS Oranı", `%${displayData.smsOrani || "-"}`, `%${displayRegionData?.smsOrani || "-"}`, "%50"],
+        ["E-ATF Oranı", `%${displayData.eAtfOrani || "-"}`, `%${displayRegionData?.eAtfOrani || "-"}`, "%80"],
+        ["HTF Oranı", `%${displayData.htfOrani || "-"}`, `%${displayRegionData?.htfOrani || "-"}`, "%90"],
+        ["Kontrol Sende", `%${displayData.kontrolSende || "-"}`, `%${displayRegionData?.kontrolSende || "-"}`, "%90"],
+        ["Gelen Kargo (Belge)", formatNumber(displayData.gelenKargo), formatNumber(displayRegionData?.gelenKargo), "-"],
+        ["Giden Kargo (Belge)", formatNumber(displayData.gidenKargo), formatNumber(displayRegionData?.gidenKargo), "-"],
+        ["Ölçüm Tartım", formatNumber(displayData.olcumTartim), formatNumber(displayRegionData?.olcumTartim), "0"],
+      ];
 
-          if (isFail) {
-            data.cell.styles.fillColor = [254, 226, 226]; 
-            data.cell.styles.textColor = [185, 28, 28]; 
-            data.cell.styles.fontStyle = 'bold';
+      doc.autoTable({
+        startY: 45,
+        head: [['KPI Metriği', 'Birim Değeri', 'Bölge Ort.', 'Hedef']],
+        body: tableRows,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 9 }, // Tablo içi özel font kullanımı
+        headStyles: { 
+          font: 'Roboto', // Başlık içi özel font
+          fillColor: type === 'defense' ? [220, 38, 38] : [5, 150, 105],
+          halign: 'center' 
+        },
+        columnStyles: {
+          1: { halign: 'center' },
+          2: { halign: 'center' },
+          3: { halign: 'center' }
+        },
+        didParseCell: function(data) {
+          if (type === 'defense' && data.section === 'body') {
+            const metricName = data.row.raw[0];
+            let isFail = false;
+
+            const rawValue = displayData || {};
+            const parseVal = (key) => {
+              if (rawValue[key] === undefined || rawValue[key] === null || rawValue[key] === "") return null;
+              return parseFloat(String(rawValue[key]).replace(',', '.'));
+            };
+
+            if (metricName === "Teslim Performansı" && parseVal('teslimPerformansi') !== null && parseVal('teslimPerformansi') < 95) isFail = true;
+            if (metricName === "Rota Oranı" && parseVal('rotaOrani') !== null && parseVal('rotaOrani') < 80) isFail = true;
+            if (metricName === "TVS Oranı" && parseVal('tvsOrani') !== null && parseVal('tvsOrani') < 90) isFail = true;
+            if (metricName === "Check-in Oranı" && parseVal('checkInOrani') !== null && parseVal('checkInOrani') < 90) isFail = true;
+            if (metricName === "SMS Oranı" && parseVal('smsOrani') !== null && parseVal('smsOrani') < 50) isFail = true;
+            if (metricName === "E-ATF Oranı" && parseVal('eAtfOrani') !== null && parseVal('eAtfOrani') < 80) isFail = true;
+            if (metricName === "HTF Oranı" && parseVal('htfOrani') !== null && parseVal('htfOrani') < 90) isFail = true;
+            if (metricName === "Kontrol Sende" && parseVal('kontrolSende') !== null && parseVal('kontrolSende') < 90) isFail = true;
+            if (metricName === "Ölçüm Tartım" && parseVal('olcumTartim') !== null && parseVal('olcumTartim') > 0) isFail = true;
+
+            if (isFail) {
+              data.cell.styles.fillColor = [254, 226, 226]; 
+              data.cell.styles.textColor = [185, 28, 28]; 
+            }
           }
         }
-      }
-    });
+      });
 
-    let finalY = doc.lastAutoTable.finalY + 10;
-    
-    // --- SAVUNMA METNİ ---
-    if (type === 'defense') {
-      doc.setFontSize(10);
-      doc.setTextColor(40);
+      let finalY = doc.lastAutoTable.finalY + 10;
       
-      // PDF'e özel ASCII (İngilizce karakterli) metin
-      const defenseText = "Sayin Birim Yoneticisi,\n\nYukaridaki tabloda koyu arka plan ile isaretlenmis olan satirlarda biriminizin sirket kalite hedeflerinin altinda kaldigi tespit edilmistir. Soz konusu hedeflere ulasilamama nedenlerini ve bu oranlari standartlarin uzerine cikarmak icin planladiginiz aksiyonlari asagiya detayli olarak aciklamanizi rica ederiz.";
-      
-      const splitText = doc.splitTextToSize(defenseText, 180);
-      doc.text(splitText, 14, finalY);
-      
-      finalY += splitText.length * 5 + 10;
-      
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.text("Aciklama / Savunma Icerigi:", 14, finalY);
-      
-      doc.setDrawColor(200);
-      for(let i=1; i<=7; i++) {
-          doc.line(14, finalY + (i*8), 196, finalY + (i*8));
+      // --- SAVUNMA METNİ ---
+      if (type === 'defense') {
+        doc.setFontSize(10);
+        doc.setTextColor(40);
+        
+        const defenseText = "Sayın Birim Yöneticisi,\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda biriminizin şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.";
+        
+        const splitText = doc.splitTextToSize(defenseText, 180);
+        doc.text(splitText, 14, finalY);
+        
+        finalY += splitText.length * 5 + 10;
+        
+        doc.setFontSize(11);
+        doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
+        
+        doc.setDrawColor(200);
+        for(let i=1; i<=7; i++) {
+            doc.line(14, finalY + (i*8), 196, finalY + (i*8));
+        }
+        
+        finalY += 75;
+        doc.setFontSize(10);
+        doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
+        doc.text("İmza:", 140, finalY);
       }
-      
-      finalY += 75;
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text("Birim Yoneticisi Ad / Soyad:", 14, finalY);
-      doc.text("Imza:", 140, finalY);
+
+      const fileName = type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Performans_Raporu.pdf`;
+      doc.save(fileName);
+    } catch (error) {
+      console.error("PDF oluşturulurken hata:", error);
+      alert("Belge oluşturulurken bir hata oluştu.");
+    } finally {
+      setIsGeneratingPdf(false); // İşlem bitince false yap
+      setShowPdfModal(false); // Modalı kapat
     }
-
-    const fileName = type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Performans_Raporu.pdf`;
-    doc.save(fileName);
-    setShowPdfModal(false);
   };
 
   return (
@@ -328,33 +356,41 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <FileDown className="text-blue-600" size={20} /> Belge Dışa Aktar
               </h3>
-              <button onClick={() => setShowPdfModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <X size={20} />
-              </button>
+              {!isGeneratingPdf && (
+                <button onClick={() => setShowPdfModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                  <X size={20} />
+                </button>
+              )}
             </div>
             <div className="p-5 space-y-3">
               <button 
                 onClick={() => generatePDF('report')}
-                className="w-full flex items-center gap-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/50 transition-colors text-left"
+                disabled={isGeneratingPdf}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-10 h-10 rounded-full bg-emerald-200 dark:bg-emerald-800/50 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0">
-                  <FileText size={20} />
+                  {isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <FileText size={20} />}
                 </div>
                 <div>
-                  <h4 className="font-bold text-emerald-800 dark:text-emerald-400">Performans Raporu</h4>
+                  <h4 className="font-bold text-emerald-800 dark:text-emerald-400">
+                    {isGeneratingPdf ? "Oluşturuluyor..." : "Performans Raporu"}
+                  </h4>
                   <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">Standart aylık performans ve hacim tablosu.</p>
                 </div>
               </button>
               
               <button 
                 onClick={() => generatePDF('defense')}
-                className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 transition-colors text-left"
+                disabled={isGeneratingPdf}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-10 h-10 rounded-full bg-rose-200 dark:bg-rose-800/50 flex items-center justify-center text-rose-700 dark:text-rose-400 shrink-0">
-                  <ShieldCheck size={20} />
+                  {isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <ShieldCheck size={20} />}
                 </div>
                 <div>
-                  <h4 className="font-bold text-rose-800 dark:text-rose-400">Savunma Formu</h4>
+                  <h4 className="font-bold text-rose-800 dark:text-rose-400">
+                    {isGeneratingPdf ? "Oluşturuluyor..." : "Savunma Formu"}
+                  </h4>
                   <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">Hedef altı kalan metrikler tabloda renklendirilir ve imza alanı oluşturulur.</p>
                 </div>
               </button>
