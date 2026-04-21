@@ -170,7 +170,7 @@ const PersonnelDefensePanel = ({ allData }) => {
         <table className="w-full text-left whitespace-nowrap border-collapse">
           <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
             <tr>
-              <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Birim</th>
+              {/* Birim Sütunu Kaldırıldı */}
               <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Ad Soyad</th>
               <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota</th>
               <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
@@ -183,7 +183,7 @@ const PersonnelDefensePanel = ({ allData }) => {
             {failedPersonnel.length > 0 ? (
               failedPersonnel.map((person, idx) => (
                 <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                  <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{person.unit}</td>
+                  {/* Birim Sütunu Kaldırıldı */}
                   
                   {/* YAPIŞKAN (STICKY) İSİM SÜTUNU */}
                   <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-white sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
@@ -208,7 +208,7 @@ const PersonnelDefensePanel = ({ allData }) => {
               ))
             ) : (
               <tr>
-                <td colSpan="7" className="p-6 sm:p-8 text-center text-xs sm:text-sm text-slate-400">Bu kriterlere uygun hedef altı personel bulunmamaktadır. Harika! 🎉</td>
+                <td colSpan="6" className="p-6 sm:p-8 text-center text-xs sm:text-sm text-slate-400">Bu kriterlere uygun hedef altı personel bulunmamaktadır. Harika! 🎉</td>
               </tr>
             )}
           </tbody>
