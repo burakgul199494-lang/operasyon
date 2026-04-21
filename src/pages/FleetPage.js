@@ -5,11 +5,9 @@ const FleetPage = ({ fleetData, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState(null);
 
-  // YENİ: Arama boşsa tümünü getir, doluysa filtrele ve daima alfabetik sırala
   const filteredList = useMemo(() => {
-    let result = [...(fleetData || [])]; // Orijinal veriyi bozmamak için kopyala
+    let result = [...(fleetData || [])]; 
     
-    // Eğer arama kutusu doluysa filtrele
     if (searchQuery.trim()) {
       const lowerQ = searchQuery.toLocaleLowerCase('tr-TR');
       result = result.filter(item => {
@@ -19,8 +17,6 @@ const FleetPage = ({ fleetData, onBack }) => {
       });
     }
 
-    // Her durumda Birim adına göre (A'dan Z'ye) sırala.
-    // Eğer birimler aynıysa, Plakaya göre sırala.
     return result.sort((a, b) => {
       const unitA = a.unit || "";
       const unitB = b.unit || "";
@@ -85,7 +81,10 @@ const FleetPage = ({ fleetData, onBack }) => {
                     </span>
                   </div>
                   <h3 className="text-lg font-bold text-slate-800 dark:text-white font-mono tracking-wide">{vehicle.plate}</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{vehicle.brand} - {vehicle.model}</p>
+                  {/* YENİ: Hem eski datayı ("Marka", "Model" ayrıysa birleştir) hem yeni datayı ("brandModel") destekle */}
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {vehicle.brandModel || [vehicle.brand, vehicle.model].filter(Boolean).join(" - ")}
+                  </p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-full text-slate-400 dark:text-slate-500 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/30 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                     <CarFront size={20} />
@@ -114,7 +113,8 @@ const FleetPage = ({ fleetData, onBack }) => {
             <div className="p-6 space-y-4">
               <DetailRow icon={User} label="Tedarikçi" value={selectedVehicle.supplier} />
               <DetailRow icon={Truck} label="Araç Cinsi" value={selectedVehicle.vehicleType} />
-              <DetailRow icon={CarFront} label="Marka / Model" value={`${selectedVehicle.brand} ${selectedVehicle.model}`} />
+              {/* YENİ: Hem eski datayı hem yeni datayı destekle */}
+              <DetailRow icon={CarFront} label="Marka / Model" value={selectedVehicle.brandModel || [selectedVehicle.brand, selectedVehicle.model].filter(Boolean).join(" ")} />
               <DetailRow icon={Calendar} label="Model Yılı" value={selectedVehicle.year} />
               <DetailRow icon={PenTool} label="Çalışma Şekli" value={selectedVehicle.operationType} />
               <DetailRow 
