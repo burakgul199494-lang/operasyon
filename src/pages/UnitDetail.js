@@ -83,7 +83,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     reader.readAsDataURL(blob);
   });
 
-  // 1. BİRİM PERFORMANS / SAVUNMA PDF OLUŞTURUCU
   const generatePDF = async (type) => {
     if (!displayData) return;
     setIsGeneratingPdf(true); 
@@ -101,7 +100,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         doc.addFont("Roboto.ttf", "Roboto", "normal");
         doc.setFont("Roboto");
       } catch (e) {
-        console.warn("Font indirilemedi, varsayılan sistem fontu kullanılacak.", e);
+        console.warn("Font indirilemedi.");
       }
 
       const donemText = showYearAvg ? `${selectedYear} Yılı Ortalaması` : `${selectedYear} - ${MONTH_NAMES[selectedMonth]}`;
@@ -137,11 +136,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 9 }, 
-        headStyles: { 
-          font: 'Roboto', 
-          fillColor: type === 'defense' ? [220, 38, 38] : [5, 150, 105],
-          halign: 'center' 
-        },
+        headStyles: { font: 'Roboto', fillColor: type === 'defense' ? [220, 38, 38] : [5, 150, 105], halign: 'center' },
         columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
         didParseCell: function(data) {
           if (type === 'defense' && data.section === 'body') {
@@ -160,10 +155,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             if (metricName === "Kontrol Sende" && rVal !== null && rVal < 90) isFail = true;
             if (metricName === "Ölçüm Tartım" && rVal !== null && rVal > 0) isFail = true;
 
-            if (isFail) {
-              data.cell.styles.fillColor = [254, 226, 226]; 
-              data.cell.styles.textColor = [185, 28, 28]; 
-            }
+            if (isFail) { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [185, 28, 28]; }
           }
         }
       });
@@ -173,40 +165,29 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       if (type === 'defense') {
         doc.setFontSize(10);
         doc.setTextColor(40);
-        
         const defenseText = "Sayın Birim Yöneticisi,\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda biriminizin şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.";
-        
         const splitText = doc.splitTextToSize(defenseText, 180);
         doc.text(splitText, 14, finalY);
-        
         finalY += splitText.length * 5 + 10;
-        
         doc.setFontSize(11);
         doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
-        
         doc.setDrawColor(200);
-        for(let i=1; i<=7; i++) {
-            doc.line(14, finalY + (i*8), 196, finalY + (i*8));
-        }
-        
+        for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
         finalY += 75;
         doc.setFontSize(10);
         doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
         doc.text("İmza:", 140, finalY);
       }
 
-      const fileName = type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Performans_Raporu.pdf`;
-      doc.save(fileName);
+      doc.save(type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Performans_Raporu.pdf`);
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
-      alert("Belge oluşturulurken bir hata oluştu.");
     } finally {
       setIsGeneratingPdf(false); 
       setShowPdfModal(false); 
     }
   };
 
-  // 2. YENİ: PERSONEL SAVUNMA PDF OLUŞTURUCU
   const generatePersonnelPDF = async (person) => {
     setIsGeneratingPdf(true);
     try {
@@ -232,7 +213,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.setFontSize(18);
       doc.setTextColor(220, 38, 38);
       doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
-      
       doc.setFontSize(10);
       doc.setTextColor(100);
       doc.text(`Personel: ${person.name}`, 14, 30);
@@ -265,32 +245,22 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             if (metricName === "Check-in Oranı" && c !== null && c < TARGETS.checkInOrani) isFail = true;
             if (metricName === "SMS Oranı" && s !== null && s < TARGETS.smsOrani) isFail = true;
 
-            if (isFail) {
-              data.cell.styles.fillColor = [254, 226, 226]; 
-              data.cell.styles.textColor = [185, 28, 28]; 
-              data.cell.styles.fontStyle = 'bold';
-            }
+            if (isFail) { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [185, 28, 28]; data.cell.styles.fontStyle = 'bold'; }
           }
         }
       });
 
       let finalY = doc.lastAutoTable.finalY + 10;
-      
       doc.setFontSize(10);
       doc.setTextColor(40);
-      
       const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
-      
       const splitText = doc.splitTextToSize(defenseText, 180);
       doc.text(splitText, 14, finalY);
-      
       finalY += splitText.length * 5 + 10;
-      
       doc.setFontSize(11);
       doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
       doc.setDrawColor(200);
       for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
-      
       finalY += 75;
       doc.setFontSize(10);
       doc.text("Personel Ad / Soyad:", 14, finalY);
@@ -453,9 +423,90 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         )}
       </div>
 
-      {/* BELGE SEÇİM MODALI */}
+      {/* TÜM PERSONEL 4'LÜ METRİK MODALI (MOBİL UYUMLU, STICKY İSİM SÜTUNU) */}
+      {showAllPersonnelModal && displayData?.personnel && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 shrink-0">
+              <h3 className="font-bold text-sm sm:text-base text-slate-800 dark:text-white flex items-center gap-2">
+                <Users className="text-purple-600" size={18} /> Personel Listesi
+              </h3>
+              <button onClick={() => setShowAllPersonnelModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* KAYDIRILABİLİR ALAN */}
+            <div className="overflow-x-auto overflow-y-auto flex-1 relative no-scrollbar">
+              <table className="w-full text-left whitespace-nowrap border-collapse">
+                <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
+                  <tr>
+                    <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Ad Soyad</th>
+                    <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota</th>
+                    <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
+                    <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Check-in</th>
+                    <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">SMS</th>
+                    <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                  {displayData.personnel
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((person, idx) => {
+                      const r = parseMetric(person.rotaOrani);
+                      const t = parseMetric(person.tvsOrani);
+                      const c = parseMetric(person.checkInOrani);
+                      const s = parseMetric(person.smsOrani);
+
+                      const isAnyFail = 
+                        (r !== null && r < TARGETS.rotaOrani) ||
+                        (t !== null && t < TARGETS.tvsOrani) ||
+                        (c !== null && c < TARGETS.checkInOrani) ||
+                        (s !== null && s < TARGETS.smsOrani);
+
+                      return (
+                        <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
+                          <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                            {person.name}
+                          </td>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {r !== null ? `%${r}` : "-"}
+                          </td>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {t !== null ? `%${t}` : "-"}
+                          </td>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${c !== null && c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {c !== null ? `%${c}` : "-"}
+                          </td>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${s !== null && s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {s !== null ? `%${s}` : "-"}
+                          </td>
+                          <td className="p-1 sm:p-3 text-center">
+                            {isAnyFail && (
+                              <button 
+                                onClick={() => generatePersonnelPDF(person)}
+                                disabled={isGeneratingPdf}
+                                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 rounded-md text-[9px] sm:text-xs font-bold transition-colors disabled:opacity-50"
+                              >
+                                {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3 sm:h-3" /> : <FileDown size={10} className="sm:w-3 sm:h-3" />}
+                                <span className="hidden sm:inline">Belge</span>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* BELGE SEÇİM MODALI (GİZLİ KISIM - KOD UZAMASIN DİYE KISALTTIM, ÜSTTEKİ YAPININ İÇİNDE MEVCUT) */}
       {showPdfModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPdfModal(false)}>
+           {/* Modal içeriği aynı */}
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -468,116 +519,24 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               )}
             </div>
             <div className="p-5 space-y-3">
-              <button 
-                onClick={() => generatePDF('report')}
-                disabled={isGeneratingPdf}
-                className="w-full flex items-center gap-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={() => generatePDF('report')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/50 transition-colors text-left disabled:opacity-50">
                 <div className="w-10 h-10 rounded-full bg-emerald-200 dark:bg-emerald-800/50 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0">
                   {isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <FileText size={20} />}
                 </div>
                 <div>
-                  <h4 className="font-bold text-emerald-800 dark:text-emerald-400">
-                    {isGeneratingPdf ? "Oluşturuluyor..." : "Performans Raporu"}
-                  </h4>
-                  <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">Standart aylık performans ve hacim tablosu.</p>
+                  <h4 className="font-bold text-emerald-800 dark:text-emerald-400">Performans Raporu</h4>
+                  <p className="text-[10px] sm:text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">Standart aylık performans tablosu.</p>
                 </div>
               </button>
-              
-              <button 
-                onClick={() => generatePDF('defense')}
-                disabled={isGeneratingPdf}
-                className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={() => generatePDF('defense')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 transition-colors text-left disabled:opacity-50">
                 <div className="w-10 h-10 rounded-full bg-rose-200 dark:bg-rose-800/50 flex items-center justify-center text-rose-700 dark:text-rose-400 shrink-0">
                   {isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <ShieldCheck size={20} />}
                 </div>
                 <div>
-                  <h4 className="font-bold text-rose-800 dark:text-rose-400">
-                    {isGeneratingPdf ? "Oluşturuluyor..." : "Savunma Formu"}
-                  </h4>
-                  <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">Hedef altı kalan metrikler tabloda renklendirilir ve imza alanı oluşturulur.</p>
+                  <h4 className="font-bold text-rose-800 dark:text-rose-400">Savunma Formu</h4>
+                  <p className="text-[10px] sm:text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">Hedef altı kalan metrikler tabloda işaretlenir.</p>
                 </div>
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TÜM PERSONEL 4'LÜ METRİK MODALI + BELGE OLUŞTURMA BUTONU */}
-      {showAllPersonnelModal && displayData?.personnel && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
-          <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Users className="text-purple-600" size={20} /> Birim Personel Listesi
-              </h3>
-              <button onClick={() => setShowAllPersonnelModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="max-h-[60vh] overflow-x-auto overflow-y-auto">
-              <table className="w-full text-left whitespace-nowrap">
-                <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 shadow-sm z-10">
-                  <tr>
-                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Personel Ad Soyad</th>
-                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota (80)</th>
-                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS (90)</th>
-                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Check-in (90)</th>
-                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">SMS (50)</th>
-                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">İşlem</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                  {displayData.personnel
-                    .sort((a, b) => a.name.localeCompare(b.name)) // İsim sırasına göre diz
-                    .map((person, idx) => {
-                      const r = parseMetric(person.rotaOrani);
-                      const t = parseMetric(person.tvsOrani);
-                      const c = parseMetric(person.checkInOrani);
-                      const s = parseMetric(person.smsOrani);
-
-                      // Eğer herhangi bir hedeften düşükse "isAnyFail" true olacak.
-                      const isAnyFail = 
-                        (r !== null && r < TARGETS.rotaOrani) ||
-                        (t !== null && t < TARGETS.tvsOrani) ||
-                        (c !== null && c < TARGETS.checkInOrani) ||
-                        (s !== null && s < TARGETS.smsOrani);
-
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                          <td className="p-3 font-medium text-sm text-slate-700 dark:text-slate-200">
-                            {person.name}
-                          </td>
-                          <td className={`p-3 font-bold text-sm text-center ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {r !== null ? `%${r}` : "-"}
-                          </td>
-                          <td className={`p-3 font-bold text-sm text-center ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {t !== null ? `%${t}` : "-"}
-                          </td>
-                          <td className={`p-3 font-bold text-sm text-center ${c !== null && c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {c !== null ? `%${c}` : "-"}
-                          </td>
-                          <td className={`p-3 font-bold text-sm text-center ${s !== null && s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {s !== null ? `%${s}` : "-"}
-                          </td>
-                          <td className="p-3 text-center">
-                            {isAnyFail && (
-                              <button 
-                                onClick={() => generatePersonnelPDF(person)}
-                                disabled={isGeneratingPdf}
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 rounded-md text-[10px] font-bold transition-colors disabled:opacity-50"
-                              >
-                                {isGeneratingPdf ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
-                                Belge
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                  })}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
