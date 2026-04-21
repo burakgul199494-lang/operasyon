@@ -17,10 +17,19 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
-  // YENİ: Personel Detay Modalı için State
-  const [selectedMetricPersonnel, setSelectedMetricPersonnel] = useState(null); 
+  // YENİ: Toplu personel modalı state'i
+  const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
   
   const availableYears = [2024, 2025, 2026];
+
+  const TARGETS = { rotaOrani: 80, tvsOrani: 90, checkInOrani: 90, smsOrani: 50 };
+
+  const parseMetric = (val) => {
+    if (val === undefined || val === null || val === "") return null;
+    const cleanStr = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
+    const num = parseFloat(cleanStr);
+    return isNaN(num) ? null : num;
+  };
 
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
@@ -139,21 +148,17 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             const metricName = data.row.raw[0];
             let isFail = false;
 
-            const rawValue = displayData || {};
-            const parseVal = (key) => {
-              if (rawValue[key] === undefined || rawValue[key] === null || rawValue[key] === "") return null;
-              return parseFloat(String(rawValue[key]).replace(',', '.'));
-            };
-
-            if (metricName === "Teslim Performansı" && parseVal('teslimPerformansi') !== null && parseVal('teslimPerformansi') < 95) isFail = true;
-            if (metricName === "Rota Oranı" && parseVal('rotaOrani') !== null && parseVal('rotaOrani') < 80) isFail = true;
-            if (metricName === "TVS Oranı" && parseVal('tvsOrani') !== null && parseVal('tvsOrani') < 90) isFail = true;
-            if (metricName === "Check-in Oranı" && parseVal('checkInOrani') !== null && parseVal('checkInOrani') < 90) isFail = true;
-            if (metricName === "SMS Oranı" && parseVal('smsOrani') !== null && parseVal('smsOrani') < 50) isFail = true;
-            if (metricName === "E-ATF Oranı" && parseVal('eAtfOrani') !== null && parseVal('eAtfOrani') < 80) isFail = true;
-            if (metricName === "HTF Oranı" && parseVal('htfOrani') !== null && parseVal('htfOrani') < 90) isFail = true;
-            if (metricName === "Kontrol Sende" && parseVal('kontrolSende') !== null && parseVal('kontrolSende') < 90) isFail = true;
-            if (metricName === "Ölçüm Tartım" && parseVal('olcumTartim') !== null && parseVal('olcumTartim') > 0) isFail = true;
+            const rVal = parseMetric(displayData[metricName === "Teslim Performansı" ? "teslimPerformansi" : metricName === "Rota Oranı" ? "rotaOrani" : metricName === "TVS Oranı" ? "tvsOrani" : metricName === "Check-in Oranı" ? "checkInOrani" : metricName === "SMS Oranı" ? "smsOrani" : metricName === "E-ATF Oranı" ? "eAtfOrani" : metricName === "HTF Oranı" ? "htfOrani" : metricName === "Kontrol Sende" ? "kontrolSende" : metricName === "Ölçüm Tartım" ? "olcumTartim" : ""]);
+            
+            if (metricName === "Teslim Performansı" && rVal !== null && rVal < 95) isFail = true;
+            if (metricName === "Rota Oranı" && rVal !== null && rVal < 80) isFail = true;
+            if (metricName === "TVS Oranı" && rVal !== null && rVal < 90) isFail = true;
+            if (metricName === "Check-in Oranı" && rVal !== null && rVal < 90) isFail = true;
+            if (metricName === "SMS Oranı" && rVal !== null && rVal < 50) isFail = true;
+            if (metricName === "E-ATF Oranı" && rVal !== null && rVal < 80) isFail = true;
+            if (metricName === "HTF Oranı" && rVal !== null && rVal < 90) isFail = true;
+            if (metricName === "Kontrol Sende" && rVal !== null && rVal < 90) isFail = true;
+            if (metricName === "Ölçüm Tartım" && rVal !== null && rVal > 0) isFail = true;
 
             if (isFail) {
               data.cell.styles.fillColor = [254, 226, 226]; 
@@ -312,41 +317,32 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               {displayRegionData && (<div className="bg-black/10 py-2 flex items-center justify-center gap-2 border-t border-white/10"><span className="text-[10px] uppercase opacity-80 font-bold">{showYearAvg ? "BÖLGE YILLIK ORT:" : "BÖLGE ORTALAMASI:"}</span><span className="text-sm font-bold">{formatNumber(displayRegionData.teslimPerformansi)}%</span></div>)}
             </div>
 
-            {/* 4. 9'LU METRİK TABLOSU - EKLENEN PERSONEL TIKLAMA ÖZELLİĞİ İLE BİRLİKTE */}
+            {/* 4. 9'LU METRİK TABLOSU */}
             <div>
               <div className="flex items-center justify-between mb-2 pl-1">
                 <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                   {showYearAvg ? "Yıllık Performans Detayları" : "Performans Detayları"}
                 </h3>
+                
+                {/* YENİ: AKTİF PERSONEL BUTONU */}
                 {displayData?.personnel && displayData.personnel.length > 0 && !showYearAvg && (
-                   <span className="text-[10px] font-bold text-purple-500 bg-purple-50 dark:bg-purple-900/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                     <Users size={12}/> Personel için tıkla
-                   </span>
+                   <button 
+                     onClick={() => setShowAllPersonnelModal(true)}
+                     className="text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm"
+                   >
+                     <Users size={12}/> Personel İçin Tıkla
+                   </button>
                 )}
               </div>
 
+              {/* Kartlardaki tıklama özelliği tamamen kaldırıldı */}
               <div className="grid grid-cols-3 gap-2">
-                {/* 1. Satır: Rota - TVS - Checkin */}
-                <div onClick={() => !showYearAvg && displayData?.personnel && setSelectedMetricPersonnel({ title: "Rota Oranı", key: "rotaOrani", target: 80 })} className={!showYearAvg && displayData?.personnel ? "cursor-pointer hover:scale-105 transition-transform" : ""}>
-                   <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
-                </div>
-                <div onClick={() => !showYearAvg && displayData?.personnel && setSelectedMetricPersonnel({ title: "TVS Oranı", key: "tvsOrani", target: 90 })} className={!showYearAvg && displayData?.personnel ? "cursor-pointer hover:scale-105 transition-transform" : ""}>
-                   <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
-                </div>
-                <div onClick={() => !showYearAvg && displayData?.personnel && setSelectedMetricPersonnel({ title: "Check-in Oranı", key: "checkInOrani", target: 90 })} className={!showYearAvg && displayData?.personnel ? "cursor-pointer hover:scale-105 transition-transform" : ""}>
-                   <KPICard title="Check-in" value={displayData.checkInOrani} comparisonValue={displayRegionData?.checkInOrani} target={90} suffix="%" color={displayData.checkInOrani <= 90 ? "red" : "green"} icon={CheckCircle2} />
-                </div>
-                
-                {/* 2. Satır: Sms - EATF - HTF */}
-                <div onClick={() => !showYearAvg && displayData?.personnel && setSelectedMetricPersonnel({ title: "SMS Oranı", key: "smsOrani", target: 50 })} className={!showYearAvg && displayData?.personnel ? "cursor-pointer hover:scale-105 transition-transform" : ""}>
-                   <KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} />
-                </div>
-                
-                {/* Alt satırlar standart (Tıklanmıyor) */}
+                <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
+                <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
+                <KPICard title="Check-in" value={displayData.checkInOrani} comparisonValue={displayRegionData?.checkInOrani} target={90} suffix="%" color={displayData.checkInOrani <= 90 ? "red" : "green"} icon={CheckCircle2} />
+                <KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} />
                 <KPICard title="E-ATF" value={displayData.eAtfOrani} comparisonValue={displayRegionData?.eAtfOrani} target={80} suffix="%" color={displayData.eAtfOrani <= 80 ? "red" : "green"} icon={FileText} />
                 <KPICard title="HTF" value={displayData.htfOrani} comparisonValue={displayRegionData?.htfOrani} target={90} suffix="%" color={parseFloat(displayData.htfOrani) > 90 ? "green" : "red"} icon={Activity} />
-                
-                {/* 3. Satır: Elektronik İhbar - Kontrol Sende - Ölçüm Tartım */}
                 <KPICard title="E-İhbar" value={displayData.elektronikIhbar} comparisonValue={displayRegionData?.elektronikIhbar} target={90} suffix="%" color={displayData.elektronikIhbar <= 90 ? "red" : "green"} icon={Mail} />
                 <KPICard title="K. Sende" value={displayData.kontrolSende} comparisonValue={displayRegionData?.kontrolSende} target={90} suffix="%" color={parseFloat(displayData.kontrolSende) < 90 ? "red" : "green"} icon={ShieldCheck} />
                 <KPICard title="Ölçüm Tartım" value={displayData.olcumTartim} comparisonValue={displayRegionData?.olcumTartim} target={0} suffix="" color={parseFloat(displayData.olcumTartim) > 0 ? "red" : "green"} icon={Scale} />
@@ -412,51 +408,58 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         </div>
       )}
 
-      {/* YENİ: PERSONEL DETAY MODALI */}
-      {selectedMetricPersonnel && displayData?.personnel && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedMetricPersonnel(null)}>
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+      {/* YENİ: TÜM PERSONEL 4'LÜ METRİK MODALI */}
+      {showAllPersonnelModal && displayData?.personnel && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                {selectedMetricPersonnel.title} Listesi
+                <Users className="text-purple-600" size={20} /> Birim Personel Listesi
               </h3>
-              <button onClick={() => setSelectedMetricPersonnel(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+              <button onClick={() => setShowAllPersonnelModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                 <X size={20} />
               </button>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto">
-              <table className="w-full text-left">
+            <div className="max-h-[60vh] overflow-x-auto overflow-y-auto">
+              <table className="w-full text-left whitespace-nowrap">
                 <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 shadow-sm z-10">
                   <tr>
                     <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Personel Ad Soyad</th>
-                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-right">Gerçekleşen Oran</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota (80)</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS (90)</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Check-in (90)</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">SMS (50)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                   {displayData.personnel
-                    // Sadece tıklanan metriğe ait verisi olan personelleri filtrele
-                    .filter(person => person[selectedMetricPersonnel.key] !== undefined && person[selectedMetricPersonnel.key] !== null && person[selectedMetricPersonnel.key] !== "")
-                    // En yüksek puandan en düşüğe sırala
-                    .sort((a, b) => parseFloat(b[selectedMetricPersonnel.key]) - parseFloat(a[selectedMetricPersonnel.key]))
+                    .sort((a, b) => a.name.localeCompare(b.name)) // İsim sırasına göre diz
                     .map((person, idx) => {
-                      const val = parseFloat(person[selectedMetricPersonnel.key]);
-                      const isFail = val < selectedMetricPersonnel.target;
+                      const r = parseMetric(person.rotaOrani);
+                      const t = parseMetric(person.tvsOrani);
+                      const c = parseMetric(person.checkInOrani);
+                      const s = parseMetric(person.smsOrani);
+
                       return (
                         <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="p-3 font-medium text-sm text-slate-700 dark:text-slate-200">
                             {person.name}
                           </td>
-                          <td className={`p-3 font-bold text-sm text-right ${isFail ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-emerald-600'}`}>
-                            %{val}
+                          <td className={`p-3 font-bold text-sm text-center ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {r !== null ? `%${r}` : "-"}
+                          </td>
+                          <td className={`p-3 font-bold text-sm text-center ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {t !== null ? `%${t}` : "-"}
+                          </td>
+                          <td className={`p-3 font-bold text-sm text-center ${c !== null && c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {c !== null ? `%${c}` : "-"}
+                          </td>
+                          <td className={`p-3 font-bold text-sm text-center ${s !== null && s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {s !== null ? `%${s}` : "-"}
                           </td>
                         </tr>
                       );
                   })}
-                  {displayData.personnel.filter(person => person[selectedMetricPersonnel.key] !== undefined && person[selectedMetricPersonnel.key] !== null && person[selectedMetricPersonnel.key] !== "").length === 0 && (
-                    <tr>
-                      <td colSpan="2" className="p-6 text-center text-sm text-slate-400">Bu metrik için personel verisi bulunamadı.</td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
