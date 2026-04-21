@@ -9,37 +9,38 @@ const PersonnelDefensePanel = ({ allData }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const availableYears = [2024, 2025, 2026];
-
-  // Hedefler
   const TARGETS = { rotaOrani: 80, tvsOrani: 90, checkInOrani: 90, smsOrani: 50 };
 
-  // Seçili ay/yıl ve birime göre başarısız personelleri filtrele
+  const parseMetric = (val) => {
+    if (val === undefined || val === null || val === "") return null;
+    const cleanStr = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
+    const num = parseFloat(cleanStr);
+    return isNaN(num) ? null : num;
+  };
+
   const failedPersonnel = useMemo(() => {
     let list = [];
     if (!allData) return list;
 
     allData.forEach(record => {
-      // Filtrelere uyuyor mu?
-      if (record.year !== selectedYear || record.month !== selectedMonth) return;
+      if (record.year !== parseInt(selectedYear) || record.month !== parseInt(selectedMonth)) return;
       if (selectedUnit !== "TÜMÜ" && record.unit !== selectedUnit) return;
       
-      // Personel verisi varsa kontrol et
       if (record.personnel && Array.isArray(record.personnel)) {
         record.personnel.forEach(person => {
+          const r = parseMetric(person.rotaOrani);
+          const t = parseMetric(person.tvsOrani);
+          const c = parseMetric(person.checkInOrani);
+          const s = parseMetric(person.smsOrani);
+
           const isFail = 
-            (person.rotaOrani !== null && person.rotaOrani < TARGETS.rotaOrani) ||
-            (person.tvsOrani !== null && person.tvsOrani < TARGETS.tvsOrani) ||
-            (person.checkInOrani !== null && person.checkInOrani < TARGETS.checkInOrani) ||
-            (person.smsOrani !== null && person.smsOrani < TARGETS.smsOrani);
+            (r !== null && r < TARGETS.rotaOrani) ||
+            (t !== null && t < TARGETS.tvsOrani) ||
+            (c !== null && c < TARGETS.checkInOrani) ||
+            (s !== null && s < TARGETS.smsOrani);
 
           if (isFail) {
-            list.push({
-              ...person,
-              unit: record.unit,
-              month: record.month,
-              year: record.year,
-              unitRecord: record
-            });
+            list.push({ ...person, unit: record.unit, month: record.month, year: record.year, unitRecord: record, parsedData: { r, t, c, s } });
           }
         });
       }
@@ -55,14 +56,12 @@ const PersonnelDefensePanel = ({ allData }) => {
     reader.readAsDataURL(blob);
   });
 
-  // PERSONEL PDF OLUŞTURUCU
   const generatePersonnelPDF = async (person) => {
     setIsGeneratingPdf(true);
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
 
-      // Türkçe Roboto Font Ekleme
       try {
         const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
         const blob = await response.blob();
@@ -74,7 +73,6 @@ const PersonnelDefensePanel = ({ allData }) => {
         console.warn("Font indirilemedi.");
       }
 
-      // Başlık
       doc.setFontSize(18);
       doc.setTextColor(220, 38, 38);
       doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
@@ -87,10 +85,10 @@ const PersonnelDefensePanel = ({ allData }) => {
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
       const tableRows = [
-        ["Rota Oranı", `%${person.rotaOrani || "-"}`, `%${person.unitRecord.rotaOrani || "-"}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${person.tvsOrani || "-"}`, `%${person.unitRecord.tvsOrani || "-"}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${person.checkInOrani || "-"}`, `%${person.unitRecord.checkInOrani || "-"}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${person.smsOrani || "-"}`, `%${person.unitRecord.smsOrani || "-"}`, `%${TARGETS.smsOrani}`]
+        ["Rota Oranı", `%${person.parsedData.r ?? "-"}`, `%${parseMetric(person.unitRecord.rotaOrani) ?? "-"}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı", `%${person.parsedData.t ?? "-"}`, `%${parseMetric(person.unitRecord.tvsOrani) ?? "-"}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı", `%${person.parsedData.c ?? "-"}`, `%${parseMetric(person.unitRecord.checkInOrani) ?? "-"}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı", `%${person.parsedData.s ?? "-"}`, `%${parseMetric(person.unitRecord.smsOrani) ?? "-"}`, `%${TARGETS.smsOrani}`]
       ];
 
       doc.autoTable({
@@ -106,10 +104,10 @@ const PersonnelDefensePanel = ({ allData }) => {
             const metricName = data.row.raw[0];
             let isFail = false;
 
-            if (metricName === "Rota Oranı" && person.rotaOrani < TARGETS.rotaOrani) isFail = true;
-            if (metricName === "TVS Oranı" && person.tvsOrani < TARGETS.tvsOrani) isFail = true;
-            if (metricName === "Check-in Oranı" && person.checkInOrani < TARGETS.checkInOrani) isFail = true;
-            if (metricName === "SMS Oranı" && person.smsOrani < TARGETS.smsOrani) isFail = true;
+            if (metricName === "Rota Oranı" && person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani) isFail = true;
+            if (metricName === "TVS Oranı" && person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani) isFail = true;
+            if (metricName === "Check-in Oranı" && person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani) isFail = true;
+            if (metricName === "SMS Oranı" && person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani) isFail = true;
 
             if (isFail) {
               data.cell.styles.fillColor = [254, 226, 226]; 
@@ -121,23 +119,16 @@ const PersonnelDefensePanel = ({ allData }) => {
       });
 
       let finalY = doc.lastAutoTable.finalY + 10;
-      
-      // Personel Savunma Metni
       doc.setFontSize(10);
       doc.setTextColor(40);
-      
       const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
-      
       const splitText = doc.splitTextToSize(defenseText, 180);
       doc.text(splitText, 14, finalY);
-      
       finalY += splitText.length * 5 + 10;
-      
       doc.setFontSize(11);
       doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
       doc.setDrawColor(200);
       for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
-      
       finalY += 75;
       doc.setFontSize(10);
       doc.text("Personel Ad / Soyad:", 14, finalY);
@@ -152,68 +143,72 @@ const PersonnelDefensePanel = ({ allData }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mt-6">
-      <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mt-4 sm:mt-6">
+      <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <AlertCircle className="text-rose-500" size={20} /> Personel Savunma Yönetimi
+          <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <AlertCircle className="text-rose-500" size={18} /> Personel Savunma Yönetimi
           </h2>
-          <p className="text-xs text-slate-500 mt-1">Hedef altı kalan personelleri listeleyin ve belge oluşturun.</p>
+          <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Hedef altı kalan personelleri listeleyin ve belge oluşturun.</p>
         </div>
         
-        {/* Filtreler */}
-        <div className="flex flex-wrap gap-2">
-          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="flex-1 md:flex-none bg-white dark:bg-slate-800 text-[10px] sm:text-sm py-1.5 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none">
             {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none">
+          <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="flex-1 md:flex-none bg-white dark:bg-slate-800 text-[10px] sm:text-sm py-1.5 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none">
             {MONTH_NAMES.map((m, i) => i !== 0 && <option key={i} value={i}>{m}</option>)}
           </select>
-          <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="bg-white dark:bg-slate-800 text-sm py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none">
+          <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="w-full md:w-auto bg-white dark:bg-slate-800 text-[10px] sm:text-sm py-1.5 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none">
             <option value="TÜMÜ">Tüm Birimler</option>
             {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-100/50 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              <th className="p-3 font-semibold">Birim</th>
-              <th className="p-3 font-semibold">Ad Soyad</th>
-              <th className="p-3 font-semibold text-center">Rota</th>
-              <th className="p-3 font-semibold text-center">TVS</th>
-              <th className="p-3 font-semibold text-center">Check-in</th>
-              <th className="p-3 font-semibold text-center">SMS</th>
-              <th className="p-3 font-semibold text-right">İşlem</th>
+      <div className="overflow-x-auto relative no-scrollbar">
+        <table className="w-full text-left whitespace-nowrap border-collapse">
+          <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
+            <tr>
+              <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Birim</th>
+              <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Ad Soyad</th>
+              <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota</th>
+              <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
+              <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Check-in</th>
+              <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">SMS</th>
+              <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">İşlem</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-sm">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
             {failedPersonnel.length > 0 ? (
               failedPersonnel.map((person, idx) => (
-                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <td className="p-3 font-medium text-slate-700 dark:text-slate-300">{person.unit}</td>
-                  <td className="p-3 font-bold text-slate-800 dark:text-white">{person.name}</td>
-                  <td className={`p-3 text-center font-semibold ${person.rotaOrani < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-400'}`}>%{person.rotaOrani}</td>
-                  <td className={`p-3 text-center font-semibold ${person.tvsOrani < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-400'}`}>%{person.tvsOrani}</td>
-                  <td className={`p-3 text-center font-semibold ${person.checkInOrani < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-400'}`}>%{person.checkInOrani}</td>
-                  <td className={`p-3 text-center font-semibold ${person.smsOrani < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-400'}`}>%{person.smsOrani}</td>
-                  <td className="p-3 text-right">
+                <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
+                  <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{person.unit}</td>
+                  
+                  {/* YAPIŞKAN (STICKY) İSİM SÜTUNU */}
+                  <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-white sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                    {person.name}
+                  </td>
+                  
+                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>%{person.parsedData.r ?? "-"}</td>
+                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>%{person.parsedData.t ?? "-"}</td>
+                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>%{person.parsedData.c ?? "-"}</td>
+                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>%{person.parsedData.s ?? "-"}</td>
+                  <td className="p-1 sm:p-3 text-center">
                     <button 
                       onClick={() => generatePersonnelPDF(person)}
                       disabled={isGeneratingPdf}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-colors disabled:opacity-50"
                     >
-                      {isGeneratingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
-                      Belge Oluştur
+                      {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3.5 sm:h-3.5" /> : <FileDown size={10} className="sm:w-3.5 sm:h-3.5" />}
+                      <span className="hidden sm:inline">Belge Oluştur</span>
                     </button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="7" className="p-8 text-center text-slate-400">Bu kriterlere uygun hedef altı personel bulunmamaktadır. Harika! 🎉</td>
+                <td colSpan="7" className="p-6 sm:p-8 text-center text-xs sm:text-sm text-slate-400">Bu kriterlere uygun hedef altı personel bulunmamaktadır. Harika! 🎉</td>
               </tr>
             )}
           </tbody>
