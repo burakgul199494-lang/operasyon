@@ -74,19 +74,29 @@ const FleetPage = ({ fleetData, onBack }) => {
             >
               <div className="flex justify-between items-start">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold px-2 py-0.5 rounded">{vehicle.unit}</span>
+                  {/* YENİ: Çalışma Şekli araya eklendi ve mobilde taşmayı önlemek için flex-wrap kullanıldı */}
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold px-2 py-0.5 rounded">
+                      {vehicle.unit}
+                    </span>
+                    
+                    {vehicle.operationType && (
+                      <span className="bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-bold px-2 py-0.5 rounded">
+                        {vehicle.operationType}
+                      </span>
+                    )}
+
                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${vehicle.status === "Destek Araç" ? "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400" : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"}`}>
                         {vehicle.status}
                     </span>
                   </div>
+                  
                   <h3 className="text-lg font-bold text-slate-800 dark:text-white font-mono tracking-wide">{vehicle.plate}</h3>
-                  {/* YENİ: Hem eski datayı ("Marka", "Model" ayrıysa birleştir) hem yeni datayı ("brandModel") destekle */}
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {vehicle.brandModel || [vehicle.brand, vehicle.model].filter(Boolean).join(" - ")}
                   </p>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-full text-slate-400 dark:text-slate-500 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/30 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-full text-slate-400 dark:text-slate-500 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/30 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors shrink-0">
                     <CarFront size={20} />
                 </div>
               </div>
@@ -113,7 +123,6 @@ const FleetPage = ({ fleetData, onBack }) => {
             <div className="p-6 space-y-4">
               <DetailRow icon={User} label="Tedarikçi" value={selectedVehicle.supplier} />
               <DetailRow icon={Truck} label="Araç Cinsi" value={selectedVehicle.vehicleType} />
-              {/* YENİ: Hem eski datayı hem yeni datayı destekle */}
               <DetailRow icon={CarFront} label="Marka / Model" value={selectedVehicle.brandModel || [selectedVehicle.brand, selectedVehicle.model].filter(Boolean).join(" ")} />
               <DetailRow icon={Calendar} label="Model Yılı" value={selectedVehicle.year} />
               <DetailRow icon={PenTool} label="Çalışma Şekli" value={selectedVehicle.operationType} />
