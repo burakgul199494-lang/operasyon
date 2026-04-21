@@ -1,5 +1,3 @@
-// src/App.js
-
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
@@ -14,6 +12,7 @@ import UnitDetail from "./pages/UnitDetail";
 import AdminPanel from "./pages/AdminPanel";
 import NotesPage from "./pages/NotesPage";
 import FleetPage from "./pages/FleetPage";
+import PersonnelDefensePage from "./pages/PersonnelDefensePage"; // YENİ EKLENDİ
 import UserProfileModal from "./components/UserProfileModal";
 
 import { Lock } from "lucide-react"; 
@@ -32,13 +31,11 @@ export default function App() {
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [availableYears, setAvailableYears] = useState([2024, 2025, 2026]);
 
-  // GECE MODU STATE'İ (Varsayılan olarak localStorage'dan oku)
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem("darkMode");
     return saved === "true" || false;
   });
 
-  // Gece modu değiştiğinde HTML'e 'dark' class'ı ekle/çıkar
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
@@ -50,13 +47,11 @@ export default function App() {
 
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
-  // Mobil Zoom Fix
   useEffect(() => {
     const meta = document.querySelector('meta[name="viewport"]');
     if (meta) { meta.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"; }
   }, []);
 
-  // Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -65,7 +60,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Data Listener (Performans)
   useEffect(() => {
     if (!user) { setAllData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "performance_records");
@@ -76,7 +70,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Unit Info Listener (Araç Sayıları)
   useEffect(() => {
     if (!user) return;
     const colRef = collection(db, "artifacts", appId, "public", "data", "unit_info");
@@ -88,7 +81,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Fleet Data Listener (Araç Listesi)
   useEffect(() => {
     if (!user) { setFleetData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_list");
@@ -99,7 +91,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // --- FONKSİYONLAR ---
   const handleAppLogin = async (email, password) => {
     try { await signInWithEmailAndPassword(auth, email, password); navigate("/"); } 
     catch (e) { alert("Hatalı giriş"); }
@@ -114,6 +105,7 @@ export default function App() {
     else if (target === "dashboard") navigate("/dashboard");
     else if (target === "notes") navigate("/notes");
     else if (target === "fleet") navigate("/fleet"); 
+    else if (target === "personnelDefense") navigate("/personnel-defense"); // YENİ EKLENDİ
   };
 
   const handleAdminLogin = () => {
@@ -150,6 +142,7 @@ export default function App() {
         <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
         <Route path="/fleet" element={<FleetPage fleetData={fleetData} onBack={() => navigate("/")} />} />
+        <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} onBack={() => navigate("/")} />} /> {/* YENİ EKLENDİ */}
 
         <Route path="/admin" element={
           <AdminPanel
