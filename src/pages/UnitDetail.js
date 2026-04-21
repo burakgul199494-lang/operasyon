@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
@@ -15,7 +15,11 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [showPdfModal, setShowPdfModal] = useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false); // PDF Yükleme Durumu
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  
+  // YENİ: Personel Detay Modalı için State
+  const [selectedMetricPersonnel, setSelectedMetricPersonnel] = useState(null); 
+  
   const availableYears = [2024, 2025, 2026];
 
   useEffect(() => {
@@ -64,7 +68,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 95;
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
-  // Blob verisini Base64'e çeviren yardımcı fonksiyon
   const getBase64 = (blob) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result.split(',')[1]);
@@ -72,16 +75,14 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     reader.readAsDataURL(blob);
   });
 
-  // --- PDF OLUŞTURMA FONKSİYONU ---
   const generatePDF = async (type) => {
     if (!displayData) return;
-    setIsGeneratingPdf(true); // Yükleniyor durumunu başlat
+    setIsGeneratingPdf(true); 
 
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
 
-      // 1. Türkçe destekli Roboto fontunu dinamik olarak çek ve PDF'e göm
       try {
         const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
         const blob = await response.blob();
@@ -96,7 +97,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
       const donemText = showYearAvg ? `${selectedYear} Yılı Ortalaması` : `${selectedYear} - ${MONTH_NAMES[selectedMonth]}`;
 
-      // Başlık Bölümü
       doc.setFontSize(18);
       doc.setTextColor(40);
       const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON PERFORMANS RAPORU";
@@ -127,17 +127,13 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         head: [['KPI Metriği', 'Birim Değeri', 'Bölge Ort.', 'Hedef']],
         body: tableRows,
         theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 9 }, // Tablo içi özel font kullanımı
+        styles: { font: 'Roboto', fontSize: 9 }, 
         headStyles: { 
-          font: 'Roboto', // Başlık içi özel font
+          font: 'Roboto', 
           fillColor: type === 'defense' ? [220, 38, 38] : [5, 150, 105],
           halign: 'center' 
         },
-        columnStyles: {
-          1: { halign: 'center' },
-          2: { halign: 'center' },
-          3: { halign: 'center' }
-        },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
         didParseCell: function(data) {
           if (type === 'defense' && data.section === 'body') {
             const metricName = data.row.raw[0];
@@ -169,7 +165,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
       let finalY = doc.lastAutoTable.finalY + 10;
       
-      // --- SAVUNMA METNİ ---
       if (type === 'defense') {
         doc.setFontSize(10);
         doc.setTextColor(40);
@@ -201,8 +196,8 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       console.error("PDF oluşturulurken hata:", error);
       alert("Belge oluşturulurken bir hata oluştu.");
     } finally {
-      setIsGeneratingPdf(false); // İşlem bitince false yap
-      setShowPdfModal(false); // Modalı kapat
+      setIsGeneratingPdf(false); 
+      setShowPdfModal(false); 
     }
   };
 
@@ -317,19 +312,37 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               {displayRegionData && (<div className="bg-black/10 py-2 flex items-center justify-center gap-2 border-t border-white/10"><span className="text-[10px] uppercase opacity-80 font-bold">{showYearAvg ? "BÖLGE YILLIK ORT:" : "BÖLGE ORTALAMASI:"}</span><span className="text-sm font-bold">{formatNumber(displayRegionData.teslimPerformansi)}%</span></div>)}
             </div>
 
-            {/* 4. 9'LU METRİK TABLOSU */}
+            {/* 4. 9'LU METRİK TABLOSU - EKLENEN PERSONEL TIKLAMA ÖZELLİĞİ İLE BİRLİKTE */}
             <div>
-              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">
-                {showYearAvg ? "Yıllık Performans Detayları" : "Performans Detayları"}
-              </h3>
+              <div className="flex items-center justify-between mb-2 pl-1">
+                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  {showYearAvg ? "Yıllık Performans Detayları" : "Performans Detayları"}
+                </h3>
+                {displayData?.personnel && displayData.personnel.length > 0 && !showYearAvg && (
+                   <span className="text-[10px] font-bold text-purple-500 bg-purple-50 dark:bg-purple-900/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                     <Users size={12}/> Personel için tıkla
+                   </span>
+                )}
+              </div>
+
               <div className="grid grid-cols-3 gap-2">
                 {/* 1. Satır: Rota - TVS - Checkin */}
-                <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
-                <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
-                <KPICard title="Check-in" value={displayData.checkInOrani} comparisonValue={displayRegionData?.checkInOrani} target={90} suffix="%" color={displayData.checkInOrani <= 90 ? "red" : "green"} icon={CheckCircle2} />
+                <div onClick={() => !showYearAvg && displayData?.personnel && setSelectedMetricPersonnel({ title: "Rota Oranı", key: "rotaOrani", target: 80 })} className={!showYearAvg && displayData?.personnel ? "cursor-pointer hover:scale-105 transition-transform" : ""}>
+                   <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
+                </div>
+                <div onClick={() => !showYearAvg && displayData?.personnel && setSelectedMetricPersonnel({ title: "TVS Oranı", key: "tvsOrani", target: 90 })} className={!showYearAvg && displayData?.personnel ? "cursor-pointer hover:scale-105 transition-transform" : ""}>
+                   <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
+                </div>
+                <div onClick={() => !showYearAvg && displayData?.personnel && setSelectedMetricPersonnel({ title: "Check-in Oranı", key: "checkInOrani", target: 90 })} className={!showYearAvg && displayData?.personnel ? "cursor-pointer hover:scale-105 transition-transform" : ""}>
+                   <KPICard title="Check-in" value={displayData.checkInOrani} comparisonValue={displayRegionData?.checkInOrani} target={90} suffix="%" color={displayData.checkInOrani <= 90 ? "red" : "green"} icon={CheckCircle2} />
+                </div>
                 
                 {/* 2. Satır: Sms - EATF - HTF */}
-                <KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} />
+                <div onClick={() => !showYearAvg && displayData?.personnel && setSelectedMetricPersonnel({ title: "SMS Oranı", key: "smsOrani", target: 50 })} className={!showYearAvg && displayData?.personnel ? "cursor-pointer hover:scale-105 transition-transform" : ""}>
+                   <KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} />
+                </div>
+                
+                {/* Alt satırlar standart (Tıklanmıyor) */}
                 <KPICard title="E-ATF" value={displayData.eAtfOrani} comparisonValue={displayRegionData?.eAtfOrani} target={80} suffix="%" color={displayData.eAtfOrani <= 80 ? "red" : "green"} icon={FileText} />
                 <KPICard title="HTF" value={displayData.htfOrani} comparisonValue={displayRegionData?.htfOrani} target={90} suffix="%" color={parseFloat(displayData.htfOrani) > 90 ? "green" : "red"} icon={Activity} />
                 
@@ -394,6 +407,58 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                   <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">Hedef altı kalan metrikler tabloda renklendirilir ve imza alanı oluşturulur.</p>
                 </div>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* YENİ: PERSONEL DETAY MODALI */}
+      {selectedMetricPersonnel && displayData?.personnel && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedMetricPersonnel(null)}>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                {selectedMetricPersonnel.title} Listesi
+              </h3>
+              <button onClick={() => setSelectedMetricPersonnel(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 shadow-sm z-10">
+                  <tr>
+                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Personel Ad Soyad</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-right">Gerçekleşen Oran</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                  {displayData.personnel
+                    // Sadece tıklanan metriğe ait verisi olan personelleri filtrele
+                    .filter(person => person[selectedMetricPersonnel.key] !== undefined && person[selectedMetricPersonnel.key] !== null && person[selectedMetricPersonnel.key] !== "")
+                    // En yüksek puandan en düşüğe sırala
+                    .sort((a, b) => parseFloat(b[selectedMetricPersonnel.key]) - parseFloat(a[selectedMetricPersonnel.key]))
+                    .map((person, idx) => {
+                      const val = parseFloat(person[selectedMetricPersonnel.key]);
+                      const isFail = val < selectedMetricPersonnel.target;
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="p-3 font-medium text-sm text-slate-700 dark:text-slate-200">
+                            {person.name}
+                          </td>
+                          <td className={`p-3 font-bold text-sm text-right ${isFail ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-emerald-600'}`}>
+                            %{val}
+                          </td>
+                        </tr>
+                      );
+                  })}
+                  {displayData.personnel.filter(person => person[selectedMetricPersonnel.key] !== undefined && person[selectedMetricPersonnel.key] !== null && person[selectedMetricPersonnel.key] !== "").length === 0 && (
+                    <tr>
+                      <td colSpan="2" className="p-6 text-center text-sm text-slate-400">Bu metrik için personel verisi bulunamadı.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
