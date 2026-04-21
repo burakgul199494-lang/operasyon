@@ -17,7 +17,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
-  // YENİ: Toplu personel modalı state'i
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
   
   const availableYears = [2024, 2025, 2026];
@@ -84,6 +83,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     reader.readAsDataURL(blob);
   });
 
+  // 1. BİRİM PERFORMANS / SAVUNMA PDF OLUŞTURUCU
   const generatePDF = async (type) => {
     if (!displayData) return;
     setIsGeneratingPdf(true); 
@@ -206,6 +206,104 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     }
   };
 
+  // 2. YENİ: PERSONEL SAVUNMA PDF OLUŞTURUCU
+  const generatePersonnelPDF = async (person) => {
+    setIsGeneratingPdf(true);
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+        const blob = await response.blob();
+        const base64Font = await getBase64(blob);
+        doc.addFileToVFS("Roboto.ttf", base64Font);
+        doc.addFont("Roboto.ttf", "Roboto", "normal");
+        doc.setFont("Roboto");
+      } catch (e) {
+        console.warn("Font indirilemedi.");
+      }
+
+      const r = parseMetric(person.rotaOrani);
+      const t = parseMetric(person.tvsOrani);
+      const c = parseMetric(person.checkInOrani);
+      const s = parseMetric(person.smsOrani);
+
+      doc.setFontSize(18);
+      doc.setTextColor(220, 38, 38);
+      doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Personel: ${person.name}`, 14, 30);
+      doc.text(`Birim: ${selectedUnit}`, 14, 35);
+      doc.text(`Dönem: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 40);
+      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
+
+      const tableRows = [
+        ["Rota Oranı", `%${r ?? "-"}`, `%${parseMetric(displayData.rotaOrani) ?? "-"}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı", `%${t ?? "-"}`, `%${parseMetric(displayData.tvsOrani) ?? "-"}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı", `%${c ?? "-"}`, `%${parseMetric(displayData.checkInOrani) ?? "-"}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı", `%${s ?? "-"}`, `%${parseMetric(displayData.smsOrani) ?? "-"}`, `%${TARGETS.smsOrani}`]
+      ];
+
+      doc.autoTable({
+        startY: 50,
+        head: [['KPI Metriği', 'Personel Değeri', 'Birim Ort.', 'Hedef']],
+        body: tableRows,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 10 },
+        headStyles: { fillColor: [220, 38, 38], halign: 'center', font: 'Roboto' },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
+        didParseCell: function(data) {
+          if (data.section === 'body') {
+            const metricName = data.row.raw[0];
+            let isFail = false;
+
+            if (metricName === "Rota Oranı" && r !== null && r < TARGETS.rotaOrani) isFail = true;
+            if (metricName === "TVS Oranı" && t !== null && t < TARGETS.tvsOrani) isFail = true;
+            if (metricName === "Check-in Oranı" && c !== null && c < TARGETS.checkInOrani) isFail = true;
+            if (metricName === "SMS Oranı" && s !== null && s < TARGETS.smsOrani) isFail = true;
+
+            if (isFail) {
+              data.cell.styles.fillColor = [254, 226, 226]; 
+              data.cell.styles.textColor = [185, 28, 28]; 
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        }
+      });
+
+      let finalY = doc.lastAutoTable.finalY + 10;
+      
+      doc.setFontSize(10);
+      doc.setTextColor(40);
+      
+      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
+      
+      const splitText = doc.splitTextToSize(defenseText, 180);
+      doc.text(splitText, 14, finalY);
+      
+      finalY += splitText.length * 5 + 10;
+      
+      doc.setFontSize(11);
+      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
+      doc.setDrawColor(200);
+      for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
+      
+      finalY += 75;
+      doc.setFontSize(10);
+      doc.text("Personel Ad / Soyad:", 14, finalY);
+      doc.text("İmza:", 140, finalY);
+
+      doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma_${selectedMonth}_${selectedYear}.pdf`);
+    } catch (error) {
+      console.error("PDF oluşturulurken hata:", error);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   return (
     <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-20 shadow-sm border-b border-slate-200 dark:border-slate-800">
@@ -324,7 +422,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                   {showYearAvg ? "Yıllık Performans Detayları" : "Performans Detayları"}
                 </h3>
                 
-                {/* YENİ: AKTİF PERSONEL BUTONU */}
                 {displayData?.personnel && displayData.personnel.length > 0 && !showYearAvg && (
                    <button 
                      onClick={() => setShowAllPersonnelModal(true)}
@@ -335,7 +432,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 )}
               </div>
 
-              {/* Kartlardaki tıklama özelliği tamamen kaldırıldı */}
               <div className="grid grid-cols-3 gap-2">
                 <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
                 <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
@@ -408,10 +504,10 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         </div>
       )}
 
-      {/* YENİ: TÜM PERSONEL 4'LÜ METRİK MODALI */}
+      {/* TÜM PERSONEL 4'LÜ METRİK MODALI + BELGE OLUŞTURMA BUTONU */}
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
-          <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Users className="text-purple-600" size={20} /> Birim Personel Listesi
@@ -429,6 +525,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                     <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS (90)</th>
                     <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Check-in (90)</th>
                     <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">SMS (50)</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">İşlem</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -439,6 +536,13 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                       const t = parseMetric(person.tvsOrani);
                       const c = parseMetric(person.checkInOrani);
                       const s = parseMetric(person.smsOrani);
+
+                      // Eğer herhangi bir hedeften düşükse "isAnyFail" true olacak.
+                      const isAnyFail = 
+                        (r !== null && r < TARGETS.rotaOrani) ||
+                        (t !== null && t < TARGETS.tvsOrani) ||
+                        (c !== null && c < TARGETS.checkInOrani) ||
+                        (s !== null && s < TARGETS.smsOrani);
 
                       return (
                         <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -456,6 +560,18 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                           </td>
                           <td className={`p-3 font-bold text-sm text-center ${s !== null && s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
                             {s !== null ? `%${s}` : "-"}
+                          </td>
+                          <td className="p-3 text-center">
+                            {isAnyFail && (
+                              <button 
+                                onClick={() => generatePersonnelPDF(person)}
+                                disabled={isGeneratingPdf}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 rounded-md text-[10px] font-bold transition-colors disabled:opacity-50"
+                              >
+                                {isGeneratingPdf ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
+                                Belge
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
