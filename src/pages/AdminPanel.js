@@ -8,13 +8,12 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
   const [activeTab, setActiveTab] = useState("performance"); 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // Personel için ay seçimi
-  const [selectedUnit, setSelectedUnit] = useState(UNITS[0]); // Personel için birim seçimi
   const [selectedMetric, setSelectedMetric] = useState("teslimPerformansi");
   
   const [gridData, setGridData] = useState({});
   const [fleetGrid, setFleetGrid] = useState({});
   const [fleetListGrid, setFleetListGrid] = useState([]);
-  const [personnelGrid, setPersonnelGrid] = useState([]); // Yeni: Personel Grid
+  const [personnelGrid, setPersonnelGrid] = useState([]); // Personel Grid
   
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
@@ -35,8 +34,10 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
     { key: "expenseStatus", label: "Masraf Durumu", width: "w-32" }
   ];
 
+  // YENİ: Birim sütunu eklendi
   const PERSONNEL_COLUMNS = [
-    { key: "name", label: "Ad Soyad", width: "w-64" },
+    { key: "unit", label: "Birim", width: "w-32" },
+    { key: "name", label: "Ad Soyad", width: "w-56" },
     { key: "rotaOrani", label: "Rota (%)", width: "w-24" },
     { key: "tvsOrani", label: "TVS (%)", width: "w-24" },
     { key: "checkInOrani", label: "Check-in (%)", width: "w-24" },
@@ -89,23 +90,42 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
     setFleetListGrid(loadedData);
   }, [fleetData, activeTab]);
 
-  // --- 4. PERSONEL LİSTESİ YÜKLEME (YENİ) ---
+  // --- 4. PERSONEL LİSTESİ YÜKLEME (TOPLU YÜKLEME MANTIĞI) ---
   useEffect(() => {
     if (activeTab !== "personnel") return;
-    const record = allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
-    let loadedPersonnel = record && record.personnel ? [...record.personnel] : [];
     
-    const emptyRow = { name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" };
-    const fillCount = 30 - loadedPersonnel.length; // Ekranda en az 30 boş satır olsun
+    let loadedPersonnel = [];
+    
+    // Seçili ay ve yıl için tüm birimlerdeki personelleri tek listeye topla
+    allData.forEach(record => {
+      if (record.year === parseInt(selectedYear) && record.month === parseInt(selectedMonth) && record.personnel) {
+        record.personnel.forEach(p => {
+          loadedPersonnel.push({
+            unit: record.unit, // Hangi birimden geldiğini ekliyoruz
+            name: p.name,
+            rotaOrani: p.rotaOrani !== null && p.rotaOrani !== undefined ? p.rotaOrani : "",
+            tvsOrani: p.tvsOrani !== null && p.tvsOrani !== undefined ? p.tvsOrani : "",
+            checkInOrani: p.checkInOrani !== null && p.checkInOrani !== undefined ? p.checkInOrani : "",
+            smsOrani: p.smsOrani !== null && p.smsOrani !== undefined ? p.smsOrani : ""
+          });
+        });
+      }
+    });
+
+    // Birim adına göre alfabetik sırala (okunabilirlik için)
+    loadedPersonnel.sort((a, b) => a.unit.localeCompare(b.unit));
+    
+    const emptyRow = { unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" };
+    const fillCount = 50 - loadedPersonnel.length; // Ekranda en az 50 boş satır olsun
     if (fillCount > 0) {
         loadedPersonnel = [...loadedPersonnel, ...Array(fillCount).fill({ ...emptyRow })];
     } else {
-        loadedPersonnel = [...loadedPersonnel, ...Array(5).fill({ ...emptyRow })];
+        loadedPersonnel = [...loadedPersonnel, ...Array(10).fill({ ...emptyRow })];
     }
     
     setPersonnelGrid(loadedPersonnel);
     setPendingChanges(false);
-  }, [allData, activeTab, selectedUnit, selectedYear, selectedMonth]);
+  }, [allData, activeTab, selectedYear, selectedMonth]);
 
 
   // --- INPUT CHANGE HANDLERS ---
@@ -198,14 +218,14 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
         const newData = [...prev];
         rows.forEach((row, rIndex) => {
             const targetRowIndex = startRowIndex + rIndex;
-            while (!newData[targetRowIndex]) newData.push({ name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" });
+            while (!newData[targetRowIndex]) newData.push({ unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" });
             
             row.split("\t").forEach((cellValue, cIndex) => {
                 const targetColIndex = startColIndex + cIndex;
                 if (targetColIndex < PERSONNEL_COLUMNS.length) {
                     const colKey = PERSONNEL_COLUMNS[targetColIndex].key;
                     let val = cellValue.trim();
-                    if (colKey !== "name") val = val.replace(",", "."); // Sayısal alanlar için virgülü noktaya çevir
+                    if (colKey !== "name" && colKey !== "unit") val = val.replace(",", "."); // Sayısal alanlar için virgülü noktaya çevir
                     newData[targetRowIndex] = { ...newData[targetRowIndex], [colKey]: val };
                 }
             });
@@ -235,7 +255,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
     let maxCols = 12; let maxRows = UNITS.length;
     if (activeTab === "fleet") maxCols = 6;
     if (activeTab === "fleetList") { maxCols = 10; maxRows = fleetListGrid.length; }
-    if (activeTab === "personnel") { maxCols = 5; maxRows = personnelGrid.length; }
+    if (activeTab === "personnel") { maxCols = 6; maxRows = personnelGrid.length; } // maxCols güncellendi
 
     let nextR = rIndex, nextC = cIndex, move = false;
     if (e.key === "ArrowRight") { move = true; if (cIndex < maxCols - 1) nextC++; }
@@ -322,30 +342,54 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
         } catch(e) { alert("Hata: " + e.message); }
     
     } else if (activeTab === "personnel") {
-        // PERSONEL VERİSİNİ KAYDET
-        const validPersonnel = personnelGrid.filter(r => r.name && r.name.trim() !== "").map(r => ({
-            name: r.name.trim(),
-            rotaOrani: r.rotaOrani ? parseFloat(String(r.rotaOrani).replace(",", ".")) : null,
-            tvsOrani: r.tvsOrani ? parseFloat(String(r.tvsOrani).replace(",", ".")) : null,
-            checkInOrani: r.checkInOrani ? parseFloat(String(r.checkInOrani).replace(",", ".")) : null,
-            smsOrani: r.smsOrani ? parseFloat(String(r.smsOrani).replace(",", ".")) : null,
-        }));
-
-        const recordId = `${selectedUnit}-${selectedYear}-${selectedMonth}`;
+        // PERSONEL VERİSİNİ TOPLU KAYDET
+        // 1. Geçerli satırları filtrele (Birim ve Adı boş olmayanlar)
+        const validRows = personnelGrid.filter(r => r.unit && r.unit.trim() !== "" && r.name && r.name.trim() !== "");
         
-        try {
-            // Sadece personnel dizisini içeren bir güncellemeyi onSaveBatch'e gönderiyoruz
-            // Firebase merge: true mantığıyla sadece bu alanı güncelleyecek.
-            await onSaveBatch([{ 
-                id: recordId, 
-                unit: selectedUnit, 
-                year: parseInt(selectedYear), 
-                month: parseInt(selectedMonth), 
-                personnel: validPersonnel 
-            }]);
+        // 2. Personelleri Birim isimlerine göre grupla
+        const groupedByUnit = {};
+        validRows.forEach(r => {
+            // Excel'den gelen birim adının sonundaki boşlukları temizleyip büyük harf yapıyoruz (Eşleşme garantisi)
+            const unitName = r.unit.trim().toUpperCase(); 
+            if (!groupedByUnit[unitName]) groupedByUnit[unitName] = [];
             
+            groupedByUnit[unitName].push({
+                name: r.name.trim(),
+                rotaOrani: r.rotaOrani ? parseFloat(String(r.rotaOrani).replace(",", ".")) : null,
+                tvsOrani: r.tvsOrani ? parseFloat(String(r.tvsOrani).replace(",", ".")) : null,
+                checkInOrani: r.checkInOrani ? parseFloat(String(r.checkInOrani).replace(",", ".")) : null,
+                smsOrani: r.smsOrani ? parseFloat(String(r.smsOrani).replace(",", ".")) : null,
+            });
+        });
+
+        // 3. Batch kayıt dizisini oluştur
+        const recordsToUpdate = [];
+        
+        // Tüm UNITS dizisini dönüyoruz. Böylece silinen personeller varsa onların da biriminden uçmasını sağlıyoruz.
+        UNITS.forEach(unit => {
+            const recordId = `${unit}-${selectedYear}-${selectedMonth}`;
+            const personnelList = groupedByUnit[unit] || []; // Ekranda varsa al, yoksa boş dizi
+            
+            // Eğer yeni listeye personel eklenmişse VEYA veritabanında eski personel listesi varsa (temizlemek için)
+            const existingRecord = allData.find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+            
+            if (personnelList.length > 0 || (existingRecord && existingRecord.personnel && existingRecord.personnel.length > 0)) {
+                recordsToUpdate.push({
+                    id: recordId,
+                    unit: unit,
+                    year: parseInt(selectedYear),
+                    month: parseInt(selectedMonth),
+                    personnel: personnelList
+                });
+            }
+        });
+
+        if (recordsToUpdate.length === 0) return alert("Kaydedilecek geçerli personel verisi bulunamadı. Lütfen Birim ve Ad Soyad alanlarının dolu olduğundan emin olun.");
+
+        try {
+            await onSaveBatch(recordsToUpdate);
             setPendingChanges(false);
-            alert(`${selectedUnit} birimine ait ${validPersonnel.length} personel kaydedildi.`);
+            alert(`Personel verileri başarıyla kaydedildi! (${Object.keys(groupedByUnit).length} farklı birim güncellendi)`);
         } catch(e) { 
             console.error(e);
             alert("Personel verileri kaydedilirken bir hata oluştu."); 
@@ -389,7 +433,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
             </>
         )}
 
-        {/* PERSONEL PERFORMANS ALT MENÜ (YENİ) */}
+        {/* PERSONEL PERFORMANS ALT MENÜ (YENİLENDİ) */}
         {activeTab === "personnel" && (
             <div className="p-3 bg-purple-50 border-b border-purple-100 flex items-center gap-4 flex-wrap">
                 <div className="flex items-center gap-2">
@@ -404,15 +448,15 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
                         {MONTH_NAMES.map((m, i) => i !== 0 && <option key={i} value={i}>{m}</option>)}
                     </select>
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-600">BİRİM:</span>
-                    <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="bg-white border border-slate-300 rounded px-2 py-1 text-sm font-bold outline-none">
-                        {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                    </select>
-                </div>
-                <span className="ml-auto text-xs text-purple-800 font-medium">
-                    (Ad Soyad | Rota | TVS | Check-in | SMS) sütunlarını Excel'den kopyalayıp ilk hücreye yapıştırın.
+                <span className="text-xs text-purple-800 font-medium">
+                    (Birim | Ad Soyad | Rota | TVS | Check-in | SMS) sütunlarını tek seferde kopyalayıp ilk hücreye yapıştırın.
                 </span>
+                <button 
+                  onClick={() => { if(window.confirm("Ekrandaki veriler silinecek (Kaydetmezseniz veritabanından silinmez). Onaylıyor musunuz?")) { setPersonnelGrid(Array(50).fill({ unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" })); setPendingChanges(true); } }} 
+                  className="ml-auto flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"
+                >
+                  <RotateCcw size={14} /> Ekranı Temizle
+                </button>
             </div>
         )}
 
@@ -500,6 +544,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
                 </tr>
             ))}
 
+            {/* PERSONEL SATIRLARI (BİRİM EKLENDİ) */}
             {activeTab === "personnel" && personnelGrid.map((row, rIndex) => (
                 <tr key={rIndex} className="border-b border-slate-200 hover:bg-purple-50 transition-colors">
                     {PERSONNEL_COLUMNS.map((col, cIndex) => {
@@ -507,7 +552,20 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
                         const val = row[col.key] || "";
                         return (
                             <td key={col.key} className="p-0 border-r border-slate-100 relative">
-                                <input id={`cell-personnel-${rIndex}-${col.key}`} type="text" className={`w-full h-full p-2 ${col.key === 'name' ? 'text-left' : 'text-center'} outline-none focus:z-10 relative transition-all text-slate-700 font-mono text-sm cursor-default ${isSelected ? "bg-purple-200 ring-1 ring-purple-400" : "bg-transparent focus:ring-2 focus:ring-purple-500 focus:bg-white"}`} placeholder={col.key === 'name' ? "Personel Adı" : "-"} value={val} onChange={(e) => handlePersonnelChange(rIndex, col.key, e.target.value)} onPaste={(e) => handlePersonnelPaste(e, rIndex, cIndex)} onKeyDown={(e) => handleKeyDown(e, rIndex, cIndex)} onFocus={(e) => handleFocus(e, rIndex, cIndex)} onMouseDown={() => handleMouseDown(rIndex, cIndex)} onMouseEnter={() => handleMouseEnter(rIndex, cIndex)} autoComplete="off" />
+                                <input 
+                                  id={`cell-personnel-${rIndex}-${col.key}`} 
+                                  type="text" 
+                                  className={`w-full h-full p-2 ${(col.key === 'name' || col.key === 'unit') ? 'text-left font-semibold' : 'text-center'} outline-none focus:z-10 relative transition-all text-slate-700 font-mono text-sm cursor-default ${isSelected ? "bg-purple-200 ring-1 ring-purple-400" : "bg-transparent focus:ring-2 focus:ring-purple-500 focus:bg-white"}`} 
+                                  placeholder={col.key === 'name' ? "Personel Adı" : col.key === 'unit' ? "Birim" : "-"} 
+                                  value={val} 
+                                  onChange={(e) => handlePersonnelChange(rIndex, col.key, e.target.value)} 
+                                  onPaste={(e) => handlePersonnelPaste(e, rIndex, cIndex)} 
+                                  onKeyDown={(e) => handleKeyDown(e, rIndex, cIndex)} 
+                                  onFocus={(e) => handleFocus(e, rIndex, cIndex)} 
+                                  onMouseDown={() => handleMouseDown(rIndex, cIndex)} 
+                                  onMouseEnter={() => handleMouseEnter(rIndex, cIndex)} 
+                                  autoComplete="off" 
+                                />
                             </td>
                         );
                     })}
