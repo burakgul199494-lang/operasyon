@@ -5,29 +5,43 @@ const FleetPage = ({ fleetData, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState(null);
 
-  // YENİ: Türkçe Karakter Uyumlu Arama Mantığı
+  // YENİ: Arama boşsa tümünü getir, doluysa filtrele ve daima alfabetik sırala
   const filteredList = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+    let result = [...(fleetData || [])]; // Orijinal veriyi bozmamak için kopyala
     
-    // Aramayı Türkçe uyumlu küçült
-    const lowerQ = searchQuery.toLocaleLowerCase('tr-TR');
-    
-    return fleetData.filter(item => {
-      // Verileri de Türkçe uyumlu küçülterek karşılaştır
-      const plateMatch = item.plate && item.plate.toLocaleLowerCase('tr-TR').includes(lowerQ);
-      const unitMatch = item.unit && item.unit.toLocaleLowerCase('tr-TR').includes(lowerQ);
-      return plateMatch || unitMatch;
+    // Eğer arama kutusu doluysa filtrele
+    if (searchQuery.trim()) {
+      const lowerQ = searchQuery.toLocaleLowerCase('tr-TR');
+      result = result.filter(item => {
+        const plateMatch = item.plate && item.plate.toLocaleLowerCase('tr-TR').includes(lowerQ);
+        const unitMatch = item.unit && item.unit.toLocaleLowerCase('tr-TR').includes(lowerQ);
+        return plateMatch || unitMatch;
+      });
+    }
+
+    // Her durumda Birim adına göre (A'dan Z'ye) sırala.
+    // Eğer birimler aynıysa, Plakaya göre sırala.
+    return result.sort((a, b) => {
+      const unitA = a.unit || "";
+      const unitB = b.unit || "";
+      const unitCompare = unitA.localeCompare(unitB, 'tr-TR');
+      
+      if (unitCompare !== 0) return unitCompare;
+      
+      const plateA = a.plate || "";
+      const plateB = b.plate || "";
+      return plateA.localeCompare(plateB, 'tr-TR');
     });
   }, [fleetData, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-10">
-      <div className="bg-white sticky top-0 z-10 border-b border-slate-200 px-4 py-3 shadow-sm">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-10 transition-colors duration-300">
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 px-4 py-3 shadow-sm">
         <div className="flex items-center gap-3 mb-3">
-          <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 rounded-full">
-            <ArrowLeft size={22} className="text-slate-600" />
+          <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+            <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
           </button>
-          <h1 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <h1 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
             <CarFront className="text-emerald-500" /> Filo Listesi
           </h1>
         </div>
@@ -37,12 +51,12 @@ const FleetPage = ({ fleetData, onBack }) => {
           <input
             type="text"
             placeholder="Plaka veya Birim Adı ile ara..."
-            className="w-full pl-10 pr-10 py-3 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium"
+            className="w-full pl-10 pr-10 py-3 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium dark:text-white"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200 transition-colors">
+            <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
               <X size={16} />
             </button>
           )}
@@ -50,34 +64,30 @@ const FleetPage = ({ fleetData, onBack }) => {
       </div>
 
       <div className="p-4 space-y-3">
-        {searchQuery === "" ? (
-          <div className="text-center py-20 text-slate-400">
+        {filteredList.length === 0 ? (
+          <div className="text-center py-20 text-slate-400 dark:text-slate-500">
             <CarFront size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="text-sm">Arama yapmak için yukarıya yazın.</p>
-          </div>
-        ) : filteredList.length === 0 ? (
-          <div className="text-center py-10 text-slate-400">
-            <p className="text-sm">Sonuç bulunamadı.</p>
+            <p className="text-sm">{searchQuery ? "Arama sonucuna uygun araç bulunamadı." : "Sistemde henüz araç bulunmuyor."}</p>
           </div>
         ) : (
-          filteredList.map((vehicle) => (
+          filteredList.map((vehicle, idx) => (
             <div 
-              key={vehicle.id} 
+              key={vehicle.id || idx} 
               onClick={() => setSelectedVehicle(vehicle)}
-              className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer relative group"
+              className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all cursor-pointer relative group"
             >
               <div className="flex justify-between items-start">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-0.5 rounded">{vehicle.unit}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${vehicle.status === "Destek Araç" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+                    <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold px-2 py-0.5 rounded">{vehicle.unit}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${vehicle.status === "Destek Araç" ? "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400" : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"}`}>
                         {vehicle.status}
                     </span>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800 font-mono tracking-wide">{vehicle.plate}</h3>
-                  <p className="text-xs text-slate-500 mt-1">{vehicle.brand} - {vehicle.model}</p>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white font-mono tracking-wide">{vehicle.plate}</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{vehicle.brand} - {vehicle.model}</p>
                 </div>
-                <div className="bg-slate-50 p-2 rounded-full text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-full text-slate-400 dark:text-slate-500 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/30 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                     <CarFront size={20} />
                 </div>
               </div>
@@ -88,7 +98,7 @@ const FleetPage = ({ fleetData, onBack }) => {
 
       {selectedVehicle && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedVehicle(null)}>
-          <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="bg-slate-900 text-white p-5 relative">
               <button onClick={() => setSelectedVehicle(null)} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
                 <X size={24} />
@@ -111,12 +121,12 @@ const FleetPage = ({ fleetData, onBack }) => {
                 icon={selectedVehicle.expenseStatus && selectedVehicle.expenseStatus.includes("Dahil") ? CheckCircle2 : AlertCircle} 
                 label="Masraf Durumu" 
                 value={selectedVehicle.expenseStatus} 
-                color={selectedVehicle.expenseStatus && selectedVehicle.expenseStatus.includes("Dahil") ? "text-emerald-600" : "text-orange-600"}
+                color={selectedVehicle.expenseStatus && selectedVehicle.expenseStatus.includes("Dahil") ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"}
               />
             </div>
             
-            <div className="bg-slate-50 p-4 text-center border-t border-slate-100">
-               <button onClick={() => setSelectedVehicle(null)} className="text-sm font-bold text-slate-500 hover:text-slate-800">Kapat</button>
+            <div className="bg-slate-50 dark:bg-slate-900/50 p-4 text-center border-t border-slate-100 dark:border-slate-700">
+               <button onClick={() => setSelectedVehicle(null)} className="text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors">Kapat</button>
             </div>
           </div>
         </div>
@@ -125,13 +135,13 @@ const FleetPage = ({ fleetData, onBack }) => {
   );
 };
 
-const DetailRow = ({ icon: Icon, label, value, color = "text-slate-800" }) => (
-  <div className="flex items-center gap-4 p-2 hover:bg-slate-50 rounded-lg transition-colors">
-    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+const DetailRow = ({ icon: Icon, label, value, color = "text-slate-800 dark:text-slate-200" }) => (
+  <div className="flex items-center gap-4 p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors">
+    <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-900/50 flex items-center justify-center text-slate-500 dark:text-slate-400">
       <Icon size={20} />
     </div>
     <div>
-      <p className="text-xs font-bold text-slate-400 uppercase">{label}</p>
+      <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">{label}</p>
       <p className={`text-sm font-bold ${color}`}>{value || "-"}</p>
     </div>
   </div>
