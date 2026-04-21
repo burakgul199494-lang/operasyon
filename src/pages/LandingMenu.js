@@ -1,5 +1,5 @@
 import React from "react";
-import { UserCog, LogOut, Lock, Activity, FileText, CarFront, Moon, Sun } from "lucide-react";
+import { UserCog, LogOut, Lock, Activity, FileText, CarFront, Moon, Sun, ShieldAlert } from "lucide-react";
 
 const LandingMenu = ({ onNavigate, user, onLogout, onProfile, isDarkMode, toggleDarkMode }) => {
   const isAdmin = user?.email?.toLowerCase() === "burak.gul@yurticikargo.com";
@@ -25,7 +25,8 @@ const LandingMenu = ({ onNavigate, user, onLogout, onProfile, isDarkMode, toggle
       </div>
 
       <div className="flex-1 p-6 flex items-center justify-center">
-        <div className={`grid grid-cols-1 gap-6 w-full max-w-5xl ${isAdmin ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+        {/* İçerik sayısına göre grid kolonlarını optimize et */}
+        <div className={`grid grid-cols-1 gap-6 w-full max-w-6xl md:grid-cols-2 lg:grid-cols-3`}>
           
           {/* 1. ADMIN */}
           {isAdmin && (
@@ -49,7 +50,17 @@ const LandingMenu = ({ onNavigate, user, onLogout, onProfile, isDarkMode, toggle
             <p className="text-sm text-slate-500 dark:text-slate-400 font-medium relative z-10">Birimlerin performans verileri ve KPI detayları.</p>
           </div>
 
-          {/* 3. FİLO LİSTESİ */}
+          {/* 3. PERSONEL SAVUNMA (YENİ) */}
+          <div onClick={() => onNavigate("personnelDefense")} className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white dark:border-slate-700 hover:shadow-[0_8px_30px_rgb(225,29,72,0.12)] dark:hover:shadow-[0_8px_30px_rgba(225,29,72,0.2)] hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col items-center text-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 dark:bg-rose-900/30 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-rose-100 dark:group-hover:bg-rose-800/40"></div>
+            <div className="w-16 h-16 bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-rose-200 dark:shadow-none transition-transform duration-300 group-hover:scale-110 relative z-10">
+              <ShieldAlert size={28} className="text-white" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 relative z-10">Personel Savunma</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium relative z-10">Hedef altı personelleri listele ve belge oluştur.</p>
+          </div>
+
+          {/* 4. FİLO LİSTESİ */}
           <div onClick={() => onNavigate("fleet")} className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white dark:border-slate-700 hover:shadow-[0_8px_30px_rgb(16,185,129,0.12)] dark:hover:shadow-[0_8px_30px_rgba(16,185,129,0.2)] hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 dark:bg-emerald-900/30 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-emerald-100 dark:group-hover:bg-emerald-800/40"></div>
             <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-green-600 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-emerald-200 dark:shadow-none transition-transform duration-300 group-hover:scale-110 relative z-10">
@@ -59,7 +70,7 @@ const LandingMenu = ({ onNavigate, user, onLogout, onProfile, isDarkMode, toggle
             <p className="text-sm text-slate-500 dark:text-slate-400 font-medium relative z-10">Tüm birimlerdeki araçları detaylı listele.</p>
           </div>
 
-          {/* 4. BİRİM NOTLARI */}
+          {/* 5. BİRİM NOTLARI */}
           <div onClick={() => onNavigate("notes")} className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white dark:border-slate-700 hover:shadow-[0_8px_30px_rgb(249,115,22,0.12)] dark:hover:shadow-[0_8px_30px_rgba(249,115,22,0.2)] hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 dark:bg-orange-900/30 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-orange-100 dark:group-hover:bg-orange-800/40"></div>
             <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-orange-200 dark:shadow-none transition-transform duration-300 group-hover:scale-110 relative z-10">
@@ -72,7 +83,7 @@ const LandingMenu = ({ onNavigate, user, onLogout, onProfile, isDarkMode, toggle
         </div>
       </div>
       <div className="text-center py-6 text-xs font-semibold tracking-wider text-slate-400/80 dark:text-slate-500">
-        v1.7.0 - Dark Mode & Modern UI
+        v1.8.0 - Dark Mode & Modern UI
       </div>
     </div>
   );
