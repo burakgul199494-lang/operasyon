@@ -1,9 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { Search, ChevronRight, Home, X } from "lucide-react";
 import { UNITS } from "../utils/helpers";
-import PersonnelDefensePanel from "../components/PersonnelDefensePanel"; // YENİ EKLENEN BİLEŞEN
 
-const Dashboard = ({ allData, onUnitClick, onNavigateMenu }) => {
+const Dashboard = ({ onUnitClick, onNavigateMenu }) => {
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredUnits = useMemo(() =>
@@ -12,7 +11,7 @@ const Dashboard = ({ allData, onUnitClick, onNavigateMenu }) => {
   );
 
   return (
-    <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen">
+    <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
       <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 border-b border-slate-100 dark:border-slate-800 px-4 py-3 shadow-sm">
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center gap-3">
@@ -38,15 +37,7 @@ const Dashboard = ({ allData, onUnitClick, onNavigateMenu }) => {
           )}
         </div>
       </div>
-
-      {/* YENİ: PERSONEL SAVUNMA PANELİ */}
-      <div className="px-4 mt-2">
-         <PersonnelDefensePanel allData={allData} />
-      </div>
-
-      {/* BİRİMLER LİSTESİ */}
-      <div className="px-4 mt-6">
-        <h2 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3 pl-1">Tüm Birimler</h2>
+      <div className="px-4 mt-4">
         {filteredUnits.map((unit, index) => (
           <div key={index} onClick={() => onUnitClick(unit)} className="group flex items-center justify-between p-4 mb-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm active:scale-[0.98] transition-all cursor-pointer">
             <div className="flex items-center gap-3">
