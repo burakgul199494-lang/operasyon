@@ -1,31 +1,62 @@
 import React, { useState, useMemo } from "react";
 import { ArrowLeft, Search, CarFront, X, User, Tag, Calendar, PenTool, CheckCircle2, AlertCircle, Truck, Gauge } from "lucide-react";
 
-// formatNumber'ı utils'den çekiyoruz
-import { formatNumber } from "../utils/helpers"; 
+// formatNumber ve UNITS'i utils'den çekiyoruz
+import { formatNumber, UNITS } from "../utils/helpers"; 
 
 const FleetPage = ({ fleetData, fleetKms, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [operationFilter, setOperationFilter] = useState("all"); // YENİ: Çalışma şekli filtresi
-  const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [unitFilter, setUnitFilter] = useState("all"); // YENİ: Birim Filtresi
+  const [operationFilter, setOperationFilter] = useState("all");
 
-  // YENİ: Dinamik olarak çalışma şekillerini çekiyoruz (Filtre menüsü için)
+  // YENİ: Birim değiştiğinde Çalışma Şekli filtresini sıfırlayan fonksiyon
+  const handleUnitChange = (e) => {
+    setUnitFilter(e.target.value);
+    setOperationFilter("all"); // Başka birime geçildiğinde çalışma şeklini "Tümü" yap
+  };
+
+  // YENİ: Sadece seçili birimde VAR OLAN çalışma şekillerini dinamik listele
   const operationTypes = useMemo(() => {
     const types = new Set();
     (fleetData || []).forEach(v => {
-      if (v.operationType && v.operationType.trim() !== "") types.add(v.operationType.trim());
+      // Eğer bir birim seçiliyse ve araç o birime ait değilse, onu listeye dahil etme
+      if (unitFilter !== "all" && v.unit !== unitFilter) return;
+      
+      if (v.operationType && v.operationType.trim() !== "") {
+        types.add(v.operationType.trim());
+      }
     });
     return [...types].sort((a, b) => a.localeCompare(b, 'tr-TR'));
-  }, [fleetData]);
+  }, [fleetData, unitFilter]);
+
+  // YENİ: Çalışma Şekillerine göre Sıralama Ağırlığı belirleyen fonksiyon
+  // 1: Özmal/Kiralık, 2: Destek, 3: Motor/Diğer, 4: Parçabaşı
+  const getOperationWeight = (type) => {
+    if (!type) return 99; // Boş ise en sona at
+    const t = type.toLowerCase('tr-TR').replace(/\s/g, ''); // Boşlukları silip kıyasla (parça başı -> parçabaşı)
+    
+    if (t.includes('özmal') || t.includes('kiralık')) return 1;
+    if (t.includes('destek')) return 2;
+    if (t.includes('motor')) return 3;
+    if (t.includes('parçabaşı')) return 4;
+    
+    return 3; // Diğer bilinmeyen tipler ortada kalsın
+  };
 
   const filteredList = useMemo(() => {
     let result = [...(fleetData || [])];
+
+    // 1. Birim Filtresi
+    if (unitFilter !== "all") {
+      result = result.filter(item => item.unit === unitFilter);
+    }
       
-    // YENİ: Çalışma şekli filtresi
+    // 2. Çalışma Şekli Filtresi
     if (operationFilter !== "all") {
       result = result.filter(item => item.operationType && item.operationType.trim() === operationFilter);
     }
 
+    // 3. Metin Arama (Plaka vb.)
     if (searchQuery.trim()) {
       const lowerQ = searchQuery.toLocaleLowerCase('tr-TR');
       result = result.filter(item => {
@@ -35,18 +66,25 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
       });
     }
 
+    // 4. Özel Sıralama Mantığı
     return result.sort((a, b) => {
+      // Önce Birime göre sırala (Eğer tümü seçiliyse düzenli dursun)
       const unitA = a.unit || "";
       const unitB = b.unit || "";
       const unitCompare = unitA.localeCompare(unitB, 'tr-TR');
-      
       if (unitCompare !== 0) return unitCompare;
       
+      // Birimler aynıysa: Çalışma Şekli ağırlığına göre sırala (Özmal en üstte, Parçabaşı en altta)
+      const weightA = getOperationWeight(a.operationType);
+      const weightB = getOperationWeight(b.operationType);
+      if (weightA !== weightB) return weightA - weightB;
+      
+      // Çalışma şekilleri de aynıysa: Plakaya göre alfabetik sırala
       const plateA = a.plate || "";
       const plateB = b.plate || "";
       return plateA.localeCompare(plateB, 'tr-TR');
     });
-  }, [fleetData, searchQuery, operationFilter]);
+  }, [fleetData, searchQuery, operationFilter, unitFilter]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-10 transition-colors duration-300">
@@ -60,13 +98,14 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
           </h1>
         </div>
         
-        {/* YENİ: Arama ve Çalışma Şekli Filtresi Yan Yana */}
-        <div className="flex gap-2">
+        {/* YENİ: Arama, Birim Filtresi ve Çalışma Şekli Filtresi */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          {/* Metin Arama */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
             <input
               type="text"
-              placeholder="Plaka veya Birim Adı..."
+              placeholder="Plaka Ara..."
               className="w-full pl-10 pr-10 py-3 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium dark:text-white"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -78,14 +117,27 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
             )}
           </div>
           
-          <select
-             value={operationFilter}
-             onChange={(e) => setOperationFilter(e.target.value)}
-             className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-xs sm:text-sm px-3 py-3 font-medium outline-none text-slate-700 dark:text-slate-200 truncate w-1/3 sm:w-auto focus:ring-2 focus:ring-emerald-500"
-           >
-              <option value="all">Tüm Çalışma Şekilleri</option>
-              {operationTypes.map(t => <option key={t} value={t}>{t}</option>)}
-           </select>
+          <div className="flex gap-2 w-full sm:w-auto">
+            {/* Birim Seçim Dropdown */}
+            <select
+               value={unitFilter}
+               onChange={handleUnitChange}
+               className="flex-1 sm:flex-none bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-xs sm:text-sm px-3 py-3 font-medium outline-none text-slate-700 dark:text-slate-200 truncate focus:ring-2 focus:ring-emerald-500"
+             >
+                <option value="all">Tüm Birimler</option>
+                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+             </select>
+
+            {/* Çalışma Şekli Dropdown (Dinamik Seçenekler) */}
+            <select
+               value={operationFilter}
+               onChange={(e) => setOperationFilter(e.target.value)}
+               className="flex-1 sm:flex-none bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-xs sm:text-sm px-3 py-3 font-medium outline-none text-slate-700 dark:text-slate-200 truncate focus:ring-2 focus:ring-emerald-500"
+             >
+                <option value="all">Tümü (Ç.Şekli)</option>
+                {operationTypes.map(t => <option key={t} value={t}>{t}</option>)}
+             </select>
+          </div>
         </div>
       </div>
 
@@ -93,7 +145,7 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
         {filteredList.length === 0 ? (
           <div className="text-center py-20 text-slate-400 dark:text-slate-500">
             <CarFront size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="text-sm">Arama veya filtre sonucuna uygun araç bulunamadı.</p>
+            <p className="text-sm">Arama veya filtrelere uygun araç bulunamadı.</p>
           </div>
         ) : (
           filteredList.map((vehicle, idx) => (
@@ -134,7 +186,6 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
       </div>
 
       {selectedVehicle && (() => {
-        // YENİ: Plaka üzerinden Ortalama KM eşleşmesi kontrol ediliyor
         const vehiclePlateKey = selectedVehicle.plate ? selectedVehicle.plate.replace(/\s/g, "").toUpperCase() : "";
         const avgKm = fleetKms[vehiclePlateKey] || null;
 
@@ -154,7 +205,6 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
               </div>
               
               <div className="p-6 space-y-4">
-                {/* YENİ: KM Verisi varsa Modala ekliyoruz */}
                 {avgKm && (
                   <DetailRow icon={Gauge} label="Ortalama KM" value={`${formatNumber(avgKm)} km`} color="text-blue-600 dark:text-blue-400" />
                 )}
