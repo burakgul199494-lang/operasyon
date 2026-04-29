@@ -1,13 +1,31 @@
 import React, { useState, useMemo } from "react";
-import { ArrowLeft, Search, CarFront, X, User, Tag, Calendar, PenTool, CheckCircle2, AlertCircle, Truck } from "lucide-react";
+import { ArrowLeft, Search, CarFront, X, User, Tag, Calendar, PenTool, CheckCircle2, AlertCircle, Truck, Gauge } from "lucide-react";
 
-const FleetPage = ({ fleetData, onBack }) => {
+// formatNumber'ı utils'den çekiyoruz
+import { formatNumber } from "../utils/helpers"; 
+
+const FleetPage = ({ fleetData, fleetKms, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [operationFilter, setOperationFilter] = useState("all"); // YENİ: Çalışma şekli filtresi
   const [selectedVehicle, setSelectedVehicle] = useState(null);
 
+  // YENİ: Dinamik olarak çalışma şekillerini çekiyoruz (Filtre menüsü için)
+  const operationTypes = useMemo(() => {
+    const types = new Set();
+    (fleetData || []).forEach(v => {
+      if (v.operationType && v.operationType.trim() !== "") types.add(v.operationType.trim());
+    });
+    return [...types].sort((a, b) => a.localeCompare(b, 'tr-TR'));
+  }, [fleetData]);
+
   const filteredList = useMemo(() => {
-    let result = [...(fleetData || [])]; 
-    
+    let result = [...(fleetData || [])];
+      
+    // YENİ: Çalışma şekli filtresi
+    if (operationFilter !== "all") {
+      result = result.filter(item => item.operationType && item.operationType.trim() === operationFilter);
+    }
+
     if (searchQuery.trim()) {
       const lowerQ = searchQuery.toLocaleLowerCase('tr-TR');
       result = result.filter(item => {
@@ -28,7 +46,7 @@ const FleetPage = ({ fleetData, onBack }) => {
       const plateB = b.plate || "";
       return plateA.localeCompare(plateB, 'tr-TR');
     });
-  }, [fleetData, searchQuery]);
+  }, [fleetData, searchQuery, operationFilter]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-10 transition-colors duration-300">
@@ -42,20 +60,32 @@ const FleetPage = ({ fleetData, onBack }) => {
           </h1>
         </div>
         
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
-          <input
-            type="text"
-            placeholder="Plaka veya Birim Adı ile ara..."
-            className="w-full pl-10 pr-10 py-3 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium dark:text-white"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-              <X size={16} />
-            </button>
-          )}
+        {/* YENİ: Arama ve Çalışma Şekli Filtresi Yan Yana */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="Plaka veya Birim Adı..."
+              className="w-full pl-10 pr-10 py-3 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium dark:text-white"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          
+          <select
+             value={operationFilter}
+             onChange={(e) => setOperationFilter(e.target.value)}
+             className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-xs sm:text-sm px-3 py-3 font-medium outline-none text-slate-700 dark:text-slate-200 truncate w-1/3 sm:w-auto focus:ring-2 focus:ring-emerald-500"
+           >
+              <option value="all">Tüm Çalışma Şekilleri</option>
+              {operationTypes.map(t => <option key={t} value={t}>{t}</option>)}
+           </select>
         </div>
       </div>
 
@@ -63,18 +93,17 @@ const FleetPage = ({ fleetData, onBack }) => {
         {filteredList.length === 0 ? (
           <div className="text-center py-20 text-slate-400 dark:text-slate-500">
             <CarFront size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="text-sm">{searchQuery ? "Arama sonucuna uygun araç bulunamadı." : "Sistemde henüz araç bulunmuyor."}</p>
+            <p className="text-sm">Arama veya filtre sonucuna uygun araç bulunamadı.</p>
           </div>
         ) : (
           filteredList.map((vehicle, idx) => (
             <div 
-              key={vehicle.id || idx} 
-              onClick={() => setSelectedVehicle(vehicle)}
+               key={vehicle.id || idx} 
+               onClick={() => setSelectedVehicle(vehicle)}
               className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all cursor-pointer relative group"
             >
               <div className="flex justify-between items-start">
                 <div>
-                  {/* YENİ: Çalışma Şekli araya eklendi ve mobilde taşmayı önlemek için flex-wrap kullanıldı */}
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                     <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold px-2 py-0.5 rounded">
                       {vehicle.unit}
@@ -85,7 +114,6 @@ const FleetPage = ({ fleetData, onBack }) => {
                         {vehicle.operationType}
                       </span>
                     )}
-
                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${vehicle.status === "Destek Araç" ? "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400" : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"}`}>
                         {vehicle.status}
                     </span>
@@ -105,41 +133,52 @@ const FleetPage = ({ fleetData, onBack }) => {
         )}
       </div>
 
-      {selectedVehicle && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedVehicle(null)}>
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-slate-900 text-white p-5 relative">
-              <button onClick={() => setSelectedVehicle(null)} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
-                <X size={24} />
-              </button>
-              <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1">{selectedVehicle.unit}</div>
-              <h2 className="text-3xl font-bold font-mono tracking-wider">{selectedVehicle.plate}</h2>
-              <div className="flex gap-2 mt-3">
-                <span className="bg-white/20 text-white text-xs px-2 py-1 rounded backdrop-blur-sm font-medium">{selectedVehicle.status}</span>
-                <span className="bg-white/20 text-white text-xs px-2 py-1 rounded backdrop-blur-sm font-medium">{selectedVehicle.year}</span>
+      {selectedVehicle && (() => {
+        // YENİ: Plaka üzerinden Ortalama KM eşleşmesi kontrol ediliyor
+        const vehiclePlateKey = selectedVehicle.plate ? selectedVehicle.plate.replace(/\s/g, "").toUpperCase() : "";
+        const avgKm = fleetKms[vehiclePlateKey] || null;
+
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedVehicle(null)}>
+            <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-slate-900 text-white p-5 relative">
+                <button onClick={() => setSelectedVehicle(null)} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
+                  <X size={24} />
+                </button>
+                <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1">{selectedVehicle.unit}</div>
+                <h2 className="text-3xl font-bold font-mono tracking-wider">{selectedVehicle.plate}</h2>
+                <div className="flex gap-2 mt-3">
+                  <span className="bg-white/20 text-white text-xs px-2 py-1 rounded backdrop-blur-sm font-medium">{selectedVehicle.status}</span>
+                  <span className="bg-white/20 text-white text-xs px-2 py-1 rounded backdrop-blur-sm font-medium">{selectedVehicle.year}</span>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                {/* YENİ: KM Verisi varsa Modala ekliyoruz */}
+                {avgKm && (
+                  <DetailRow icon={Gauge} label="Ortalama KM" value={`${formatNumber(avgKm)} km`} color="text-blue-600 dark:text-blue-400" />
+                )}
+                
+                <DetailRow icon={User} label="Tedarikçi" value={selectedVehicle.supplier} />
+                <DetailRow icon={Truck} label="Araç Cinsi" value={selectedVehicle.vehicleType} />
+                <DetailRow icon={CarFront} label="Marka / Model" value={selectedVehicle.brandModel || [selectedVehicle.brand, selectedVehicle.model].filter(Boolean).join(" ")} />
+                <DetailRow icon={Calendar} label="Model Yılı" value={selectedVehicle.year} />
+                <DetailRow icon={PenTool} label="Çalışma Şekli" value={selectedVehicle.operationType} />
+                <DetailRow 
+                   icon={selectedVehicle.expenseStatus && selectedVehicle.expenseStatus.includes("Dahil") ? CheckCircle2 : AlertCircle} 
+                   label="Masraf Durumu" 
+                   value={selectedVehicle.expenseStatus} 
+                   color={selectedVehicle.expenseStatus && selectedVehicle.expenseStatus.includes("Dahil") ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"}
+                />
+              </div>
+              
+              <div className="bg-slate-50 dark:bg-slate-900/50 p-4 text-center border-t border-slate-100 dark:border-slate-700">
+                 <button onClick={() => setSelectedVehicle(null)} className="text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors">Kapat</button>
               </div>
             </div>
-
-            <div className="p-6 space-y-4">
-              <DetailRow icon={User} label="Tedarikçi" value={selectedVehicle.supplier} />
-              <DetailRow icon={Truck} label="Araç Cinsi" value={selectedVehicle.vehicleType} />
-              <DetailRow icon={CarFront} label="Marka / Model" value={selectedVehicle.brandModel || [selectedVehicle.brand, selectedVehicle.model].filter(Boolean).join(" ")} />
-              <DetailRow icon={Calendar} label="Model Yılı" value={selectedVehicle.year} />
-              <DetailRow icon={PenTool} label="Çalışma Şekli" value={selectedVehicle.operationType} />
-              <DetailRow 
-                icon={selectedVehicle.expenseStatus && selectedVehicle.expenseStatus.includes("Dahil") ? CheckCircle2 : AlertCircle} 
-                label="Masraf Durumu" 
-                value={selectedVehicle.expenseStatus} 
-                color={selectedVehicle.expenseStatus && selectedVehicle.expenseStatus.includes("Dahil") ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"}
-              />
-            </div>
-            
-            <div className="bg-slate-50 dark:bg-slate-900/50 p-4 text-center border-t border-slate-100 dark:border-slate-700">
-               <button onClick={() => setSelectedVehicle(null)} className="text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors">Kapat</button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
