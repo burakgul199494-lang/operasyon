@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Calendar, Plus, Trash2, Search, CheckCircle2, MapPin, 
-  History, ArrowLeft, AlertCircle, List, Settings, 
-  Dna, Zap, FileText, X, Shuffle, CalendarPlus, CalendarDays, Check, AlertTriangle, Download, Ban, CheckCircle
+   Calendar, Plus, Trash2, Search, CheckCircle2, MapPin, 
+   History, ArrowLeft, AlertCircle, List, Settings, 
+   Dna, Zap, FileText, X, Shuffle, CalendarPlus, CalendarDays, Check, AlertTriangle, Download, Ban, CheckCircle, Edit 
 } from 'lucide-react';
-
 import { db, auth } from '../config/firebase';
 import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 
-// --- TÜRKİYE İL VE İLÇE VERİSİ ---
+// --- İL VE İLÇE VERİSİ ---
 const TURKEY_DATA = {
   "Adana": ["Aladağ", "Ceyhan", "Çukurova", "Feke", "İmamoğlu", "Karaisalı", "Karataş", "Kozan", "Pozantı", "Saimbeyli", "Sarıçam", "Seyhan", "Tufanbeyli", "Yumurtalık", "Yüreğir"],
   "Adıyaman": ["Besni", "Çelikhan", "Gerger", "Gölbaşı", "Kahta", "Merkez", "Samsat", "Sincik", "Tut"],
@@ -103,7 +102,6 @@ export default function DenetimTakipApp({ onBack }) {
   const [units, setUnits] = useState([]);
   const [audits, setAudits] = useState([]);
   const [plans, setPlans] = useState([]); 
-
   const [newUnit, setNewUnit] = useState({ city: '', district: '', name: '' });
   const [newAudit, setNewAudit] = useState({ unitId: '', date: getLocalYYYYMMDD() });
   const [activeTab, setActiveTab] = useState('dashboard'); 
@@ -115,6 +113,10 @@ export default function DenetimTakipApp({ onBack }) {
   const [pendingAudit, setPendingAudit] = useState(null);
   const [pendingAuditNote, setPendingAuditNote] = useState('');
 
+  // NOT DÜZENLEME MODALI İÇİN STATE (YENİ EKLENDİ)
+  const [editingAudit, setEditingAudit] = useState(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+
   // HIZLI PLANLAMA MODALI İÇİN STATE
   const [quickPlanUnit, setQuickPlanUnit] = useState(null);
   const [quickPlanDate, setQuickPlanDate] = useState(getLocalYYYYMMDD());
@@ -122,7 +124,7 @@ export default function DenetimTakipApp({ onBack }) {
   // GEÇMİŞ ZİYARET EKLEME MODALI İÇİN STATE
   const [pastAuditUnit, setPastAuditUnit] = useState(null);
   const [pastAuditDate, setPastAuditDate] = useState(getLocalYYYYMMDD());
-  
+
   // FİLTRELEME DURUMLARI
   const [urgencyFilter, setUrgencyFilter] = useState('all'); 
   const [selectedCityFilter, setSelectedCityFilter] = useState('all'); 
@@ -144,7 +146,7 @@ export default function DenetimTakipApp({ onBack }) {
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) {
-      setErrorMsg("Oturum hatası: Lütfen tekrar giriş yapın.");
+      setErrorMsg("Oturum hatası. Lütfen tekrar giriş yapın.");
       return;
     }
 
@@ -165,7 +167,7 @@ export default function DenetimTakipApp({ onBack }) {
             { city: 'İzmir', district: 'Torbalı', name: 'AYRANCILAR' },
             { city: 'Muğla', district: 'Marmaris', name: 'BELDİBİ' },
             { city: 'Muğla', district: 'Marmaris', name: 'BELEN' },
-            { city: 'Muğla', district: 'Fethiye', name: 'ÇAMKÖY' },
+            { city: 'Muğla', district: 'Fethiye', name: 'ÇALIŞ' },
             { city: 'İzmir', district: 'Çeşme', name: 'ÇEŞME' },
             { city: 'Aydın', district: 'Çine', name: 'ÇİNE' },
             { city: 'Muğla', district: 'Dalaman', name: 'DALAMAN' },
@@ -177,9 +179,9 @@ export default function DenetimTakipApp({ onBack }) {
             { city: 'İzmir', district: 'Torbalı', name: 'EGESER' },
             { city: 'Muğla', district: 'Fethiye', name: 'FETHİYE' },
             { city: 'Muğla', district: 'Fethiye', name: 'GÖCEK' },
+            { city: 'Muğla', district: 'Bodrum', name: 'GÖKÇEBEL' },
             { city: 'Muğla', district: 'Bodrum', name: 'GÖLKÖY' },
-            { city: 'Muğla', district: 'Bodrum', name: 'GÜMÜŞLÜK' },
-            { city: 'Muğla', district: 'Bodrum', name: 'GÜNDOĞAN' },
+            { city: 'Muğla', district: 'Bodrum', name: 'GÜLLÜK' },
             { city: 'Muğla', district: 'Bodrum', name: 'GÜVERCİNLİK' },
             { city: 'Muğla', district: 'Bodrum', name: 'HALİKARNAS' },
             { city: 'İzmir', district: 'Urla', name: 'KALABAK DDN' },
@@ -191,9 +193,9 @@ export default function DenetimTakipApp({ onBack }) {
             { city: 'Muğla', district: 'Köyceğiz', name: 'KÖYCEĞİZ' },
             { city: 'Aydın', district: 'Kuşadası', name: 'KUŞADASI' },
             { city: 'Muğla', district: 'Fethiye', name: 'LİKYA' },
-            { city: 'İzmir', district: 'Urla', name: 'LİMANTEPE İRT' },
+            { city: 'İzmir', district: 'Urla', name: 'LİMANTEPE ŞÜBE' },
             { city: 'İzmir', district: 'Çeşme', name: 'LODOS DDN' },
-            { city: 'Muğla', district: 'Marmaris', name: 'MARMARİS İRT' },
+            { city: 'Muğla', district: 'Marmaris', name: 'MARMARİS' },
             { city: 'İzmir', district: 'Menderes', name: 'MENDERES' },
             { city: 'Muğla', district: 'Milas', name: 'MİLAS' },
             { city: 'İzmir', district: 'Karaburun', name: 'MORDOĞAN' },
@@ -216,7 +218,7 @@ export default function DenetimTakipApp({ onBack }) {
             { city: 'Muğla', district: 'Bodrum', name: 'TURGUTREİS' },
             { city: 'İzmir', district: 'Konak', name: 'UMURBEY' },
             { city: 'İzmir', district: 'Urla', name: 'URLA' },
-            { city: 'Aydın', district: 'Efeler', name: 'ÜÇGÖZLER' },
+            { city: 'Aydın', district: 'Efeler', name: 'ÜVEZLER' },
             { city: 'Muğla', district: 'Bodrum', name: 'YALIKAVAK' },
             { city: 'Muğla', district: 'Yatağan', name: 'YATAĞAN' },
             { city: 'Muğla', district: 'Marmaris', name: 'YELKEN' },
@@ -229,7 +231,6 @@ export default function DenetimTakipApp({ onBack }) {
             const docId = u.name.replace(/\s+/g, '_');
             await setDoc(doc(db, 'ortak_birimler', docId), { ...u, isActive: true }, { merge: true });
           }
-
           await setDoc(flagRef, { baslangicBirimleriEklendi: true }, { merge: true });
         }
       } catch (err) {}
@@ -308,7 +309,7 @@ export default function DenetimTakipApp({ onBack }) {
     if (isActive === false) return 'Kapalı Şube';
     if (days === Infinity) return 'Hiç Gidilmedi';
     if (days === 0) return 'Bugün Gidildi';
-    return `${days} Gün`;
+    return `${days} Gün Önce`;
   };
 
   const activeCities = useMemo(() => {
@@ -316,6 +317,22 @@ export default function DenetimTakipApp({ onBack }) {
   }, [units]);
 
   const uniqueCitiesList = useMemo(() => Object.keys(TURKEY_DATA).sort((a,b) => a.localeCompare(b, 'tr')), []);
+
+  // --- YENİ EKLENEN: NOT DÜZENLEME (UPDATE) FONKSİYONU ---
+  const handleUpdateNote = async () => {
+    if (!editingAudit) return;
+    try {
+      const auditRef = doc(db, 'ortak_denetimler', editingAudit.id);
+      await updateDoc(auditRef, {
+        note: editingNoteText.trim()
+      });
+      showSuccess('Not başarıyla güncellendi.');
+      setEditingAudit(null);
+      setEditingNoteText('');
+    } catch (err) {
+      setErrorMsg("Not güncellenirken hata oluştu: " + err.message);
+    }
+  };
 
   // --- ZİYARET EKLEME & NOT MODALI İŞLEMLERİ ---
   const executeAuditSave = async (withNote) => {
@@ -355,6 +372,7 @@ export default function DenetimTakipApp({ onBack }) {
   const handleAddUnit = async () => {
     const uid = auth.currentUser?.uid;
     const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Kullanıcı';
+
     if (newUnit.city && newUnit.name && newUnit.district && uid) {
       try {
         await addDoc(collection(db, 'ortak_birimler'), {
@@ -391,6 +409,7 @@ export default function DenetimTakipApp({ onBack }) {
         setErrorMsg(`${formatDateDisplay(newAudit.date)} tarihinde bu şubeye zaten denetim girilmiş!`);
         return;
       }
+
       const existingPlan = plans.find(p => p.unitId === newAudit.unitId && p.date === newAudit.date);
       setPendingAudit({ unitId: newAudit.unitId, date: newAudit.date, planId: existingPlan?.id, step: 'ask' });
     }
@@ -411,6 +430,7 @@ export default function DenetimTakipApp({ onBack }) {
         setErrorMsg(`Bugün bu şubeye zaten gidilmiş!`);
         return;
       }
+
       const existingPlan = plans.find(p => p.unitId === unitId && p.date === today);
       setPendingAudit({ unitId: unitId, date: today, planId: existingPlan?.id, step: 'ask' });
     }
@@ -444,7 +464,7 @@ export default function DenetimTakipApp({ onBack }) {
 
   const handleFactoryReset = async () => {
     if (!window.confirm("DİKKAT: Tüm şubeleriniz, denetim geçmişiniz ve planlarınız silinecek. Emin misiniz?")) return;
-    if (!window.confirm("BU İŞLEM GERİ ALINAMAZ. Gerçekten her şeyi silip başlangıç ayarlarına (İlk 67 Şubeye) dönmek istiyor musunuz?")) return;
+    if (!window.confirm("BU İŞLEM GERİ ALINAMAZ. Gerçekten her şeyi silip başlangıç ayarlarına (İlk 67 şubeye) dönmek istiyor musunuz?")) return;
     if (!window.confirm("Son kararınız mı? Devam ederseniz sistem ilk günkü haline dönecek!")) return;
 
     const uid = auth.currentUser?.uid;
@@ -475,6 +495,7 @@ export default function DenetimTakipApp({ onBack }) {
   const handleAddPlan = async (unitId, date) => {
     const uid = auth.currentUser?.uid;
     const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Kullanıcı';
+
     if (!unitId || !date || !uid) return false;
     
     if (date < getLocalYYYYMMDD()) {
@@ -504,9 +525,9 @@ export default function DenetimTakipApp({ onBack }) {
       await addDoc(collection(db, 'ortak_planlar'), { unitId, date, userId: uid, userName });
       showSuccess(`${formatDateDisplay(date)} tarihine plan eklendi.`);
       return true;
-    } catch (err) { 
-      setErrorMsg("Plan eklenirken hata oluştu."); 
-      return false;
+    } catch (err) {
+       setErrorMsg("Plan eklenirken hata oluştu.");
+       return false;
     }
   };
 
@@ -515,7 +536,7 @@ export default function DenetimTakipApp({ onBack }) {
     
     const existingAudit = audits.find(a => a.date === plan.date && a.unitId === plan.unitId);
     if (existingAudit) {
-      setErrorMsg(`Bu tarihte bu şubeye zaten gidilmiş! Çakışan plan siliniyor...`);
+      setErrorMsg(`Bu tarihte bu şubeye zaten gidilmiş! Plan siliniyor...`);
       deleteDoc(doc(db, 'ortak_planlar', plan.id)).catch(()=>{});
       return;
     }
@@ -534,9 +555,10 @@ export default function DenetimTakipApp({ onBack }) {
       setErrorMsg("Dışa aktarılacak kayıt bulunmuyor.");
       return;
     }
+
     let csvContent = "\uFEFF"; 
-    // DÜZELTME 1: Başlıklardaki virgülleri noktalı virgül (;) yaptık
-    csvContent += "İl;İlçe;Birim Adı;Ziyaret Tarihi;Ziyareti Yapan;Not\n";
+    
+    csvContent += "İlçe;Birim Adı;Ziyaret Tarihi;Ziyareti Yapan;Not\n";
 
     const sortedAudits = [...audits].sort((a,b) => new Date(b.date) - new Date(a.date));
 
@@ -546,7 +568,6 @@ export default function DenetimTakipApp({ onBack }) {
       const dateStr = formatDateDisplay(audit.date);
       const userStr = audit.userName || 'Bilinmeyen';
       
-      // DÜZELTME 2: Değerleri birleştirirken virgül yerine noktalı virgül (;) kullanıyoruz
       csvContent += `"${unit.city}";"${unit.district}";"${unit.name}";"${dateStr}";"${userStr}";${safeNote}\n`;
     });
 
@@ -571,6 +592,7 @@ export default function DenetimTakipApp({ onBack }) {
     plans.forEach(plan => {
       const u = units.find(x => x.id === plan.unitId);
       const unitName = u ? u.name : 'Bilinmeyen Şube';
+
       if (!plansByDate[plan.date]) {
         plansByDate[plan.date] = [];
       }
@@ -587,8 +609,7 @@ export default function DenetimTakipApp({ onBack }) {
     });
 
     let csvContent = "\uFEFF"; 
-
-    // DÜZELTME 3: Tarih başlıklarını noktalı virgülle (;) ayırıyoruz
+    
     const dateHeaders = sortedDates.map(d => `"${formatDateDisplay(d)}"`).join(';');
     csvContent += dateHeaders + "\n";
     
@@ -596,7 +617,8 @@ export default function DenetimTakipApp({ onBack }) {
       const row = sortedDates.map(d => {
         const unitName = plansByDate[d][i];
         return unitName ? `"${unitName}"` : '""';
-      }).join(';'); // DÜZELTME 4: Sütunları noktalı virgülle (;) ayırıyoruz
+      }).join(';'); 
+
       csvContent += row + "\n";
     }
 
@@ -672,10 +694,10 @@ export default function DenetimTakipApp({ onBack }) {
   const filterOptions = [
     { label: 'Tümü', value: 'all', color: 'bg-gray-400' },
     { label: 'Hiç Gidilmedi', value: 'infinity', color: 'bg-gray-300' },
-    { label: '0-15 G', value: '0-15', color: 'bg-green-500' },
-    { label: '16-30 G', value: '16-30', color: 'bg-yellow-400' },
-    { label: '31-44 G', value: '31-44', color: 'bg-orange-500' },
-    { label: '45+ G', value: '45+', color: 'bg-red-600' }
+    { label: '0-15 Gün', value: '0-15', color: 'bg-green-500' },
+    { label: '16-30 Gün', value: '16-30', color: 'bg-yellow-400' },
+    { label: '31-44 Gün', value: '31-44', color: 'bg-orange-500' },
+    { label: '45+ Gün', value: '45+', color: 'bg-red-600' }
   ];
 
   // ÇARK SİSTEMİ MANTIĞI
@@ -703,6 +725,7 @@ export default function DenetimTakipApp({ onBack }) {
 
     setIsSpinning(true);
     setWheelResult(null);
+
     let spins = 0;
     
     const interval = setInterval(() => {
@@ -731,182 +754,216 @@ export default function DenetimTakipApp({ onBack }) {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans relative">
-      
-{/* --- ZİYARET ONAY & NOT MODALI --- */}
-      {pendingAudit && (
-         <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-[340px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-               {pendingAudit.step === 'ask' ? (
-                  <div className="p-6 text-center">
-                     <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle2 size={32} />
-                     </div>
-                     <h3 className="font-bold text-lg text-gray-800 mb-2">Gidildi Olarak İşaretle</h3>
-                     <p className="text-sm text-gray-500 mb-6">Bu ziyarete özel bir not eklemek ister misiniz?</p>
-                     
-                     <div className="flex gap-3">
-                        <button 
-                          onClick={() => executeAuditSave(false)} 
-                          className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold active:bg-gray-200 transition"
-                        >
-                          Hayır,<br/>Direkt Kaydet
-                        </button>
-                        <button 
-                          onClick={() => setPendingAudit({...pendingAudit, step: 'note'})} 
-                          className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700 transition shadow-md shadow-blue-200"
-                        >
-                          Evet,<br/>Not Ekle
-                        </button>
-                     </div>
-                     
-                     <button 
-                       onClick={() => setPendingAudit(null)} 
-                       className="w-full mt-4 py-2 text-gray-400 font-bold text-xs"
+
+       {/* --- NOT DÜZENLEME MODALI (YENİ EKLENDİ) --- */}
+       {editingAudit && (
+          <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+             <div className="bg-white rounded-3xl w-full max-w-[340px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+               <div className="p-6">
+                  <h3 className="font-bold text-lg text-gray-800 mb-3 flex items-center gap-2">
+                    <Edit size={18} className="text-blue-500"/> Notu Güncelle
+                  </h3>
+                  <textarea
+                     autoFocus
+                     value={editingNoteText}
+                     onChange={e => setEditingNoteText(e.target.value)}
+                     placeholder="Notunuzu girin..."
+                     className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px] mb-4"
+                  />
+                  <div className="flex gap-3">
+                     <button
+                        onClick={() => { setEditingAudit(null); setEditingNoteText(''); }}
+                        className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold active:bg-gray-200 transition"
                      >
-                       İşlemi İptal Et
+                       İptal
+                     </button>
+                     <button
+                        onClick={handleUpdateNote}
+                        className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700 transition shadow-md shadow-blue-200"
+                     >
+                       Kaydet
                      </button>
                   </div>
-               ) : (
-                  <div className="p-6">
-                     <h3 className="font-bold text-lg text-gray-800 mb-3 flex items-center gap-2">
-                       <FileText size={18} className="text-blue-500"/> Ziyaret Notunuz
-                     </h3>
-                     <textarea 
-                        autoFocus
-                        value={pendingAuditNote}
-                        onChange={e => setPendingAuditNote(e.target.value)}
-                        placeholder="Şubedeki gözlemleriniz vb..."
-                        className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px] mb-4"
-                     />
-                     <div className="flex gap-3">
-                        <button 
-                          onClick={() => setPendingAudit(null)} 
-                          className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold active:bg-gray-200 transition"
-                        >
-                          Vazgeç
-                        </button>
-                        <button 
-                          onClick={() => executeAuditSave(true)} 
-                          disabled={!pendingAuditNote.trim()} 
-                          className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold disabled:opacity-50 active:bg-blue-700 transition"
-                        >
-                          Notla Kaydet
-                        </button>
-                     </div>
-                  </div>
-               )}
-            </div>
-         </div>
-      )}
+               </div>
+             </div>
+          </div>
+       )}
 
-{/* --- HIZLI PLANLAMA MODALI --- */}
-      {quickPlanUnit && (
-         <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-[340px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 p-6 text-center">
-              <div className="w-16 h-16 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CalendarPlus size={32} />
-              </div>
-              <h3 className="font-bold text-lg text-gray-800 mb-2">Hızlı Planlama</h3>
-              <p className="text-sm text-gray-500 mb-4"><strong>{quickPlanUnit.name}</strong> şubesi için plan tarihi seçin:</p>
-              
-              <div className="mb-6 flex justify-center w-full bg-gray-50 border border-gray-200 rounded-xl focus-within:ring-2 focus-within:ring-purple-500 transition-all overflow-hidden">
-                <input 
-                  type="date" 
-                  min={getLocalYYYYMMDD()}
-                  className="w-full p-3 bg-transparent text-sm font-bold text-gray-700 outline-none text-center appearance-none"
-                  style={{ textAlign: 'center', display: 'flex', justifyContent: 'center' }}
-                  value={quickPlanDate}
-                  onChange={(e) => setQuickPlanDate(e.target.value)}
-                />
-              </div>
-              
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setQuickPlanUnit(null)} 
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold active:bg-gray-200 transition"
-                >
-                  İptal
-                </button>
-                <button 
-                  onClick={async () => {
-                    const success = await handleAddPlan(quickPlanUnit.id, quickPlanDate);
-                    if (success) setQuickPlanUnit(null);
-                  }} 
-                  className="flex-1 py-3 bg-purple-600 text-white rounded-xl text-sm font-bold active:bg-purple-700 transition shadow-md shadow-purple-200"
-                >
-                  Planla
-                </button>
-              </div>
-            </div>
-         </div>
-      )}
+       {/* --- ZİYARET ONAY & NOT MODALI --- */}
+       {pendingAudit && (
+          <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+             <div className="bg-white rounded-3xl w-full max-w-[340px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                {pendingAudit.step === 'ask' ? (
+                   <div className="p-6 text-center">
+                      <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                         <CheckCircle2 size={32} />
+                      </div>
+                      <h3 className="font-bold text-lg text-gray-800 mb-2">Gidildi Olarak İşaretle</h3>
+                      <p className="text-sm text-gray-500 mb-6">Bu ziyarete özel bir not eklemek ister misiniz?</p>
+                      
+                      <div className="flex gap-3">
+                         <button
+                            onClick={() => executeAuditSave(false)}
+                            className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold active:bg-gray-200 transition"
+                         >
+                           Hayır,<br/>Direkt Kaydet
+                         </button>
+                         <button
+                            onClick={() => setPendingAudit({...pendingAudit, step: 'note'})}
+                            className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700 transition shadow-md shadow-blue-200"
+                         >
+                           Evet,<br/>Not Ekle
+                         </button>
+                      </div>
+                      
+                      <button
+                         onClick={() => setPendingAudit(null)}
+                         className="w-full mt-4 py-2 text-gray-400 font-bold text-xs"
+                      >
+                         İşlemi İptal Et
+                      </button>
+                   </div>
+                ) : (
+                   <div className="p-6">
+                      <h3 className="font-bold text-lg text-gray-800 mb-3 flex items-center gap-2">
+                        <FileText size={18} className="text-blue-500"/> Ziyaret Notunuz
+                      </h3>
+                      <textarea
+                         autoFocus
+                         value={pendingAuditNote}
+                         onChange={e => setPendingAuditNote(e.target.value)}
+                         placeholder="Şubedeki gözlemleriniz vb..."
+                         className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px] mb-4"
+                      />
+                      <div className="flex gap-3">
+                         <button
+                            onClick={() => setPendingAudit(null)}
+                            className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold active:bg-gray-200 transition"
+                         >
+                           Vazgeç
+                         </button>
+                         <button
+                            onClick={() => executeAuditSave(true)}
+                            disabled={!pendingAuditNote.trim()}
+                            className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold disabled:opacity-50 active:bg-blue-700 transition"
+                         >
+                           Notla Kaydet
+                         </button>
+                      </div>
+                   </div>
+                )}
+             </div>
+          </div>
+       )}
 
-{/* --- GEÇMİŞ ZİYARET EKLEME MODALI --- */}
-      {pastAuditUnit && (
-         <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-[340px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 p-6 text-center">
-              <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <History size={32} />
-              </div>
-              <h3 className="font-bold text-lg text-gray-800 mb-2">Ziyaret Kaydı Ekle</h3>
-              <p className="text-sm text-gray-500 mb-4"><strong>{pastAuditUnit.name}</strong> şubesi için ziyaret tarihini seçin:</p>
-              
-              <div className="mb-6 flex justify-center w-full bg-gray-50 border border-gray-200 rounded-xl focus-within:ring-2 focus-within:ring-green-500 transition-all overflow-hidden">
-                <input 
-                  type="date" 
-                  max={getLocalYYYYMMDD()} 
-                  className="w-full p-3 bg-transparent text-sm font-bold text-gray-700 outline-none text-center appearance-none"
-                  style={{ textAlign: 'center', display: 'flex', justifyContent: 'center' }}
-                  value={pastAuditDate}
-                  onChange={(e) => setPastAuditDate(e.target.value)}
-                />
-              </div>
-              
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setPastAuditUnit(null)} 
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold active:bg-gray-200 transition"
-                >
-                  İptal
-                </button>
-                <button 
-                  onClick={() => {
-                    const existingAudit = audits.find(a => a.date === pastAuditDate && a.unitId === pastAuditUnit.id);
-                    if (existingAudit) {
-                      setErrorMsg(`${formatDateDisplay(pastAuditDate)} tarihinde bu şubeye zaten gidilmiş!`);
-                      return;
-                    }
-                    const existingPlan = plans.find(p => p.unitId === pastAuditUnit.id && p.date === pastAuditDate);
-                    setPendingAudit({ unitId: pastAuditUnit.id, date: pastAuditDate, planId: existingPlan?.id, step: 'ask' });
-                    setPastAuditUnit(null);
-                  }} 
-                  className="flex-1 py-3 bg-green-600 text-white rounded-xl text-sm font-bold active:bg-green-700 transition shadow-md shadow-green-200"
-                >
-                  İleri
-                </button>
-              </div>
-            </div>
-         </div>
-      )}
+       {/* --- HIZLI PLANLAMA MODALI --- */}
+       {quickPlanUnit && (
+          <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+             <div className="bg-white rounded-3xl w-full max-w-[340px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 p-6 text-center">
+               <div className="w-16 h-16 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <CalendarPlus size={32} />
+               </div>
+               <h3 className="font-bold text-lg text-gray-800 mb-2">Hızlı Planlama</h3>
+               <p className="text-sm text-gray-500 mb-4"><strong>{quickPlanUnit.name}</strong> şubesi için plan tarihi seçin:</p>
+               
+               <div className="mb-6 flex justify-center w-full bg-gray-50 border border-gray-200 rounded-xl focus-within:ring-2 focus-within:ring-purple-500 transition-all overflow-hidden">
+                 <input 
+                   type="date" 
+                   min={getLocalYYYYMMDD()}
+                   className="w-full p-3 bg-transparent text-sm font-bold text-gray-700 outline-none text-center appearance-none"
+                   style={{ textAlign: 'center', display: 'flex', justifyContent: 'center' }}
+                   value={quickPlanDate}
+                   onChange={(e) => setQuickPlanDate(e.target.value)}
+                 />
+               </div>
+               
+               <div className="flex gap-3">
+                 <button
+                    onClick={() => setQuickPlanUnit(null)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold active:bg-gray-200 transition"
+                 >
+                   İptal
+                 </button>
+                 <button
+                    onClick={async () => {
+                     const success = await handleAddPlan(quickPlanUnit.id, quickPlanDate);
+                     if (success) setQuickPlanUnit(null);
+                   }}
+                    className="flex-1 py-3 bg-purple-600 text-white rounded-xl text-sm font-bold active:bg-purple-700 transition shadow-md shadow-purple-200"
+                 >
+                   Planla
+                 </button>
+               </div>
+             </div>
+          </div>
+       )}
+
+       {/* --- GEÇMİŞ ZİYARET EKLEME MODALI --- */}
+       {pastAuditUnit && (
+          <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+             <div className="bg-white rounded-3xl w-full max-w-[340px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 p-6 text-center">
+               <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <History size={32} />
+               </div>
+               <h3 className="font-bold text-lg text-gray-800 mb-2">Ziyaret Kaydı Ekle</h3>
+               <p className="text-sm text-gray-500 mb-4"><strong>{pastAuditUnit.name}</strong> şubesi için ziyaret tarihini seçin:</p>
+               
+               <div className="mb-6 flex justify-center w-full bg-gray-50 border border-gray-200 rounded-xl focus-within:ring-2 focus-within:ring-green-500 transition-all overflow-hidden">
+                 <input 
+                   type="date" 
+                   max={getLocalYYYYMMDD()} 
+                   className="w-full p-3 bg-transparent text-sm font-bold text-gray-700 outline-none text-center appearance-none"
+                   style={{ textAlign: 'center', display: 'flex', justifyContent: 'center' }}
+                   value={pastAuditDate}
+                   onChange={(e) => setPastAuditDate(e.target.value)}
+                 />
+               </div>
+               
+               <div className="flex gap-3">
+                 <button
+                    onClick={() => setPastAuditUnit(null)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold active:bg-gray-200 transition"
+                 >
+                   İptal
+                 </button>
+                 <button
+                    onClick={() => {
+                     const existingAudit = audits.find(a => a.date === pastAuditDate && a.unitId === pastAuditUnit.id);
+                     if (existingAudit) {
+                       setErrorMsg(`${formatDateDisplay(pastAuditDate)} tarihinde bu şubeye zaten gidilmiş!`);
+                       return;
+                     }
+                     const existingPlan = plans.find(p => p.unitId === pastAuditUnit.id && p.date === pastAuditDate);
+                     setPendingAudit({ unitId: pastAuditUnit.id, date: pastAuditDate, planId: existingPlan?.id, step: 'ask' });
+                     setPastAuditUnit(null);
+                   }}
+                    className="flex-1 py-3 bg-green-600 text-white rounded-xl text-sm font-bold active:bg-green-700 transition shadow-md shadow-green-200"
+                 >
+                   İleri
+                 </button>
+               </div>
+             </div>
+          </div>
+       )}
 
       {/* ÜST BAŞLIK BARI */}
       <div className="bg-white px-4 pt-6 pb-4 shadow-sm flex items-center justify-between sticky top-0 z-40">
         <button 
-          onClick={() => {
+           onClick={() => {
             if (['unitDetail'].includes(activeTab)) setActiveTab('dashboard');
             else onBack && onBack();
           }} 
-          className="p-2 -ml-2 text-gray-500 hover:text-gray-800 transition rounded-full active:bg-gray-100"
+           className="p-2 -ml-2 text-gray-500 hover:text-gray-800 transition rounded-full active:bg-gray-100"
         >
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-lg font-bold flex items-center gap-2 text-gray-800">
-          {activeTab === 'unitDetail' ? <><MapPin className="text-blue-600" size={22} /> Şube Detayı</> : 
-           activeTab === 'weeklyPlans' ? <><CalendarDays className="text-purple-600" size={22} /> Planlar</> : 
-           activeTab === 'addAudit' ? <><History className="text-blue-600" size={22} /> Kayıtlar</> : 
-           activeTab === 'wheel' ? <><Dna className="text-purple-600" size={22} /> Kura</> : 
-           activeTab === 'units' ? <><Settings className="text-gray-600" size={22} /> Yönetim</> : 
-           <><CheckCircle2 className="text-blue-600" size={22} /> Denetim Takip</>}
+          {activeTab === 'unitDetail' ? <><MapPin className="text-blue-600" size={22} /> Şube Detayı</> :
+            activeTab === 'weeklyPlans' ? <><CalendarDays className="text-purple-600" size={22} /> Planlar</> :
+            activeTab === 'addAudit' ? <><History className="text-blue-600" size={22} /> Kayıtlar</> :
+            activeTab === 'wheel' ? <><Dna className="text-purple-600" size={22} /> Kura</> :
+            activeTab === 'units' ? <><Settings className="text-gray-600" size={22} /> Yönetim</> :
+            <><CheckCircle2 className="text-blue-600" size={22} /> Denetim Takip</>}
         </h1>
         <div className="w-[40px]"></div>
       </div>
@@ -921,6 +978,7 @@ export default function DenetimTakipApp({ onBack }) {
           <button onClick={() => setErrorMsg('')}><X size={16} className="text-red-400"/></button>
         </div>
       )}
+
       {successMsg && (
         <div className="bg-green-50 border-l-4 border-green-500 p-4 m-4 rounded-r-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 z-50 relative">
           <CheckCircle2 className="text-green-500 shrink-0" size={20} />
@@ -938,7 +996,7 @@ export default function DenetimTakipApp({ onBack }) {
             {todaysPlans.length > 0 && (
               <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 shadow-lg text-white">
                 <h3 className="font-bold text-sm flex items-center gap-2 mb-3 opacity-90">
-                  <Calendar size={16} /> Bugünün Planlanan Şubeleri
+                  <Calendar size={16} /> Bugün Planlanan Şubeler
                 </h3>
                 <div className="space-y-2">
                   {todaysPlans.map(plan => (
@@ -1005,7 +1063,6 @@ export default function DenetimTakipApp({ onBack }) {
             <div className="grid gap-3">
               {unitStats.map(unit => {
                 const isInactive = unit.isActive === false;
-
                 return (
                 <div 
                   key={unit.id} 
@@ -1070,7 +1127,7 @@ export default function DenetimTakipApp({ onBack }) {
                      </button>
                   </div>
 
-                  {/* PLAN BİLGİSİ (Varsa görünür) */}
+                  {/* PLAN BİLGİSİ (Varsa göster) */}
                   {unit.nextPlan && (
                     <div className="pl-2 mt-1">
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-1.5 rounded-lg border border-purple-100">
@@ -1079,15 +1136,17 @@ export default function DenetimTakipApp({ onBack }) {
                     </div>
                   )}
                   
-                  {/* SATIR 4: EN SON ZİYARET NOTU (Varsa görünür) */}
+                  {/* SATIR 4: EN SON ZİYARET NOTU (Varsa göster) */}
                   {unit.latestNote && (
                     <div className="pl-2 mt-1 flex items-start gap-1.5 text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                       <FileText size={12} className="mt-0.5 shrink-0 text-gray-400" />
                       <p className="line-clamp-2 italic leading-relaxed">{unit.latestNote}</p>
                     </div>
                   )}
+
                 </div>
               )})}
+
               {unitStats.length === 0 && (
                 <div className="p-8 text-center text-gray-400 italic text-sm bg-white rounded-2xl shadow-sm border border-gray-100">
                   Kritere uygun birim bulunamadı.
@@ -1219,7 +1278,7 @@ export default function DenetimTakipApp({ onBack }) {
                       </div>
                     </div>
 
-                    {/* ZİYARET EKLEME ALANI (Geçmiş veya Bugün İçin) */}
+                    {/* ZİYARET EKLEME ALANI (Geçmiş veya Bugün) */}
                     <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
                       <label className="text-xs font-bold text-blue-800 flex items-center gap-1 mb-2">
                         <CheckCircle2 size={14}/> Ziyaret Kaydı Ekle
@@ -1264,21 +1323,31 @@ export default function DenetimTakipApp({ onBack }) {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-bold text-gray-700">{formatDateDisplay(a.date)}</span>
                           
-                          {/* YENİ: Ziyareti yapan kişinin ismini burada gösteriyoruz */}
+                          {/* Ziyareti yapan kişinin ismini burada gösteriyoruz */}
                           <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold">
                             {a.userName || 'Bilinmeyen Kullanıcı'}
                           </span>
 
                           {i === 0 && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold">SON ZİYARET</span>}
                         </div>
-                        <button 
-                          onClick={() => handleDeleteAudit(a.id)}
-                          className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition"
-                          title="Kaydı Sil"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => { setEditingAudit(a); setEditingNoteText(a.note || ''); }}
+                            className="text-blue-400 hover:text-blue-600 p-1.5 hover:bg-blue-50 rounded-lg transition"
+                            title="Notu Düzenle"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteAudit(a.id)}
+                            className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition"
+                            title="Kaydı Sil"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
+
                       {/* O ziyarete ait notu göster */}
                       {a.note && (
                         <div className="mt-2 text-xs text-gray-600 bg-white p-2 rounded-lg border border-gray-100 italic">
@@ -1291,7 +1360,6 @@ export default function DenetimTakipApp({ onBack }) {
                   {uAudits.length === 0 && <p className="text-sm text-gray-400 italic py-2 text-center">Henüz ziyaret kaydı yok.</p>}
                 </div>
               </div>
-
             </div>
           );
         })()}
@@ -1334,7 +1402,7 @@ export default function DenetimTakipApp({ onBack }) {
                 </div>
               </div>
 
-              {/* Çark Çıktı Ekranı */}
+              {/* Çark Sonuç Ekranı */}
               <div className="bg-gray-900 rounded-2xl p-6 min-h-[140px] flex items-center justify-center relative overflow-hidden mb-6 shadow-inner border-[4px] border-gray-800">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/40 via-gray-900 to-gray-900 pointer-events-none"></div>
                 
@@ -1366,7 +1434,7 @@ export default function DenetimTakipApp({ onBack }) {
                   </div>
                 ) : (
                   <div className="text-gray-500 font-medium z-10 text-sm">
-                    Başlamak için butona basın
+                    Başlamak için butona bas
                   </div>
                 )}
               </div>
@@ -1378,7 +1446,6 @@ export default function DenetimTakipApp({ onBack }) {
               >
                 {isSpinning ? 'Radarlanıyor...' : 'Radarı Çalıştır'} <Zap size={20} className={isSpinning ? "animate-spin" : ""} />
               </button>
-
             </div>
           </div>
         )}
@@ -1386,10 +1453,12 @@ export default function DenetimTakipApp({ onBack }) {
         {/* KAYITLAR VE DENETİM EKLE EKRANI */}
         {activeTab === 'addAudit' && (
            <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+            
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Plus className="text-blue-600" /> Seri Denetim Ekle
               </h2>
+              
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Aktif Birim Seç</label>
@@ -1461,13 +1530,14 @@ export default function DenetimTakipApp({ onBack }) {
 
               <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
                 {auditHistory.length === 0 && <p className="text-sm text-gray-400 italic p-6 text-center">Bu tarihte kayıt bulunamadı.</p>}
+                
                 {auditHistory.map(audit => (
                   <div key={audit.id} className="p-4 flex justify-between items-start bg-white hover:bg-gray-50 transition">
                     <div className="flex-1">
                       <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">{audit.unitCity}</p>
                       <p className="font-bold text-gray-800 text-sm mt-0.5">{audit.unitName}</p>
                       
-                      {/* YENİ: Tarihin yanına kullanıcı adını yazdırıyoruz */}
+                      {/* YENİ: Tarihin yanına kullanıcıyı da yazdırıyoruz */}
                       <p className="text-xs text-gray-500 font-medium mt-1 flex items-center gap-1.5">
                         <CalendarDays size={12}/> {formatDateDisplay(audit.date)} 
                         <span className="text-gray-300">|</span> 
@@ -1482,20 +1552,32 @@ export default function DenetimTakipApp({ onBack }) {
                         </div>
                       )}
                     </div>
-                    <button 
-                      onClick={() => handleDeleteAudit(audit.id)}
-                      className="p-3 text-gray-300 hover:text-red-500 active:bg-red-50 rounded-xl transition shrink-0"
-                    >
-                      <Trash2 size={20} />
-                    </button>
+
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <button 
+                        onClick={() => { setEditingAudit(audit); setEditingNoteText(audit.note || ''); }}
+                        className="p-2 text-gray-300 hover:text-blue-500 active:bg-blue-50 rounded-xl transition"
+                        title="Notu Düzenle"
+                      >
+                        <Edit size={18} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteAudit(audit.id)}
+                        className="p-2 text-gray-300 hover:text-red-500 active:bg-red-50 rounded-xl transition"
+                        title="Kaydı Sil"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
+
           </div>
         )}
 
-        {/* BİRİM YÖNETİMİ EKRANI */}
+        {/* YÖNETİM EKRANI */}
         {activeTab === 'units' && (
            <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
              
@@ -1504,9 +1586,9 @@ export default function DenetimTakipApp({ onBack }) {
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <MapPin className="text-green-600" /> Yeni Şube Ekle
               </h2>
+              
               <div className="space-y-4">
-                
-                <div>
+                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">İl Seçiniz</label>
                   <select 
                     className="w-full p-3.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-700 text-sm transition"
@@ -1563,6 +1645,7 @@ export default function DenetimTakipApp({ onBack }) {
               </div>
               <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
                 {units.length === 0 && <p className="text-sm text-gray-400 italic p-4 text-center">Sistemde şubeniz bulunmuyor.</p>}
+                
                 {units.sort((a,b) => a.city.localeCompare(b.city,'tr')).map(unit => {
                   const isInactive = unit.isActive === false;
                   return (
@@ -1601,7 +1684,7 @@ export default function DenetimTakipApp({ onBack }) {
                 onClick={handleFactoryReset}
                 className="w-full bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 py-4 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2"
               >
-                <AlertTriangle size={18} /> İlk Kuruluma Döndür (Sıfırla)
+                <AlertTriangle size={18} /> İlk Kuruluma Dön (Sıfırla)
               </button>
               <p className="text-[10px] text-center text-gray-400 mt-2 px-4 leading-tight">
                 Bu işlem her şeyi siler ve belirlediğin 67 şubeyi ilk günkü gibi yeniden sisteme yükler.
@@ -1610,17 +1693,16 @@ export default function DenetimTakipApp({ onBack }) {
 
            </div>
         )}
-
       </div>
 
       {/* MOBİL ALT NAVİGASYON BARI (5 BUTON) */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-between items-center pb-safe z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] h-[70px] px-1 md:px-4">
-        
+         
         <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition ${['dashboard', 'unitDetail'].includes(activeTab) ? 'text-blue-600' : 'text-gray-400'}`}>
           <List size={20} className={['dashboard', 'unitDetail'].includes(activeTab) ? 'stroke-[2.5px]' : 'stroke-2'} />
           <span className="text-[9px] font-bold">Liste</span>
         </button>
-        
+         
         <button onClick={() => setActiveTab('weeklyPlans')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition ${activeTab === 'weeklyPlans' ? 'text-purple-600' : 'text-gray-400'}`}>
           <CalendarDays size={20} className={activeTab === 'weeklyPlans' ? 'stroke-[2.5px]' : 'stroke-2'} />
           <span className="text-[9px] font-bold">Planlar</span>
@@ -1642,7 +1724,6 @@ export default function DenetimTakipApp({ onBack }) {
         </button>
 
       </div>
-
     </div>
   );
 }
