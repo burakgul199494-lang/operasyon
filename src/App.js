@@ -12,20 +12,19 @@ import UnitDetail from "./pages/UnitDetail";
 import AdminPanel from "./pages/AdminPanel";
 import NotesPage from "./pages/NotesPage";
 import FleetPage from "./pages/FleetPage";
-import PersonnelDefensePage from "./pages/PersonnelDefensePage"; // YENİ EKLENDİ
+import PersonnelDefensePage from "./pages/PersonnelDefensePage";
 import UserProfileModal from "./components/UserProfileModal";
-
-import { Lock } from "lucide-react"; 
+import { Lock } from "lucide-react";
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [allData, setAllData] = useState([]);
   const [unitInfo, setUnitInfo] = useState({});
-  const [fleetData, setFleetData] = useState([]); 
-  const [loading, setLoading] = useState(true);
-  
-  const navigate = useNavigate();
+  const [fleetData, setFleetData] = useState([]);
+  const [fleetKms, setFleetKms] = useState({}); // YENİ: KM Verilerini tutacak state
 
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [isProfileOpen, setProfileOpen] = useState(false);
@@ -60,6 +59,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Performans Kayıtları
   useEffect(() => {
     if (!user) { setAllData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "performance_records");
@@ -70,6 +70,7 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
+  // Birim Filo Bilgileri
   useEffect(() => {
     if (!user) return;
     const colRef = collection(db, "artifacts", appId, "public", "data", "unit_info");
@@ -81,12 +82,25 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
+  // Araç Listesi
   useEffect(() => {
     if (!user) { setFleetData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_list");
     const unsubscribe = onSnapshot(colRef, (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setFleetData(list);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  // YENİ: Ortalama KM Listesi Dinleyicisi
+  useEffect(() => {
+    if (!user) { setFleetKms({}); return; }
+    const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_kms");
+    const unsubscribe = onSnapshot(colRef, (snap) => {
+      const kmsMap = {};
+      snap.docs.forEach((d) => { kmsMap[d.id] = d.data().km; });
+      setFleetKms(kmsMap);
     });
     return () => unsubscribe();
   }, [user]);
@@ -105,7 +119,7 @@ export default function App() {
     else if (target === "dashboard") navigate("/dashboard");
     else if (target === "notes") navigate("/notes");
     else if (target === "fleet") navigate("/fleet"); 
-    else if (target === "personnelDefense") navigate("/personnel-defense"); // YENİ EKLENDİ
+    else if (target === "personnelDefense") navigate("/personnel-defense"); 
   };
 
   const handleAdminLogin = () => {
@@ -141,14 +155,14 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard onUnitClick={(unit) => navigate(`/detail/${unit}`)} onNavigateMenu={() => navigate("/")} />} />
         <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
-        <Route path="/fleet" element={<FleetPage fleetData={fleetData} onBack={() => navigate("/")} />} />
-        <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} onBack={() => navigate("/")} />} /> {/* YENİ EKLENDİ */}
-
+        <Route path="/fleet" element={<FleetPage fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/")} />} />
+        <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} onBack={() => navigate("/")} />} />
         <Route path="/admin" element={
           <AdminPanel
             allData={allData}
             unitInfo={unitInfo}
-            fleetData={fleetData} 
+            fleetData={fleetData}
+            fleetKms={fleetKms} // YENİ: KM datasını gönderiyoruz
             onSaveBatch={handleSaveBatch}
             onClose={() => navigate("/")}
             availableYears={availableYears}
