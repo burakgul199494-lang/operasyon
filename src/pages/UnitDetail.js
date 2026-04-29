@@ -8,7 +8,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
   const navigate = useNavigate();
-
   const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
 
   const [showYearAvg, setShowYearAvg] = useState(false);
@@ -16,11 +15,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
-  
-  const availableYears = [2024, 2025, 2026];
 
+  const availableYears = [2024, 2025, 2026];
   const TARGETS = { rotaOrani: 80, tvsOrani: 90, checkInOrani: 90, smsOrani: 50 };
 
   const parseMetric = (val) => {
@@ -49,15 +46,18 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
     if (yearRecords.length === 0) return null;
-    const fields = ["teslimPerformansi", "htfOrani", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "kontrolSende"];
+
+    const fields = ["teslimPerformansi", "adresAlimOrani", "htfOrani", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "kontrolSende"];
     const totals = {}; const counts = {};
     fields.forEach(f => { totals[f] = 0; counts[f] = 0; });
+
     yearRecords.forEach(record => {
       fields.forEach(field => {
         const val = record[field];
         if (val !== undefined && val !== null && val !== "") { totals[field] += parseFloat(val); counts[field] += 1; }
       });
     });
+
     const averages = {};
     fields.forEach(field => {
       if (counts[field] > 0) {
@@ -72,8 +72,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   let displayRegionData = showYearAvg
     ? (selectedUnit === "BÖLGE" ? null : calculateYearlyAverage("BÖLGE"))
     : (selectedUnit === "BÖLGE" ? null : allData.find(d => d.unit === "BÖLGE" && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth)));
-  
+
   const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 95;
+  const isAdresAlimBasarisiz = displayData && parseFloat(displayData.adresAlimOrani) < 90;
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
   const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -90,7 +91,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
-
       try {
         const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
         const blob = await response.blob();
@@ -104,7 +104,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       }
 
       const donemText = showYearAvg ? `${selectedYear} Yılı Ortalaması` : `${selectedYear} - ${MONTH_NAMES[selectedMonth]}`;
-
+      
       doc.setFontSize(18);
       doc.setTextColor(40);
       const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON PERFORMANS RAPORU";
@@ -118,6 +118,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
       const tableRows = [
         ["Teslim Performansı", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
+        ["Adres Alım Oranı", `%${displayData.adresAlimOrani || "-"}`, `%${displayRegionData?.adresAlimOrani || "-"}`, "%90"],
         ["Rota Oranı", `%${displayData.rotaOrani || "-"}`, `%${displayRegionData?.rotaOrani || "-"}`, "%80"],
         ["TVS Oranı", `%${displayData.tvsOrani || "-"}`, `%${displayRegionData?.tvsOrani || "-"}`, "%90"],
         ["Check-in Oranı", `%${displayData.checkInOrani || "-"}`, `%${displayRegionData?.checkInOrani || "-"}`, "%90"],
@@ -142,10 +143,22 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
           if (type === 'defense' && data.section === 'body') {
             const metricName = data.row.raw[0];
             let isFail = false;
-
-            const rVal = parseMetric(displayData[metricName === "Teslim Performansı" ? "teslimPerformansi" : metricName === "Rota Oranı" ? "rotaOrani" : metricName === "TVS Oranı" ? "tvsOrani" : metricName === "Check-in Oranı" ? "checkInOrani" : metricName === "SMS Oranı" ? "smsOrani" : metricName === "E-ATF Oranı" ? "eAtfOrani" : metricName === "HTF Oranı" ? "htfOrani" : metricName === "Kontrol Sende" ? "kontrolSende" : metricName === "Ölçüm Tartım" ? "olcumTartim" : ""]);
+            
+            const rVal = parseMetric(displayData[
+              metricName === "Teslim Performansı" ? "teslimPerformansi" : 
+              metricName === "Adres Alım Oranı" ? "adresAlimOrani" :
+              metricName === "Rota Oranı" ? "rotaOrani" : 
+              metricName === "TVS Oranı" ? "tvsOrani" : 
+              metricName === "Check-in Oranı" ? "checkInOrani" : 
+              metricName === "SMS Oranı" ? "smsOrani" : 
+              metricName === "E-ATF Oranı" ? "eAtfOrani" : 
+              metricName === "HTF Oranı" ? "htfOrani" : 
+              metricName === "Kontrol Sende" ? "kontrolSende" : 
+              metricName === "Ölçüm Tartım" ? "olcumTartim" : ""
+            ]);
             
             if (metricName === "Teslim Performansı" && rVal !== null && rVal < 95) isFail = true;
+            if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < 90) isFail = true;
             if (metricName === "Rota Oranı" && rVal !== null && rVal < 80) isFail = true;
             if (metricName === "TVS Oranı" && rVal !== null && rVal < 90) isFail = true;
             if (metricName === "Check-in Oranı" && rVal !== null && rVal < 90) isFail = true;
@@ -165,14 +178,16 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       if (type === 'defense') {
         doc.setFontSize(10);
         doc.setTextColor(40);
-        const defenseText = "Sayın Birim Yöneticisi,\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda biriminizin şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.";
+        const defenseText = "Sayın Birim Yöneticisi,\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda biriminizin şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartlar üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.";
         const splitText = doc.splitTextToSize(defenseText, 180);
         doc.text(splitText, 14, finalY);
         finalY += splitText.length * 5 + 10;
+
         doc.setFontSize(11);
         doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
         doc.setDrawColor(200);
         for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
+
         finalY += 75;
         doc.setFontSize(10);
         doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
@@ -180,6 +195,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       }
 
       doc.save(type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Performans_Raporu.pdf`);
+
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
@@ -213,6 +229,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.setFontSize(18);
       doc.setTextColor(220, 38, 38);
       doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
+      
       doc.setFontSize(10);
       doc.setTextColor(100);
       doc.text(`Personel: ${person.name}`, 14, 30);
@@ -239,7 +256,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
           if (data.section === 'body') {
             const metricName = data.row.raw[0];
             let isFail = false;
-
+            
             if (metricName === "Rota Oranı" && r !== null && r < TARGETS.rotaOrani) isFail = true;
             if (metricName === "TVS Oranı" && t !== null && t < TARGETS.tvsOrani) isFail = true;
             if (metricName === "Check-in Oranı" && c !== null && c < TARGETS.checkInOrani) isFail = true;
@@ -253,20 +270,23 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       let finalY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(10);
       doc.setTextColor(40);
-      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
+      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartlar üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
       const splitText = doc.splitTextToSize(defenseText, 180);
       doc.text(splitText, 14, finalY);
       finalY += splitText.length * 5 + 10;
+
       doc.setFontSize(11);
       doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
       doc.setDrawColor(200);
       for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
+
       finalY += 75;
       doc.setFontSize(10);
       doc.text("Personel Ad / Soyad:", 14, finalY);
       doc.text("İmza:", 140, finalY);
 
       doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma_${selectedMonth}_${selectedYear}.pdf`);
+
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
@@ -295,7 +315,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
           </div>
           <button onClick={() => setShowYearAvg(!showYearAvg)} className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ${showYearAvg ? "bg-blue-600 dark:bg-blue-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"}`}>
             <TrendingUp size={14} className="mb-0.5" />
-            {showYearAvg ? "Aylık Gör" : "Yıl Ort."}
+            {showYearAvg ? "Aylara Dön" : "Yıl Ort."}
           </button>
           
           <button 
@@ -356,7 +376,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
             {/* 2. HACİM (Gelen-Giden) */}
             <div className="mb-4">
-              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">{showYearAvg ? "Yıllık Hacim Ortalaması" : "Hacim"}</h3>
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">{showYearAvg ? "Yük Hacim Ortalaması" : "Hacim"}</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                     <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
@@ -385,11 +405,26 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               {displayRegionData && (<div className="bg-black/10 py-2 flex items-center justify-center gap-2 border-t border-white/10"><span className="text-[10px] uppercase opacity-80 font-bold">{showYearAvg ? "BÖLGE YILLIK ORT:" : "BÖLGE ORTALAMASI:"}</span><span className="text-sm font-bold">{formatNumber(displayRegionData.teslimPerformansi)}%</span></div>)}
             </div>
 
+            {/* 3.5 ADRES ALIM ORANI */}
+            <div className={`rounded-2xl shadow-lg mb-4 relative overflow-hidden flex flex-col text-center ${isAdresAlimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+              <div className="p-5 pb-4">
+                <p className={`text-xs font-bold uppercase tracking-widest opacity-90 mb-2`}>{showYearAvg ? `${selectedYear} Ort. Adres Alım` : "Adres Alım Oranı"}</p>
+                <h2 className="text-5xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.adresAlimOrani)}%</h2>
+                <p className="mt-2 text-xs font-medium inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %90</p>
+              </div>
+              {displayRegionData && (
+                <div className="bg-black/10 py-2 flex items-center justify-center gap-2 border-t border-white/10">
+                  <span className="text-[10px] uppercase opacity-80 font-bold">{showYearAvg ? "BÖLGE YILLIK ORT:" : "BÖLGE ORTALAMASI:"}</span>
+                  <span className="text-sm font-bold">{formatNumber(displayRegionData.adresAlimOrani)}%</span>
+                </div>
+              )}
+            </div>
+
             {/* 4. 9'LU METRİK TABLOSU */}
             <div>
               <div className="flex items-center justify-between mb-2 pl-1">
                 <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  {showYearAvg ? "Yıllık Performans Detayları" : "Performans Detayları"}
+                  {showYearAvg ? "Yük Performans Detayları" : "Performans Detayları"}
                 </h3>
                 
                 {displayData?.personnel && displayData.personnel.length > 0 && !showYearAvg && (
@@ -401,7 +436,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                    </button>
                 )}
               </div>
-
               <div className="grid grid-cols-3 gap-2">
                 <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
                 <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
@@ -423,7 +457,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         )}
       </div>
 
-      {/* TÜM PERSONEL 4'LÜ METRİK MODALI (MOBİL UYUMLU, STICKY İSİM SÜTUNU) */}
+      {/* TÜM PERSONEL 4'LÜ METRİK MODALI (MOBİL UYUMLU, STICKY SÜTUNU) */}
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -503,10 +537,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         </div>
       )}
       
-      {/* BELGE SEÇİM MODALI (GİZLİ KISIM - KOD UZAMASIN DİYE KISALTTIM, ÜSTTEKİ YAPININ İÇİNDE MEVCUT) */}
+      {/* BELGE SEÇİM MODALI */}
       {showPdfModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPdfModal(false)}>
-           {/* Modal içeriği aynı */}
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -528,6 +561,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                   <p className="text-[10px] sm:text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">Standart aylık performans tablosu.</p>
                 </div>
               </button>
+
               <button onClick={() => generatePDF('defense')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 transition-colors text-left disabled:opacity-50">
                 <div className="w-10 h-10 rounded-full bg-rose-200 dark:bg-rose-800/50 flex items-center justify-center text-rose-700 dark:text-rose-400 shrink-0">
                   {isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <ShieldCheck size={20} />}
@@ -541,7 +575,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
           </div>
         </div>
       )}
-
     </div>
   );
 };
