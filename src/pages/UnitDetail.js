@@ -47,7 +47,8 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
     if (yearRecords.length === 0) return null;
 
-    const fields = ["teslimPerformansi", "adresAlimOrani", "htfOrani", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "kontrolSende"];
+    // musteriSikayet eklendi
+    const fields = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "htfOrani", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "kontrolSende"];
     const totals = {}; const counts = {};
     fields.forEach(f => { totals[f] = 0; counts[f] = 0; });
 
@@ -61,8 +62,12 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const averages = {};
     fields.forEach(field => {
       if (counts[field] > 0) {
-        if (["gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim"].includes(field)) { averages[field] = Math.round(totals[field]); } 
-        else { averages[field] = (totals[field] / counts[field]).toFixed(2); }
+        // Müşteri şikayeti ve hacimler gibi adet belirtenleri yuvarlıyoruz
+        if (["gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "musteriSikayet"].includes(field)) { 
+          averages[field] = Math.round(totals[field]); 
+        } else { 
+          averages[field] = (totals[field] / counts[field]).toFixed(2); 
+        }
       } else { averages[field] = 0; }
     });
     return averages;
@@ -75,6 +80,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
   const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 95;
   const isAdresAlimBasarisiz = displayData && parseFloat(displayData.adresAlimOrani) < 90;
+  const isMusteriSikayetBasarisiz = displayData && parseFloat(displayData.musteriSikayet) > 0; // Şikayet 0'dan büyükse başarısız (kırmızı)
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
   const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -119,6 +125,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       const tableRows = [
         ["Teslim Performansı", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
         ["Adres Alım Oranı", `%${displayData.adresAlimOrani || "-"}`, `%${displayRegionData?.adresAlimOrani || "-"}`, "%90"],
+        ["Müşteri Şikayet", formatNumber(displayData.musteriSikayet), formatNumber(displayRegionData?.musteriSikayet), "0"],
         ["Rota Oranı", `%${displayData.rotaOrani || "-"}`, `%${displayRegionData?.rotaOrani || "-"}`, "%80"],
         ["TVS Oranı", `%${displayData.tvsOrani || "-"}`, `%${displayRegionData?.tvsOrani || "-"}`, "%90"],
         ["Check-in Oranı", `%${displayData.checkInOrani || "-"}`, `%${displayRegionData?.checkInOrani || "-"}`, "%90"],
@@ -147,6 +154,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             const rVal = parseMetric(displayData[
               metricName === "Teslim Performansı" ? "teslimPerformansi" : 
               metricName === "Adres Alım Oranı" ? "adresAlimOrani" :
+              metricName === "Müşteri Şikayet" ? "musteriSikayet" :
               metricName === "Rota Oranı" ? "rotaOrani" : 
               metricName === "TVS Oranı" ? "tvsOrani" : 
               metricName === "Check-in Oranı" ? "checkInOrani" : 
@@ -159,6 +167,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             
             if (metricName === "Teslim Performansı" && rVal !== null && rVal < 95) isFail = true;
             if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < 90) isFail = true;
+            if (metricName === "Müşteri Şikayet" && rVal !== null && rVal > 0) isFail = true; // Şikayet 0'dan büyükse kırmızı
             if (metricName === "Rota Oranı" && rVal !== null && rVal < 80) isFail = true;
             if (metricName === "TVS Oranı" && rVal !== null && rVal < 90) isFail = true;
             if (metricName === "Check-in Oranı" && rVal !== null && rVal < 90) isFail = true;
@@ -395,32 +404,57 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               </div>
             </div>
 
-            {/* 3. TESLİM PERFORMANSI */}
-            <div className={`rounded-2xl shadow-lg mb-4 relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
-              <div className="p-5 pb-4">
-                <p className={`text-xs font-bold uppercase tracking-widest opacity-90 mb-2`}>{showYearAvg ? `${selectedYear} Ort. Teslim Perf.` : "Teslim Performansı"}</p>
-                <h2 className="text-5xl font-extrabold tracking-tight leading-none">{formatNumber(displayData.teslimPerformansi)}%</h2>
-                <p className="mt-2 text-xs font-medium inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %95</p>
-              </div>
-              {displayRegionData && (<div className="bg-black/10 py-2 flex items-center justify-center gap-2 border-t border-white/10"><span className="text-[10px] uppercase opacity-80 font-bold">{showYearAvg ? "BÖLGE YILLIK ORT:" : "BÖLGE ORTALAMASI:"}</span><span className="text-sm font-bold">{formatNumber(displayRegionData.teslimPerformansi)}%</span></div>)}
-            </div>
-
-            {/* 3.5 ADRES ALIM ORANI */}
-            <div className={`rounded-2xl shadow-lg mb-4 relative overflow-hidden flex flex-col text-center ${isAdresAlimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
-              <div className="p-5 pb-4">
-                <p className={`text-xs font-bold uppercase tracking-widest opacity-90 mb-2`}>{showYearAvg ? `${selectedYear} Ort. Adres Alım` : "Adres Alım Oranı"}</p>
-                <h2 className="text-5xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.adresAlimOrani)}%</h2>
-                <p className="mt-2 text-xs font-medium inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %90</p>
-              </div>
-              {displayRegionData && (
-                <div className="bg-black/10 py-2 flex items-center justify-center gap-2 border-t border-white/10">
-                  <span className="text-[10px] uppercase opacity-80 font-bold">{showYearAvg ? "BÖLGE YILLIK ORT:" : "BÖLGE ORTALAMASI:"}</span>
-                  <span className="text-sm font-bold">{formatNumber(displayRegionData.adresAlimOrani)}%</span>
+            {/* 3. ANA METRİKLER (YAN YANA 3'LÜ DÜZEN) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              
+              {/* Teslim Performansı */}
+              <div className={`rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                <div className="p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1">{showYearAvg ? "Ort. Teslim" : "Teslim Perf."}</p>
+                  <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.teslimPerformansi)}%</h2>
+                  <div className="mt-2"><span className="text-[10px] font-medium px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %95</span></div>
                 </div>
-              )}
+                {displayRegionData && (
+                  <div className="bg-black/10 py-1.5 flex items-center justify-center gap-1.5 border-t border-white/10">
+                    <span className="text-[9px] uppercase opacity-80 font-bold">BÖLGE:</span>
+                    <span className="text-xs font-bold">{formatNumber(displayRegionData.teslimPerformansi)}%</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Adres Alım Oranı */}
+              <div className={`rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isAdresAlimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                <div className="p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1">{showYearAvg ? "Ort. Adres Alım" : "Adres Alım"}</p>
+                  <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.adresAlimOrani)}%</h2>
+                  <div className="mt-2"><span className="text-[10px] font-medium px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %90</span></div>
+                </div>
+                {displayRegionData && (
+                  <div className="bg-black/10 py-1.5 flex items-center justify-center gap-1.5 border-t border-white/10">
+                    <span className="text-[9px] uppercase opacity-80 font-bold">BÖLGE:</span>
+                    <span className="text-xs font-bold">{formatNumber(displayRegionData.adresAlimOrani)}%</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Müşteri Şikayet Sayısı */}
+              <div className={`rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isMusteriSikayetBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                <div className="p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1">{showYearAvg ? "Ort. Şikayet" : "Şikayet Sayısı"}</p>
+                  <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.musteriSikayet)}</h2>
+                  <div className="mt-2"><span className="text-[10px] font-medium px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: 0</span></div>
+                </div>
+                {displayRegionData && (
+                  <div className="bg-black/10 py-1.5 flex items-center justify-center gap-1.5 border-t border-white/10">
+                    <span className="text-[9px] uppercase opacity-80 font-bold">BÖLGE:</span>
+                    <span className="text-xs font-bold">{formatNumber(displayRegionData.musteriSikayet)}</span>
+                  </div>
+                )}
+              </div>
+              
             </div>
 
-            {/* 4. 9'LU METRİK TABLOSU */}
+            {/* 4. ALTTARAKİ 9'LU METRİK TABLOSU */}
             <div>
               <div className="flex items-center justify-between mb-2 pl-1">
                 <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
