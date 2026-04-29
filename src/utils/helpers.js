@@ -27,7 +27,8 @@ export const MONTH_NAMES = [
 
 export const METRIC_TYPES = [
   { id: "teslimPerformansi", label: "Teslim Perf. %", color: "blue" },
-  { id: "adresAlimOrani", label: "Adres Alım %", color: "blue" }, // <-- YENİ EKLENEN METRİK
+  { id: "adresAlimOrani", label: "Adres Alım %", color: "blue" },
+  { id: "musteriSikayet", label: "Müşteri Şikayet", color: "red" }, // <-- YENİ EKLENEN METRİK
   { id: "htfOrani", label: "HTF Oranı %", color: "red" },
   { id: "rotaOrani", label: "Rota Oranı %", color: "indigo" },
   { id: "tvsOrani", label: "TVS Oranı %", color: "indigo" },
@@ -35,13 +36,10 @@ export const METRIC_TYPES = [
   { id: "smsOrani", label: "SMS Oranı %", color: "orange" },
   { id: "eAtfOrani", label: "E-ATF Oranı %", color: "orange" },
   { id: "elektronikIhbar", label: "E-İhbar %", color: "orange" },
-  // YENİ EKLENEN METRİKLER
   { id: "olcumTartim", label: "Ölçüm Tartım Adedi", color: "red" },
   { id: "kontrolSende", label: "Kontrol Sende %", color: "blue" },
-  // HACİM GRUBU - BELGE
   { id: "gelenKargo", label: "Gelen Kargo (Belge Sayı)", color: "green" },
   { id: "gidenKargo", label: "Giden Kargo (Belge Sayı)", color: "green" },
-  // HACİM GRUBU - KARGO ADET
   { id: "gelenAdet", label: "Gelen Kargo (Kargo Sayı)", color: "emerald" },
   { id: "gidenAdet", label: "Giden Kargo (Kargo Sayı)", color: "emerald" },
 ];
