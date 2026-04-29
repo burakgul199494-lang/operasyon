@@ -46,10 +46,6 @@ export const METRIC_TYPES = [
   { id: "gidenAdet", label: "Giden Kargo (Kargo Sayı)", color: "emerald" },
 ];
 
-// DİKKAT: Aşağıdaki UNITS dizisinin içine KENDİ ORİJİNAL KODUNDAKİ ŞUBE İSİMLERİNİ koy.
-export const UNITS = [
-  // Lütfen kendi kodunuzdaki "BÖLGE", "ADASAN", "ADATEPE" ... şeklindeki orijinal listeyi buraya yapıştırın.
-];
 export const UNITS = [
   "BÖLGE", "ADASAN", "ADATEPE", "ALAÇATI", "ARMUTALAN", "ASTİM", "AYDIN DDN", "AYRANCILAR",
   "BELDİBİ", "BELEN", "ÇAMKÖY", "ÇEŞME", "ÇİNE", "DALAMAN", "DATÇA", "DAVUTLAR", "DİDİM",
