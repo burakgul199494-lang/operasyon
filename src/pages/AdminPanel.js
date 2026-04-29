@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Package, Zap, Key, ClipboardList, Trash2, AlertTriangle, Users } from "lucide-react";
+import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Package, Zap, Key, ClipboardList, Trash2, AlertTriangle, Users, Gauge } from "lucide-react";
 import { UNITS, METRIC_TYPES, MONTH_NAMES } from "../utils/helpers";
-import { doc, writeBatch, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
+import { doc, writeBatch, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
 
-const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
+const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
   const [activeTab, setActiveTab] = useState("performance"); 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); 
@@ -14,14 +14,15 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
   const [fleetGrid, setFleetGrid] = useState({});
   const [fleetListGrid, setFleetListGrid] = useState([]);
   const [personnelGrid, setPersonnelGrid] = useState([]); 
-  
+  const [kmsGrid, setKmsGrid] = useState([]); // YENİ: KM Veri Grid'i
+
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
 
   const MONTH_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const FLEET_COLUMNS = ["ozmal", "ozMasHar", "kiralik", "destek", "motor", "parcaBasi"];
+  const KMS_COLUMNS = ["plate", "km"]; // YENİ
   
-  // YENİ: Marka ve Model birleştirildi, 9 sütuna düştü.
   const FLEET_LIST_COLUMNS = [
     { key: "unit", label: "Birim Adı", width: "w-32" },
     { key: "status", label: "Filo Durumu", width: "w-32" },
@@ -80,23 +81,22 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
   useEffect(() => {
     if (activeTab !== "fleetList") return;
     let loadedData = (fleetData || []).map(item => ({ ...item }));
-    // emptyRow marka ve model yerine brandModel kullanıyor
     const emptyRow = { unit: "", status: "", plate: "", supplier: "", vehicleType: "", brandModel: "", year: "", operationType: "", expenseStatus: "" };
+    
     if (loadedData.length < 40) { loadedData = [...loadedData, ...Array(50 - loadedData.length).fill(emptyRow)]; } 
     else { loadedData = [...loadedData, ...Array(10).fill(emptyRow)]; }
+    
     setFleetListGrid(loadedData);
   }, [fleetData, activeTab]);
 
   useEffect(() => {
     if (activeTab !== "personnel") return;
-    
     let loadedPersonnel = [];
     allData.forEach(record => {
       if (record.year === parseInt(selectedYear) && record.month === parseInt(selectedMonth) && record.personnel) {
         record.personnel.forEach(p => {
           loadedPersonnel.push({
-            unit: record.unit,
-            name: p.name,
+            unit: record.unit, name: p.name,
             rotaOrani: p.rotaOrani !== null && p.rotaOrani !== undefined ? p.rotaOrani : "",
             tvsOrani: p.tvsOrani !== null && p.tvsOrani !== undefined ? p.tvsOrani : "",
             checkInOrani: p.checkInOrani !== null && p.checkInOrani !== undefined ? p.checkInOrani : "",
@@ -105,30 +105,35 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
         });
       }
     });
-
     loadedPersonnel.sort((a, b) => a.unit.localeCompare(b.unit));
     
     const emptyRow = { unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" };
     const fillCount = 50 - loadedPersonnel.length; 
-    if (fillCount > 0) {
-        loadedPersonnel = [...loadedPersonnel, ...Array(fillCount).fill({ ...emptyRow })];
-    } else {
-        loadedPersonnel = [...loadedPersonnel, ...Array(10).fill({ ...emptyRow })];
-    }
+    if (fillCount > 0) { loadedPersonnel = [...loadedPersonnel, ...Array(fillCount).fill({ ...emptyRow })]; } 
+    else { loadedPersonnel = [...loadedPersonnel, ...Array(10).fill({ ...emptyRow })]; }
     
     setPersonnelGrid(loadedPersonnel);
     setPendingChanges(false);
   }, [allData, activeTab, selectedYear, selectedMonth]);
 
+  // YENİ: KM Sekmesi Yükleme
+  useEffect(() => {
+    if (activeTab !== "kms") return;
+    let loadedData = Object.entries(fleetKms || {}).map(([plate, km]) => ({ plate, km }));
+    const emptyRow = { plate: "", km: "" };
+
+    if (loadedData.length < 40) { loadedData = [...loadedData, ...Array(50 - loadedData.length).fill(emptyRow)]; } 
+    else { loadedData = [...loadedData, ...Array(10).fill(emptyRow)]; }
+
+    setKmsGrid(loadedData);
+    setPendingChanges(false);
+  }, [fleetKms, activeTab]);
 
   const handleInputChange = (unit, month, value) => { setGridData((prev) => ({ ...prev, [unit]: { ...prev[unit], [month]: value } })); setPendingChanges(true); };
   const handleFleetChange = (unit, colKey, value) => { setFleetGrid((prev) => ({ ...prev, [unit]: { ...prev[unit], [colKey]: value } })); setPendingChanges(true); };
   const handleFleetListChange = (rowIndex, colKey, value) => { setFleetListGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
-  
-  const handlePersonnelChange = (rowIndex, colKey, value) => {
-    setPersonnelGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; });
-    setPendingChanges(true);
-  };
+  const handlePersonnelChange = (rowIndex, colKey, value) => { setPersonnelGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
+  const handleKmsChange = (rowIndex, colKey, value) => { setKmsGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
 
   const handleMouseDown = (r, c) => { setSelection({ start: { r, c }, end: { r, c }, isDragging: true }); };
   const handleMouseEnter = (r, c) => { if (selection.isDragging) setSelection((prev) => ({ ...prev, end: { r, c } })); };
@@ -139,6 +144,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
     return r >= minR && r <= maxR && c >= minC && c <= maxC;
   };
   const handleFocus = (e, r, c) => { e.target.select(); if (!selection.isDragging) setSelection({ start: { r, c }, end: { r, c }, isDragging: false }); };
+
   useEffect(() => {
     const handleWindowMouseUp = () => { if (selection.isDragging) setSelection((prev) => ({ ...prev, isDragging: false })); };
     window.addEventListener("mouseup", handleWindowMouseUp);
@@ -224,6 +230,24 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
     setPendingChanges(true);
   };
 
+  const handleKmsPaste = (e, startRowIndex, startColIndex) => {
+    e.preventDefault();
+    const rows = e.clipboardData.getData("text").split(/\r\n|\n|\r/).filter((row) => row.trim() !== "");
+    setKmsGrid(prev => {
+        const newData = [...prev];
+        rows.forEach((row, rIndex) => {
+            const targetRowIndex = startRowIndex + rIndex;
+            while (!newData[targetRowIndex]) newData.push({ plate: "", km: "" });
+            row.split("\t").forEach((cellValue, cIndex) => {
+                const targetColIndex = startColIndex + cIndex;
+                if (targetColIndex < KMS_COLUMNS.length) newData[targetRowIndex] = { ...newData[targetRowIndex], [KMS_COLUMNS[targetColIndex]]: cellValue.trim() };
+            });
+        });
+        return newData;
+    });
+    setPendingChanges(true);
+  };
+
   const handleKeyDown = (e, rIndex, cIndex) => {
     if (e.key === "Delete") {
       e.preventDefault();
@@ -235,16 +259,17 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
         else if (activeTab === "fleet") { setFleetGrid(prev => { const d = { ...prev }; for(let r=minR; r<=maxR; r++) { const u = UNITS[r]; if(d[u]) { d[u] = {...d[u]}; for(let c=minC; c<=maxC; c++) d[u][FLEET_COLUMNS[c]] = ""; } } return d; }); } 
         else if (activeTab === "fleetList") { setFleetListGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][FLEET_LIST_COLUMNS[c].key] = ""; } } } return d; }); }
         else if (activeTab === "personnel") { setPersonnelGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][PERSONNEL_COLUMNS[c].key] = ""; } } } return d; }); }
+        else if (activeTab === "kms") { setKmsGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][KMS_COLUMNS[c]] = ""; } } } return d; }); }
         
         setPendingChanges(true);
       }
       return;
     }
-
     let maxCols = 12; let maxRows = UNITS.length;
     if (activeTab === "fleet") maxCols = 6;
-    if (activeTab === "fleetList") { maxCols = 9; maxRows = fleetListGrid.length; } // 9 sütun oldu
-    if (activeTab === "personnel") { maxCols = 6; maxRows = personnelGrid.length; } 
+    if (activeTab === "fleetList") { maxCols = 9; maxRows = fleetListGrid.length; }
+    if (activeTab === "personnel") { maxCols = 6; maxRows = personnelGrid.length; }
+    if (activeTab === "kms") { maxCols = 2; maxRows = kmsGrid.length; }
 
     let nextR = rIndex, nextC = cIndex, move = false;
     if (e.key === "ArrowRight") { move = true; if (cIndex < maxCols - 1) nextC++; }
@@ -259,12 +284,13 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
       else if (activeTab === "fleet") colId = FLEET_COLUMNS[nextC]; 
       else if (activeTab === "fleetList") colId = FLEET_LIST_COLUMNS[nextC].key;
       else if (activeTab === "personnel") colId = PERSONNEL_COLUMNS[nextC].key;
+      else if (activeTab === "kms") colId = KMS_COLUMNS[nextC];
 
       const nextElement = document.getElementById(`cell-${activeTab}-${nextR}-${colId}`);
       if (nextElement) { nextElement.focus(); nextElement.select(); setSelection({ start: { r: nextR, c: nextC }, end: { r: nextR, c: nextC }, isDragging: false }); }
     }
   };
-  
+
   const handleDeleteAllFleetList = async () => {
     if (!window.confirm("DİKKAT: Araç listesindeki TÜM kayıtlar silinecek. Onaylıyor musunuz?")) return;
     try {
@@ -275,6 +301,19 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
         await batch.commit();
         alert("Tüm araç listesi temizlendi.");
         setFleetListGrid(Array(50).fill({ unit: "", status: "", plate: "", supplier: "", vehicleType: "", brandModel: "", year: "", operationType: "", expenseStatus: "" }));
+    } catch (e) { alert("Hata oluştu."); }
+  };
+
+  const handleDeleteAllKms = async () => {
+    if (!window.confirm("DİKKAT: Sistemdeki TÜM KM verileri silinecek. Onaylıyor musunuz?")) return;
+    try {
+        const snapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "fleet_kms"));
+        if (snapshot.empty) return alert("Silinecek veri bulunamadı.");
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        alert("Tüm KM verileri temizlendi.");
+        setKmsGrid(Array(50).fill({ plate: "", km: "" }));
     } catch (e) { alert("Hata oluştu."); }
   };
 
@@ -306,7 +345,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
         });
         if (recordsToUpdate.length === 0) return alert("Değişiklik yok.");
         try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert("Performans verileri kaydedildi."); } catch(e) { alert("Hata."); }
-
+    
     } else if (activeTab === "fleet") {
         try {
             const batch = writeBatch(db); let changeCount = 0;
@@ -319,7 +358,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
             if (changeCount === 0) return alert("Değişiklik yapmadınız.");
             await batch.commit(); setPendingChanges(false); alert(`${changeCount} birimin filo bilgisi güncellendi.`);
         } catch (e) { alert("Hata oluştu."); }
-
+    
     } else if (activeTab === "fleetList") {
         const validRows = fleetListGrid.filter(row => row.plate && row.plate.trim() !== "" && row.unit);
         if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok.");
@@ -329,7 +368,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
             validRows.forEach(vehicle => { const docId = vehicle.plate.replace(/\s/g, "").toUpperCase(); if(docId) batch.set(doc(db, "artifacts", appId, "public", "data", "fleet_list", docId), vehicle, { merge: true }); });
             await batch.commit(); setPendingChanges(false); alert("Araç listesi güncellendi.");
         } catch(e) { alert("Hata: " + e.message); }
-    
+         
     } else if (activeTab === "personnel") {
         const validRows = personnelGrid.filter(r => r.unit && r.unit.trim() !== "" && r.name && r.name.trim() !== "");
         const groupedByUnit = {};
@@ -368,6 +407,22 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
             console.error(e);
             alert("Personel verileri kaydedilirken bir hata oluştu."); 
         }
+
+    } else if (activeTab === "kms") {
+        // YENİ: KM Kaydetme
+        const validRows = kmsGrid.filter(r => r.plate && r.plate.trim() !== "");
+        if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok.");
+        if(!window.confirm(`${validRows.length} adet plakanın KM verisi güncellenecek. Onaylıyor musunuz?`)) return;
+        try {
+            const batch = writeBatch(db);
+            validRows.forEach(row => { 
+                const docId = row.plate.replace(/\s/g, "").toUpperCase(); 
+                if(docId) batch.set(doc(db, "artifacts", appId, "public", "data", "fleet_kms", docId), { km: row.km }, { merge: true }); 
+            });
+            await batch.commit(); 
+            setPendingChanges(false); 
+            alert("KM verileri başarıyla güncellendi.");
+        } catch(e) { alert("Hata: " + e.message); }
     }
   };
 
@@ -388,10 +443,11 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
 
       <div className="bg-slate-100 border-b border-slate-200">
         <div className="flex overflow-x-auto no-scrollbar">
-            <button onClick={() => setActiveTab("performance")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "performance" ? "bg-white text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:bg-slate-200"}`}><Layers size={16} /> Yıllık Performans</button>
-            <button onClick={() => setActiveTab("personnel")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "personnel" ? "bg-white text-purple-600 border-b-2 border-purple-600" : "text-slate-500 hover:bg-slate-200"}`}><Users size={16} /> Personel Performansı</button>
+            <button onClick={() => setActiveTab("performance")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "performance" ? "bg-white text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:bg-slate-200"}`}><Layers size={16} /> Yük Performans</button>
+            <button onClick={() => setActiveTab("personnel")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "personnel" ? "bg-white text-purple-600 border-b-2 border-purple-600" : "text-slate-500 hover:bg-slate-200"}`}><Users size={16} /> Personel Performans </button>
             <button onClick={() => setActiveTab("fleet")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleet" ? "bg-white text-orange-600 border-b-2 border-orange-600" : "text-slate-500 hover:bg-slate-200"}`}><Truck size={16} /> Filo Bilgileri (Sabit)</button>
             <button onClick={() => setActiveTab("fleetList")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleetList" ? "bg-white text-emerald-600 border-b-2 border-emerald-600" : "text-slate-500 hover:bg-slate-200"}`}><ClipboardList size={16} /> Araç Listesi (Excel)</button>
+            <button onClick={() => setActiveTab("kms")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "kms" ? "bg-white text-red-600 border-b-2 border-red-600" : "text-slate-500 hover:bg-slate-200"}`}><Gauge size={16} /> Araç KM Girişi</button>
         </div>
         
         {/* YILLIK PERFORMANS ALT MENÜ */}
@@ -426,26 +482,32 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
                     (Birim | Ad Soyad | Rota | TVS | Check-in | SMS) sütunlarını tek seferde kopyalayıp ilk hücreye yapıştırın.
                 </span>
                 <button 
-                  onClick={() => { if(window.confirm("Ekrandaki veriler silinecek. Onaylıyor musunuz?")) { setPersonnelGrid(Array(50).fill({ unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" })); setPendingChanges(true); } }} 
-                  className="ml-auto flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"
+                   onClick={() => { if(window.confirm("Ekrandaki veriler silinecek. Onaylıyor musunuz?")) { setPersonnelGrid(Array(50).fill({ unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" })); setPendingChanges(true); } }} 
+                   className="ml-auto flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"
                 >
                   <RotateCcw size={14} /> Ekranı Temizle
                 </button>
             </div>
         )}
 
-        {activeTab === "fleet" && (<div className="p-3 bg-orange-50 border-b border-orange-100 text-center text-xs text-orange-800 font-medium">Bu alandaki veriler <strong>sabit verilerdir</strong>. Excel'den (Özmal | Öz.Mas.Har. | Kiralık | Destek | Motor | Parçabaşı) sırasıyla kopyalayıp yapıştırabilirsiniz.</div>)}
+        {activeTab === "fleet" && (<div className="p-3 bg-orange-50 border-b border-orange-100 text-center text-xs text-orange-800 font-medium">Bu alandaki veriler <strong>sabit verilerdir</strong>. Excel'den (Özmal | Öz.Mas.Har. | Kiralık | Destek | Motor | ParçaBaşı) sırasıyla kopyalayıp yapıştırabilirsiniz.</div>)}
         
         {activeTab === "fleetList" && (
             <div className="p-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
-                {/* YENİ: Bilgilendirme 9 Sütun olarak güncellendi */}
                 <span className="text-xs text-emerald-800 font-medium">Excel'den 9 Sütun kopyalayıp ilk hücreye yapıştırın.</span>
                 <button onClick={handleDeleteAllFleetList} className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded border border-red-200 text-xs font-bold hover:bg-red-200 transition-colors"><AlertTriangle size={14} /> Tüm Veritabanını Temizle</button>
             </div>
         )}
+
+        {activeTab === "kms" && (
+            <div className="p-3 bg-red-50 border-b border-red-100 flex items-center justify-between">
+                <span className="text-xs text-red-800 font-medium">Excel'den 2 Sütun kopyalayın: (Plaka | Ortalama KM). Sadece eşleşen plakalar filoda gösterilir.</span>
+                <button onClick={handleDeleteAllKms} className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded border border-red-200 text-xs font-bold hover:bg-red-200 transition-colors"><AlertTriangle size={14} /> Tüm KM Veritabanını Temizle</button>
+            </div>
+        )}
       </div>
 
-      <div className="flex-1 overflow-auto bg-slate-5 select-none relative">
+      <div className="flex-1 overflow-auto bg-slate-50 select-none relative">
         <table className="w-full border-collapse text-sm bg-white">
           <thead className="bg-slate-200 sticky top-0 z-10 shadow-sm">
             <tr>
@@ -476,6 +538,13 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
               {activeTab === "personnel" && (
                   <>
                     {PERSONNEL_COLUMNS.map((col) => <th key={col.key} className={`p-3 text-left font-bold text-slate-700 border-r border-slate-300 bg-slate-100 ${col.width}`}>{col.label}</th>)}
+                    <th className="bg-slate-50 border-none"></th>
+                  </>
+              )}
+              {activeTab === "kms" && (
+                  <>
+                    <th className="p-3 text-left font-bold text-slate-700 border-r border-slate-300 bg-slate-100 w-64">Plaka</th>
+                    <th className="p-3 text-left font-bold text-slate-700 border-r border-slate-300 bg-slate-100 w-64">Ortalama KM</th>
                     <th className="bg-slate-50 border-none"></th>
                   </>
               )}
@@ -526,20 +595,49 @@ const AdminPanel = ({ allData, unitInfo, fleetData, onSaveBatch, onClose, availa
                         const val = row[col.key] || "";
                         return (
                             <td key={col.key} className="p-0 border-r border-slate-100 relative">
-                                <input 
-                                  id={`cell-personnel-${rIndex}-${col.key}`} 
-                                  type="text" 
-                                  className={`w-full h-full p-2 ${(col.key === 'name' || col.key === 'unit') ? 'text-left font-semibold' : 'text-center'} outline-none focus:z-10 relative transition-all text-slate-700 font-mono text-sm cursor-default ${isSelected ? "bg-purple-200 ring-1 ring-purple-400" : "bg-transparent focus:ring-2 focus:ring-purple-500 focus:bg-white"}`} 
-                                  placeholder={col.key === 'name' ? "Personel Adı" : col.key === 'unit' ? "Birim" : "-"} 
-                                  value={val} 
-                                  onChange={(e) => handlePersonnelChange(rIndex, col.key, e.target.value)} 
-                                  onPaste={(e) => handlePersonnelPaste(e, rIndex, cIndex)} 
-                                  onKeyDown={(e) => handleKeyDown(e, rIndex, cIndex)} 
-                                  onFocus={(e) => handleFocus(e, rIndex, cIndex)} 
-                                  onMouseDown={() => handleMouseDown(rIndex, cIndex)} 
-                                  onMouseEnter={() => handleMouseEnter(rIndex, cIndex)} 
-                                  autoComplete="off" 
-                                />
+                                <input
+                                   id={`cell-personnel-${rIndex}-${col.key}`}
+                                   type="text"
+                                   className={`w-full h-full p-2 ${(col.key === 'name' || col.key === 'unit') ? 'text-left font-semibold' : 'text-center'} outline-none focus:z-10 relative transition-all text-slate-700 font-mono text-sm cursor-default ${isSelected ? "bg-purple-200 ring-1 ring-purple-400" : "bg-transparent focus:ring-2 focus:ring-purple-500 focus:bg-white"}`}
+                                   placeholder={col.key === 'name' ? "Personel Adı" : col.key === 'unit' ? "Birim" : "-"}
+                                   value={val}
+                                   onChange={(e) => handlePersonnelChange(rIndex, col.key, e.target.value)}
+                                   onPaste={(e) => handlePersonnelPaste(e, rIndex, cIndex)}
+                                   onKeyDown={(e) => handleKeyDown(e, rIndex, cIndex)}
+                                   onFocus={(e) => handleFocus(e, rIndex, cIndex)}
+                                   onMouseDown={() => handleMouseDown(rIndex, cIndex)}
+                                   onMouseEnter={() => handleMouseEnter(rIndex, cIndex)}
+                                   autoComplete="off"
+                                 />
+                            </td>
+                        );
+                    })}
+                    <td></td>
+                </tr>
+            ))}
+
+            {/* YENİ: KM Grid Render */}
+            {activeTab === "kms" && kmsGrid.map((row, rIndex) => (
+                <tr key={rIndex} className="border-b border-slate-200 hover:bg-red-50 transition-colors">
+                    {KMS_COLUMNS.map((colKey, cIndex) => {
+                        const isSelected = isCellSelected(rIndex, cIndex);
+                        const val = row[colKey] || "";
+                        return (
+                            <td key={colKey} className="p-0 border-r border-slate-100 relative">
+                                <input
+                                   id={`cell-kms-${rIndex}-${colKey}`}
+                                   type="text"
+                                   className={`w-full h-full p-3 text-left outline-none focus:z-10 relative transition-all text-slate-700 font-mono font-bold cursor-default ${isSelected ? "bg-red-200 ring-1 ring-red-400" : "bg-transparent focus:ring-2 focus:ring-red-500 focus:bg-white"}`}
+                                   placeholder={colKey === 'plate' ? "Plaka" : "KM Verisi"}
+                                   value={val}
+                                   onChange={(e) => handleKmsChange(rIndex, colKey, e.target.value)}
+                                   onPaste={(e) => handleKmsPaste(e, rIndex, cIndex)}
+                                   onKeyDown={(e) => handleKeyDown(e, rIndex, cIndex)}
+                                   onFocus={(e) => handleFocus(e, rIndex, cIndex)}
+                                   onMouseDown={() => handleMouseDown(rIndex, cIndex)}
+                                   onMouseEnter={() => handleMouseEnter(rIndex, cIndex)}
+                                   autoComplete="off"
+                                 />
                             </td>
                         );
                     })}
