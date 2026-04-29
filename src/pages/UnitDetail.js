@@ -47,7 +47,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
     if (yearRecords.length === 0) return null;
 
-    // musteriSikayet eklendi
     const fields = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "htfOrani", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "kontrolSende"];
     const totals = {}; const counts = {};
     fields.forEach(f => { totals[f] = 0; counts[f] = 0; });
@@ -62,7 +61,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const averages = {};
     fields.forEach(field => {
       if (counts[field] > 0) {
-        // Müşteri şikayeti ve hacimler gibi adet belirtenleri yuvarlıyoruz
         if (["gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "musteriSikayet"].includes(field)) { 
           averages[field] = Math.round(totals[field]); 
         } else { 
@@ -80,7 +78,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
   const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 95;
   const isAdresAlimBasarisiz = displayData && parseFloat(displayData.adresAlimOrani) < 90;
-  const isMusteriSikayetBasarisiz = displayData && parseFloat(displayData.musteriSikayet) > 0; // Şikayet 0'dan büyükse başarısız (kırmızı)
+  const isMusteriSikayetBasarisiz = displayData && parseFloat(displayData.musteriSikayet) > 0;
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
   const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -167,7 +165,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             
             if (metricName === "Teslim Performansı" && rVal !== null && rVal < 95) isFail = true;
             if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < 90) isFail = true;
-            if (metricName === "Müşteri Şikayet" && rVal !== null && rVal > 0) isFail = true; // Şikayet 0'dan büyükse kırmızı
+            if (metricName === "Müşteri Şikayet" && rVal !== null && rVal > 0) isFail = true;
             if (metricName === "Rota Oranı" && rVal !== null && rVal < 80) isFail = true;
             if (metricName === "TVS Oranı" && rVal !== null && rVal < 90) isFail = true;
             if (metricName === "Check-in Oranı" && rVal !== null && rVal < 90) isFail = true;
@@ -404,57 +402,57 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               </div>
             </div>
 
-            {/* 3. ANA METRİKLER (YAN YANA 3'LÜ DÜZEN) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            {/* 3. ANA METRİKLER (KESİNLİKLE YAN YANA 3'LÜ DÜZEN) */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
               
               {/* Teslim Performansı */}
-              <div className={`rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
-                <div className="p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1">{showYearAvg ? "Ort. Teslim" : "Teslim Perf."}</p>
-                  <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.teslimPerformansi)}%</h2>
-                  <div className="mt-2"><span className="text-[10px] font-medium px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %95</span></div>
+              <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Teslim" : "Teslim Perf."}</p>
+                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.teslimPerformansi)}%</h2>
+                  <div className="mt-1.5"><span className="text-[8px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %95</span></div>
                 </div>
                 {displayRegionData && (
-                  <div className="bg-black/10 py-1.5 flex items-center justify-center gap-1.5 border-t border-white/10">
-                    <span className="text-[9px] uppercase opacity-80 font-bold">BÖLGE:</span>
-                    <span className="text-xs font-bold">{formatNumber(displayRegionData.teslimPerformansi)}%</span>
+                  <div className="bg-black/10 py-1.5 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 border-t border-white/10">
+                    <span className="text-[7px] sm:text-[9px] uppercase opacity-80 font-bold">BÖLGE:</span>
+                    <span className="text-[9px] sm:text-xs font-bold">{formatNumber(displayRegionData.teslimPerformansi)}%</span>
                   </div>
                 )}
               </div>
 
               {/* Adres Alım Oranı */}
-              <div className={`rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isAdresAlimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
-                <div className="p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1">{showYearAvg ? "Ort. Adres Alım" : "Adres Alım"}</p>
-                  <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.adresAlimOrani)}%</h2>
-                  <div className="mt-2"><span className="text-[10px] font-medium px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %90</span></div>
+              <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isAdresAlimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Adres" : "Adres Alım"}</p>
+                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.adresAlimOrani)}%</h2>
+                  <div className="mt-1.5"><span className="text-[8px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %90</span></div>
                 </div>
                 {displayRegionData && (
-                  <div className="bg-black/10 py-1.5 flex items-center justify-center gap-1.5 border-t border-white/10">
-                    <span className="text-[9px] uppercase opacity-80 font-bold">BÖLGE:</span>
-                    <span className="text-xs font-bold">{formatNumber(displayRegionData.adresAlimOrani)}%</span>
+                  <div className="bg-black/10 py-1.5 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 border-t border-white/10">
+                    <span className="text-[7px] sm:text-[9px] uppercase opacity-80 font-bold">BÖLGE:</span>
+                    <span className="text-[9px] sm:text-xs font-bold">{formatNumber(displayRegionData.adresAlimOrani)}%</span>
                   </div>
                 )}
               </div>
 
               {/* Müşteri Şikayet Sayısı */}
-              <div className={`rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isMusteriSikayetBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
-                <div className="p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1">{showYearAvg ? "Ort. Şikayet" : "Şikayet Sayısı"}</p>
-                  <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.musteriSikayet)}</h2>
-                  <div className="mt-2"><span className="text-[10px] font-medium px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">Hedef: 0</span></div>
+              <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isMusteriSikayetBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Şikayet" : "Şikayet"}</p>
+                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.musteriSikayet)}</h2>
+                  <div className="mt-1.5"><span className="text-[8px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">Hedef: 0</span></div>
                 </div>
                 {displayRegionData && (
-                  <div className="bg-black/10 py-1.5 flex items-center justify-center gap-1.5 border-t border-white/10">
-                    <span className="text-[9px] uppercase opacity-80 font-bold">BÖLGE:</span>
-                    <span className="text-xs font-bold">{formatNumber(displayRegionData.musteriSikayet)}</span>
+                  <div className="bg-black/10 py-1.5 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 border-t border-white/10">
+                    <span className="text-[7px] sm:text-[9px] uppercase opacity-80 font-bold">BÖLGE:</span>
+                    <span className="text-[9px] sm:text-xs font-bold">{formatNumber(displayRegionData.musteriSikayet)}</span>
                   </div>
                 )}
               </div>
               
             </div>
 
-            {/* 4. ALTTARAKİ 9'LU METRİK TABLOSU */}
+            {/* 4. ALTTAKİ 9'LU METRİK TABLOSU */}
             <div>
               <div className="flex items-center justify-between mb-2 pl-1">
                 <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
@@ -491,7 +489,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         )}
       </div>
 
-      {/* TÜM PERSONEL 4'LÜ METRİK MODALI (MOBİL UYUMLU, STICKY SÜTUNU) */}
+      {/* TÜM PERSONEL 4'LÜ METRİK MODALI */}
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -504,7 +502,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               </button>
             </div>
             
-            {/* KAYDIRILABİLİR ALAN */}
             <div className="overflow-x-auto overflow-y-auto flex-1 relative no-scrollbar">
               <table className="w-full text-left whitespace-nowrap border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
