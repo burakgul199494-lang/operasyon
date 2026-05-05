@@ -28,7 +28,6 @@ const PersonnelDefensePanel = ({ allData }) => {
     return str;
   };
 
-  // Tüm personeli yeni kurallarla filtrele
   const filteredPersonnel = useMemo(() => {
     let list = [];
     if (!allData) return list;
@@ -44,20 +43,14 @@ const PersonnelDefensePanel = ({ allData }) => {
           const c = parseMetric(person.checkInOrani);
           const s = parseMetric(person.smsOrani);
 
-          const isTebrik = (r !== null && r >= TARGETS.rotaOrani) && 
-                           (t !== null && t >= TARGETS.tvsOrani) && 
-                           (c !== null && c >= TARGETS.checkInOrani) && 
-                           (s !== null && s >= TARGETS.smsOrani);
+          const isAnyFail = 
+            (r !== null && r < TARGETS.rotaOrani) ||
+            (t !== null && t < TARGETS.tvsOrani) ||
+            (c !== null && c < TARGETS.checkInOrani) ||
+            (s !== null && s < TARGETS.smsOrani);
 
-          const isAllFail = (r !== null && r < TARGETS.rotaOrani) && 
-                            (t !== null && t < TARGETS.tvsOrani) && 
-                            (c !== null && c < TARGETS.checkInOrani) && 
-                            (s !== null && s < TARGETS.smsOrani);
-
-          const isRotaTvsFail = (r !== null && r < TARGETS.rotaOrani) && 
-                                (t !== null && t < TARGETS.tvsOrani);
-
-          const isDefense = isAllFail || isRotaTvsFail;
+          const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
+          const isDefense = isAnyFail;
 
           list.push({ ...person, unit: record.unit, month: record.month, year: record.year, unitRecord: record, parsedData: { r, t, c, s }, isTebrik, isDefense });
         });
@@ -87,7 +80,9 @@ const PersonnelDefensePanel = ({ allData }) => {
         doc.addFileToVFS("Roboto.ttf", base64Font);
         doc.addFont("Roboto.ttf", "Roboto", "normal");
         doc.setFont("Roboto");
-      } catch (e) { console.warn("Font indirilemedi."); }
+      } catch (e) {
+        console.warn("Font indirilemedi.");
+      }
 
       doc.setFontSize(18);
       doc.setTextColor(220, 38, 38);
@@ -208,9 +203,7 @@ const PersonnelDefensePanel = ({ allData }) => {
       const splitText = doc.splitTextToSize(tebrikText, 180);
       doc.text(splitText, 14, finalY);
       
-      finalY += splitText.length * 5 + 20;
-      doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
-      doc.text("İmza:", 140, finalY);
+      // Tebrik belgesinden yönetici imza ad soyad bölümü kaldırıldı.
 
       doc.save(`${person.name.replace(/\s+/g, '_')}_Tebrik_${person.month}_${person.year}.pdf`);
     } catch (error) {
@@ -226,10 +219,9 @@ const PersonnelDefensePanel = ({ allData }) => {
         <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
             <Award className="text-emerald-500" size={20} />
-            <AlertCircle className="text-rose-500" size={18} />
             Personel Savunma ve Tebrik Yönetimi
           </h2>
-          <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Tüm personelinizi listeleyin; hedefleri tutturanları tebrik edin, hedeften sapanlar için savunma oluşturun.</p>
+          <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Tüm personelinizi listeleyin; hedefleri tutturanları tebrik edin, sapanlar için savunma oluşturun.</p>
         </div>
         
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
