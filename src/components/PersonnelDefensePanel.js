@@ -13,17 +13,22 @@ const PersonnelDefensePanel = ({ allData }) => {
   // GÜNCEL KESİN HEDEFLER
   const TARGETS = { rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70 };
 
+  // 1. MANTIK İÇİN
   const parseMetric = (val) => {
     if (val === undefined || val === null || val === "") return null;
-    const cleanStr = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
+    const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
     const num = parseFloat(cleanStr);
     return isNaN(num) ? null : num;
   };
 
-  // ONDALIKLI SAYILARI KORUYAN FORMATLAYICI
+  // 2. GÖRSEL İÇİN (Ondalık ve virgülleri korur)
   const formatDisplayMetric = (val) => {
-    const num = parseMetric(val);
-    return num !== null ? num.toLocaleString('tr-TR', { maximumFractionDigits: 2 }) : "-";
+    if (val === undefined || val === null || val === "") return "-";
+    let str = String(val).replace(/%/g, '').replace(/\s/g, '').trim();
+    if (str.includes('.') && !str.includes(',')) {
+      str = str.replace('.', ',');
+    }
+    return str;
   };
 
   const failedPersonnel = useMemo(() => {
@@ -80,6 +85,11 @@ const PersonnelDefensePanel = ({ allData }) => {
       } catch (e) {
         console.warn("Font indirilemedi.");
       }
+
+      const r = parseMetric(person.rotaOrani);
+      const t = parseMetric(person.tvsOrani);
+      const c = parseMetric(person.checkInOrani);
+      const s = parseMetric(person.smsOrani);
 
       doc.setFontSize(18);
       doc.setTextColor(220, 38, 38);
@@ -195,16 +205,16 @@ const PersonnelDefensePanel = ({ allData }) => {
                   </td>
                   
                   <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                    {person.parsedData.r !== null ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
+                    {person.rotaOrani !== null && person.rotaOrani !== "" ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
                   </td>
                   <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                    {person.parsedData.t !== null ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
+                    {person.tvsOrani !== null && person.tvsOrani !== "" ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
                   </td>
                   <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                    {person.parsedData.c !== null ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
+                    {person.checkInOrani !== null && person.checkInOrani !== "" ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
                   </td>
                   <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                    {person.parsedData.s !== null ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
+                    {person.smsOrani !== null && person.smsOrani !== "" ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
                   </td>
                   <td className="p-1 sm:p-3 text-center">
                     <button 
