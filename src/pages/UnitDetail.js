@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom"; 
+import { useParams } from "react-router-dom"; 
 import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
@@ -7,7 +7,6 @@ import KPICard from "../components/KPICard";
 const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
-  const navigate = useNavigate();
   const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
 
   const [showYearAvg, setShowYearAvg] = useState(false);
@@ -18,18 +17,20 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
 
   const availableYears = [2024, 2025, 2026];
+  
+  // MERKEZİ HEDEFLER (Sistemin geri kalanı burayı baz alır)
   const TARGETS = { 
-    teslimPerformansi: 95,
+    teslimPerformansi: 96,
     adresAlimOrani: 90,
     musteriSikayet: 0,
-    rotaOrani: 80, 
-    tvsOrani: 90, 
+    rotaOrani: 85, 
+    tvsOrani: 95, 
     checkInOrani: 90, 
-    smsOrani: 50,
-    eAtfOrani: 80,
+    smsOrani: 70,
+    eAtfOrani: 95,
     htfOrani: 90,
     kontrolSende: 90,
-    olcumTartim: 0
+    olcumTartim: 20
   };
 
   const parseMetric = (val) => {
@@ -88,9 +89,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     ? (selectedUnit === "BÖLGE" ? null : calculateYearlyAverage("BÖLGE"))
     : (selectedUnit === "BÖLGE" ? null : allData.find(d => d.unit === "BÖLGE" && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth)));
 
-  const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < 95;
-  const isAdresAlimBasarisiz = displayData && parseFloat(displayData.adresAlimOrani) < 90;
-  const isMusteriSikayetBasarisiz = displayData && parseFloat(displayData.musteriSikayet) > 0;
+  const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < TARGETS.teslimPerformansi;
+  const isAdresAlimBasarisiz = displayData && parseFloat(displayData.adresAlimOrani) < TARGETS.adresAlimOrani;
+  const isMusteriSikayetBasarisiz = displayData && parseFloat(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
   const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -115,7 +116,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     document.head.appendChild(script);
   });
 
-  // --- AKILLI ANALİZ METNİ OLUŞTURUCU ---
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
     const a = parseMetric(data.adresAlimOrani);
@@ -132,12 +132,12 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     let text = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz sistemimiz tarafından analiz edilmiş olup, biriminize ait karne değerlendirmesi aşağıda bilgilerinize sunulmuştur:\n\n";
 
     if (t !== null) {
-      if (t >= 95) text += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
+      if (t >= TARGETS.teslimPerformansi) text += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
       else text += "• Teslim performansınız hedef altı kalmıştır, ilgili ayda hedeflenen oranı yakalamanız gerekmektedir.\n";
     }
 
     if (a !== null) {
-      if (a >= 90) text += "• Adres alım oranınız başarılı seviyededir.\n";
+      if (a >= TARGETS.adresAlimOrani) text += "• Adres alım oranınız başarılı seviyededir.\n";
       else if (a >= 80) text += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
       else text += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
     }
@@ -149,39 +149,39 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     }
 
     if (r !== null && tvs !== null && c !== null) {
-      let rDurum = r >= 85 ? "başarılı" : (r >= 80 ? "ortalama" : "başarısız");
-      let tDurum = tvs >= 95 ? "başarılı" : (tvs >= 90 ? "ortalama" : "başarısız");
-      let cDurum = c >= 95 ? "başarılı" : (c >= 90 ? "ortalama" : "başarısız");
+      let rDurum = r >= TARGETS.rotaOrani ? "başarılı" : (r >= 80 ? "ortalama" : "başarısız");
+      let tDurum = tvs >= TARGETS.tvsOrani ? "başarılı" : (tvs >= 90 ? "ortalama" : "başarısız");
+      let cDurum = c >= TARGETS.checkInOrani ? "başarılı" : (c >= 85 ? "ortalama" : "başarısız");
       
       text += `• Operasyonel altyapının en önemli kriterlerinden olan Rota oranınız ${rDurum} seviyede gerçekleşmiştir. Buna bağlı olarak değerlendirilen TVS oranınız ${tDurum}, Check-in oranınız ise ${cDurum} seviyededir.\n`;
     }
 
     if (s !== null) {
-      if (s >= 70) text += "• SMS kullanım oranınız başarılı seviyededir.\n";
+      if (s >= TARGETS.smsOrani) text += "• SMS kullanım oranınız başarılı seviyededir.\n";
       else if (s >= 65) text += "• SMS kullanım oranınız ortalama seviyededir.\n";
       else text += "• SMS oranınız başarısızdır, kuryelerin SMS kullanımı konusunda uyarılması gerekmektedir.\n";
     }
 
     if (eatf !== null) {
-      if (eatf >= 95) text += "• E-ATF oranınız başarılıdır.\n";
+      if (eatf >= TARGETS.eAtfOrani) text += "• E-ATF oranınız başarılıdır.\n";
       else if (eatf >= 90) text += "• E-ATF oranınız ortalamadır.\n";
       else text += "• E-ATF oranınız başarısızdır.\n";
     }
 
     if (htf !== null) {
-      if (htf >= 95) text += "• HTF oranınız başarılıdır.\n";
-      else if (htf >= 90) text += "• HTF oranınız ortalamadır.\n";
+      if (htf >= TARGETS.htfOrani) text += "• HTF oranınız başarılıdır.\n";
+      else if (htf >= 85) text += "• HTF oranınız ortalamadır.\n";
       else text += "• HTF oranınız başarısızdır.\n";
     }
 
     if (ks !== null) {
-      if (ks >= 90) text += "• Kontrol Sende uygulamasını kullanım oranınız başarılıdır.\n";
+      if (ks >= TARGETS.kontrolSende) text += "• Kontrol Sende uygulamasını kullanım oranınız başarılıdır.\n";
       else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız ortalamadır.\n";
       else text += "• Kontrol Sende oranınız başarısızdır.\n";
     }
 
     if (ot !== null) {
-      if (ot <= 20) text += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
+      if (ot <= TARGETS.olcumTartim) text += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
       else if (ot <= 40) text += "• Ölçüm/Tartım farkı işlemleriniz ortalama seviyededir, artış eğilimine karşı dikkat edilmelidir.\n";
       else text += "• Ölçüm/Tartım sayınız kritik seviyededir. Kaçak kontrollerinin ve tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
     }
@@ -190,7 +190,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
     return text;
   };
-  // ------------------------------------------
 
   const createPdfDoc = async (type, targetUnit, targetData, targetRegionData, year, month, isYearAvg, preloadedFont) => {
     const { jsPDF } = window.jspdf;
@@ -226,13 +225,11 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
     let startY = 45;
 
-    // ÖN YAZI (Sadece Karne İçin - Akıllı Analiz Entegrasyonu)
     if (type === 'report') {
       doc.setFontSize(9); 
       doc.setTextColor(60);
       
       const introText = generateDynamicAnalysis(targetData);
-      
       const splitIntro = doc.splitTextToSize(introText, 182);
       doc.text(splitIntro, 14, 50);
       
@@ -240,19 +237,19 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     }
 
     const tableRows = [
-      ["Teslim Performansı", `%${targetData.teslimPerformansi || "-"}`, `%${targetRegionData?.teslimPerformansi || "-"}`, "%95"],
-      ["Adres Alım Oranı", `%${targetData.adresAlimOrani || "-"}`, `%${targetRegionData?.adresAlimOrani || "-"}`, "%90"],
-      ["Müşteri Şikayet", formatNumber(targetData.musteriSikayet), formatNumber(targetRegionData?.musteriSikayet), "0"],
-      ["Rota Oranı", `%${targetData.rotaOrani || "-"}`, `%${targetRegionData?.rotaOrani || "-"}`, "%80"],
-      ["TVS Oranı", `%${targetData.tvsOrani || "-"}`, `%${targetRegionData?.tvsOrani || "-"}`, "%90"],
-      ["Check-in Oranı", `%${targetData.checkInOrani || "-"}`, `%${targetRegionData?.checkInOrani || "-"}`, "%90"],
-      ["SMS Oranı", `%${targetData.smsOrani || "-"}`, `%${targetRegionData?.smsOrani || "-"}`, "%50"],
-      ["E-ATF Oranı", `%${targetData.eAtfOrani || "-"}`, `%${targetRegionData?.eAtfOrani || "-"}`, "%80"],
-      ["HTF Oranı", `%${targetData.htfOrani || "-"}`, `%${targetRegionData?.htfOrani || "-"}`, "%90"],
-      ["Kontrol Sende", `%${targetData.kontrolSende || "-"}`, `%${targetRegionData?.kontrolSende || "-"}`, "%90"],
+      ["Teslim Performansı", `%${targetData.teslimPerformansi || "-"}`, `%${targetRegionData?.teslimPerformansi || "-"}`, `%${TARGETS.teslimPerformansi}`],
+      ["Adres Alım Oranı", `%${targetData.adresAlimOrani || "-"}`, `%${targetRegionData?.adresAlimOrani || "-"}`, `%${TARGETS.adresAlimOrani}`],
+      ["Müşteri Şikayet", formatNumber(targetData.musteriSikayet), formatNumber(targetRegionData?.musteriSikayet), `${TARGETS.musteriSikayet}`],
+      ["Rota Oranı", `%${targetData.rotaOrani || "-"}`, `%${targetRegionData?.rotaOrani || "-"}`, `%${TARGETS.rotaOrani}`],
+      ["TVS Oranı", `%${targetData.tvsOrani || "-"}`, `%${targetRegionData?.tvsOrani || "-"}`, `%${TARGETS.tvsOrani}`],
+      ["Check-in Oranı", `%${targetData.checkInOrani || "-"}`, `%${targetRegionData?.checkInOrani || "-"}`, `%${TARGETS.checkInOrani}`],
+      ["SMS Oranı", `%${targetData.smsOrani || "-"}`, `%${targetRegionData?.smsOrani || "-"}`, `%${TARGETS.smsOrani}`],
+      ["E-ATF Oranı", `%${targetData.eAtfOrani || "-"}`, `%${targetRegionData?.eAtfOrani || "-"}`, `%${TARGETS.eAtfOrani}`],
+      ["HTF Oranı", `%${targetData.htfOrani || "-"}`, `%${targetRegionData?.htfOrani || "-"}`, `%${TARGETS.htfOrani}`],
+      ["Kontrol Sende", `%${targetData.kontrolSende || "-"}`, `%${targetRegionData?.kontrolSende || "-"}`, `%${TARGETS.kontrolSende}`],
       ["Gelen Kargo (Belge)", formatNumber(targetData.gelenKargo), formatNumber(targetRegionData?.gelenKargo), "-"],
       ["Giden Kargo (Belge)", formatNumber(targetData.gidenKargo), formatNumber(targetRegionData?.gidenKargo), "-"],
-      ["Ölçüm Tartım", formatNumber(targetData.olcumTartim), formatNumber(targetRegionData?.olcumTartim), "0"],
+      ["Ölçüm Tartım", formatNumber(targetData.olcumTartim), formatNumber(targetRegionData?.olcumTartim), `${TARGETS.olcumTartim}`],
     ];
 
     doc.autoTable({
@@ -324,7 +321,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.text("İmza:", 140, finalY);
     }
 
-    // 2. SAYFA: PERSONEL DETAYLARI
     if (type === 'report' && targetData.personnel && targetData.personnel.length > 0) {
       doc.addPage();
       doc.setFontSize(16);
@@ -635,7 +631,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Teslim" : "Teslim Perf."}</p>
                   <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.teslimPerformansi)}%</h2>
-                  <div className="mt-1.5"><span className="text-[8px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %95</span></div>
+                  <div className="mt-1.5"><span className="text-[8px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %{TARGETS.teslimPerformansi}</span></div>
                 </div>
                 {displayRegionData && (
                   <div className="bg-black/10 py-1.5 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 border-t border-white/10">
@@ -650,7 +646,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Adres" : "Adres Alım"}</p>
                   <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.adresAlimOrani)}%</h2>
-                  <div className="mt-1.5"><span className="text-[8px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %90</span></div>
+                  <div className="mt-1.5"><span className="text-[8px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">Hedef: %{TARGETS.adresAlimOrani}</span></div>
                 </div>
                 {displayRegionData && (
                   <div className="bg-black/10 py-1.5 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 border-t border-white/10">
@@ -665,7 +661,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Şikayet" : "Şikayet"}</p>
                   <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none">{formatNumber(displayData?.musteriSikayet)}</h2>
-                  <div className="mt-1.5"><span className="text-[8px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">Hedef: 0</span></div>
+                  <div className="mt-1.5"><span className="text-[8px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">Hedef: {TARGETS.musteriSikayet}</span></div>
                 </div>
                 {displayRegionData && (
                   <div className="bg-black/10 py-1.5 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 border-t border-white/10">
@@ -694,15 +690,15 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 )}
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={80} suffix="%" color={displayData.rotaOrani <= 80 ? "red" : "green"} icon={TrendingUp} />
-                <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={90} suffix="%" color={displayData.tvsOrani <= 90 ? "red" : "green"} icon={Activity} />
-                <KPICard title="Check-in" value={displayData.checkInOrani} comparisonValue={displayRegionData?.checkInOrani} target={90} suffix="%" color={displayData.checkInOrani <= 90 ? "red" : "green"} icon={CheckCircle2} />
-                <KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={50} suffix="%" color={displayData.smsOrani <= 50 ? "red" : "green"} icon={Smartphone} />
-                <KPICard title="E-ATF" value={displayData.eAtfOrani} comparisonValue={displayRegionData?.eAtfOrani} target={80} suffix="%" color={displayData.eAtfOrani <= 80 ? "red" : "green"} icon={FileText} />
-                <KPICard title="HTF" value={displayData.htfOrani} comparisonValue={displayRegionData?.htfOrani} target={90} suffix="%" color={parseFloat(displayData.htfOrani) > 90 ? "green" : "red"} icon={Activity} />
-                <KPICard title="E-İhbar" value={displayData.elektronikIhbar} comparisonValue={displayRegionData?.elektronikIhbar} target={90} suffix="%" color={displayData.elektronikIhbar <= 90 ? "red" : "green"} icon={Mail} />
-                <KPICard title="K. Sende" value={displayData.kontrolSende} comparisonValue={displayRegionData?.kontrolSende} target={90} suffix="%" color={parseFloat(displayData.kontrolSende) < 90 ? "red" : "green"} icon={ShieldCheck} />
-                <KPICard title="Ölçüm Tartım" value={displayData.olcumTartim} comparisonValue={displayRegionData?.olcumTartim} target={0} suffix="" color={parseFloat(displayData.olcumTartim) > 0 ? "red" : "green"} icon={Scale} />
+                <KPICard title="Rota" value={displayData.rotaOrani} comparisonValue={displayRegionData?.rotaOrani} target={TARGETS.rotaOrani} suffix="%" color={parseMetric(displayData.rotaOrani) < TARGETS.rotaOrani ? "red" : "green"} icon={TrendingUp} />
+                <KPICard title="TVS" value={displayData.tvsOrani} comparisonValue={displayRegionData?.tvsOrani} target={TARGETS.tvsOrani} suffix="%" color={parseMetric(displayData.tvsOrani) < TARGETS.tvsOrani ? "red" : "green"} icon={Activity} />
+                <KPICard title="Check-in" value={displayData.checkInOrani} comparisonValue={displayRegionData?.checkInOrani} target={TARGETS.checkInOrani} suffix="%" color={parseMetric(displayData.checkInOrani) < TARGETS.checkInOrani ? "red" : "green"} icon={CheckCircle2} />
+                <KPICard title="SMS" value={displayData.smsOrani} comparisonValue={displayRegionData?.smsOrani} target={TARGETS.smsOrani} suffix="%" color={parseMetric(displayData.smsOrani) < TARGETS.smsOrani ? "red" : "green"} icon={Smartphone} />
+                <KPICard title="E-ATF" value={displayData.eAtfOrani} comparisonValue={displayRegionData?.eAtfOrani} target={TARGETS.eAtfOrani} suffix="%" color={parseMetric(displayData.eAtfOrani) < TARGETS.eAtfOrani ? "red" : "green"} icon={FileText} />
+                <KPICard title="HTF" value={displayData.htfOrani} comparisonValue={displayRegionData?.htfOrani} target={TARGETS.htfOrani} suffix="%" color={parseMetric(displayData.htfOrani) < TARGETS.htfOrani ? "red" : "green"} icon={Activity} />
+                <KPICard title="E-İhbar" value={displayData.elektronikIhbar} comparisonValue={displayRegionData?.elektronikIhbar} target={90} suffix="%" color={parseMetric(displayData.elektronikIhbar) < 90 ? "red" : "green"} icon={Mail} />
+                <KPICard title="K. Sende" value={displayData.kontrolSende} comparisonValue={displayRegionData?.kontrolSende} target={TARGETS.kontrolSende} suffix="%" color={parseMetric(displayData.kontrolSende) < TARGETS.kontrolSende ? "red" : "green"} icon={ShieldCheck} />
+                <KPICard title="Ölçüm Tartım" value={displayData.olcumTartim} comparisonValue={displayRegionData?.olcumTartim} target={TARGETS.olcumTartim} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
               </div>
             </div>
           </>
@@ -714,7 +710,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         )}
       </div>
 
-      {/* TÜM PERSONEL 4'LÜ METRİK MODALI */}
+      {/* TÜM PERSONEL MODALI */}
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -749,26 +745,26 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                       const s = parseMetric(person.smsOrani);
 
                       const isAnyFail = 
-                        (r !== null && r < 80) ||
-                        (t !== null && t < 90) ||
-                        (c !== null && c < 90) ||
-                        (s !== null && s < 50);
+                        (r !== null && r < TARGETS.rotaOrani) ||
+                        (t !== null && t < TARGETS.tvsOrani) ||
+                        (c !== null && c < TARGETS.checkInOrani) ||
+                        (s !== null && s < TARGETS.smsOrani);
 
                       return (
                         <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
                           <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                             {person.name}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${r !== null && r < 80 ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
                             {r !== null ? `%${r}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${t !== null && t < 90 ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
                             {t !== null ? `%${t}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${c !== null && c < 90 ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${c !== null && c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
                             {c !== null ? `%${c}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${s !== null && s < 50 ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${s !== null && s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
                             {s !== null ? `%${s}` : "-"}
                           </td>
                           <td className="p-1 sm:p-3 text-center">
