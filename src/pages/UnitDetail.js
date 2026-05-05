@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom"; 
+import { useParams } from "react-router-dom"; 
 import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
@@ -7,7 +7,6 @@ import KPICard from "../components/KPICard";
 const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
-  const navigate = useNavigate();
   const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
 
   const [showYearAvg, setShowYearAvg] = useState(false);
@@ -19,7 +18,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
   const availableYears = [2024, 2025, 2026];
   const TARGETS = { 
-    teslimPerformansi: 95.,
+    teslimPerformansi: 95,
     adresAlimOrani: 90,
     musteriSikayet: 0,
     rotaOrani: 80, 
@@ -228,7 +227,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
     // ÖN YAZI (Sadece Karne İçin - Akıllı Analiz Entegrasyonu)
     if (type === 'report') {
-      doc.setFontSize(9); // Uzun metinler için fontu 9 yaptık
+      doc.setFontSize(9); 
       doc.setTextColor(60);
       
       const introText = generateDynamicAnalysis(targetData);
@@ -236,7 +235,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       const splitIntro = doc.splitTextToSize(introText, 182);
       doc.text(splitIntro, 14, 50);
       
-      // Satır sayısına göre tablonun başlayacağı Y koordinatını hesaplıyoruz (satır başı ortalama 4 birim yükseklik)
       startY = 50 + (splitIntro.length * 4) + 8;
     }
 
