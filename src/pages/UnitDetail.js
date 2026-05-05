@@ -40,6 +40,12 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     return isNaN(num) ? null : num;
   };
 
+  // ONDALIKLI SAYILARI KORUYAN VE VİRGÜL İLE GÖSTEREN YENİ FORMATLAYICI
+  const formatDisplayMetric = (val) => {
+    const num = parseMetric(val);
+    return num !== null ? num.toLocaleString('tr-TR', { maximumFractionDigits: 2 }) : "-";
+  };
+
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
     const unitRecords = allData.filter(d => d.unit === selectedUnit && d.teslimPerformansi !== null && d.teslimPerformansi !== undefined && d.teslimPerformansi !== "");
@@ -86,9 +92,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
   let displayData = showYearAvg ? calculateYearlyAverage(selectedUnit) : currentData;
 
-  const isTeslimBasarisiz = displayData && parseFloat(displayData.teslimPerformansi) < TARGETS.teslimPerformansi;
-  const isAdresAlimBasarisiz = displayData && parseFloat(displayData.adresAlimOrani) < TARGETS.adresAlimOrani;
-  const isMusteriSikayetBasarisiz = displayData && parseFloat(displayData.musteriSikayet) > TARGETS.musteriSikayet;
+  const isTeslimBasarisiz = displayData && parseMetric(displayData.teslimPerformansi) < TARGETS.teslimPerformansi;
+  const isAdresAlimBasarisiz = displayData && parseMetric(displayData.adresAlimOrani) < TARGETS.adresAlimOrani;
+  const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
 
   const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -113,7 +119,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     document.head.appendChild(script);
   });
 
-  // --- AKILLI ANALİZ METNİ OLUŞTURUCU (YENİLENMİŞ AYRI ANALİZLER) ---
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
     const a = parseMetric(data.adresAlimOrani);
@@ -146,7 +151,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       else text += `• İlgili dönemde ${ms} adet müşteri şikayeti tespit edilmiştir. Bu durum ciddi uyarı gerektirmekte olup süreçlerinizi acilen gözden geçirmeniz şarttır.\n`;
     }
 
-    // Rota, TVS ve Check-in ayrı ayrı analiz ediliyor
     if (r !== null) {
       if (r >= TARGETS.rotaOrani) text += "• Operasyonel altyapının en önemli kriterlerinden olan Rota oranınız başarılı seviyededir.\n";
       else if (r >= 80) text += "• Rota oranınız ortalama seviyededir, planlama süreçlerinde iyileştirmeler gerekmektedir.\n";
@@ -245,18 +249,17 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       startY = 50 + (splitIntro.length * 4) + 8;
     }
 
-    // Bölge sütunu kaldırıldı, sadece Birim Değeri ve Hedef var
     const tableRows = [
-      ["Teslim Performansı", `%${targetData.teslimPerformansi || "-"}`, `%${TARGETS.teslimPerformansi}`],
-      ["Adres Alım Oranı", `%${targetData.adresAlimOrani || "-"}`, `%${TARGETS.adresAlimOrani}`],
+      ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi)}`, `%${TARGETS.teslimPerformansi}`],
+      ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani)}`, `%${TARGETS.adresAlimOrani}`],
       ["Müşteri Şikayet", formatNumber(targetData.musteriSikayet), `${TARGETS.musteriSikayet}`],
-      ["Rota Oranı", `%${targetData.rotaOrani || "-"}`, `%${TARGETS.rotaOrani}`],
-      ["TVS Oranı", `%${targetData.tvsOrani || "-"}`, `%${TARGETS.tvsOrani}`],
-      ["Check-in Oranı", `%${targetData.checkInOrani || "-"}`, `%${TARGETS.checkInOrani}`],
-      ["SMS Oranı", `%${targetData.smsOrani || "-"}`, `%${TARGETS.smsOrani}`],
-      ["E-ATF Oranı", `%${targetData.eAtfOrani || "-"}`, `%${TARGETS.eAtfOrani}`],
-      ["HTF Oranı", `%${targetData.htfOrani || "-"}`, `%${TARGETS.htfOrani}`],
-      ["Kontrol Sende", `%${targetData.kontrolSende || "-"}`, `%${TARGETS.kontrolSende}`],
+      ["Rota Oranı", `%${formatDisplayMetric(targetData.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+      ["TVS Oranı", `%${formatDisplayMetric(targetData.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+      ["Check-in Oranı", `%${formatDisplayMetric(targetData.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+      ["SMS Oranı", `%${formatDisplayMetric(targetData.smsOrani)}`, `%${TARGETS.smsOrani}`],
+      ["E-ATF Oranı", `%${formatDisplayMetric(targetData.eAtfOrani)}`, `%${TARGETS.eAtfOrani}`],
+      ["HTF Oranı", `%${formatDisplayMetric(targetData.htfOrani)}`, `%${TARGETS.htfOrani}`],
+      ["Kontrol Sende", `%${formatDisplayMetric(targetData.kontrolSende)}`, `%${TARGETS.kontrolSende}`],
       ["Gelen Kargo (Belge)", formatNumber(targetData.gelenKargo), "-"],
       ["Giden Kargo (Belge)", formatNumber(targetData.gidenKargo), "-"],
       ["Ölçüm Tartım", formatNumber(targetData.olcumTartim), `${TARGETS.olcumTartim}`],
@@ -269,7 +272,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       theme: 'grid',
       styles: { font: 'Roboto', fontSize: 9 }, 
       headStyles: { font: 'Roboto', fillColor: type === 'defense' ? [220, 38, 38] : [59, 130, 246], halign: 'center' },
-      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }, // Sütun stilleri ayarlandı
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }, 
       didParseCell: function(data) {
         if (data.section === 'body') {
           const metricName = data.row.raw[0];
@@ -345,10 +348,10 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         .sort((a, b) => a.name.localeCompare(b.name))
         .map(p => [
           p.name,
-          `%${p.rotaOrani || "-"}`,
-          `%${p.tvsOrani || "-"}`,
-          `%${p.checkInOrani || "-"}`,
-          `%${p.smsOrani || "-"}`
+          `%${formatDisplayMetric(p.rotaOrani)}`,
+          `%${formatDisplayMetric(p.tvsOrani)}`,
+          `%${formatDisplayMetric(p.checkInOrani)}`,
+          `%${formatDisplayMetric(p.smsOrani)}`
         ]);
 
       doc.autoTable({
@@ -472,10 +475,10 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
       const tableRows = [
-        ["Rota Oranı", `%${r ?? "-"}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${t ?? "-"}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${c ?? "-"}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${s ?? "-"}`, `%${TARGETS.smsOrani}`]
+        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
       ];
 
       doc.autoTable({
@@ -629,14 +632,14 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               </div>
             </div>
 
-            {/* 3. ANA METRİKLER (Bölge Ortalaması Kaldırıldı) */}
+            {/* 3. ANA METRİKLER */}
             <div className="grid grid-cols-3 gap-2 mb-4">
               
               {/* Teslim Performansı */}
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Teslim" : "Teslim Perf."}</p>
-                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatNumber(displayData?.teslimPerformansi)}%</h2>
+                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.teslimPerformansi)}%</h2>
                   <div className="mt-auto"><span className="text-[8px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm">Hedef: %{TARGETS.teslimPerformansi}</span></div>
                 </div>
               </div>
@@ -645,7 +648,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isAdresAlimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Adres" : "Adres Alım"}</p>
-                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatNumber(displayData?.adresAlimOrani)}%</h2>
+                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.adresAlimOrani)}%</h2>
                   <div className="mt-auto"><span className="text-[8px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm">Hedef: %{TARGETS.adresAlimOrani}</span></div>
                 </div>
               </div>
@@ -661,7 +664,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               
             </div>
 
-            {/* 4. ALTTAKİ 9'LU METRİK TABLOSU (Bölge Ortalaması Kaldırıldı) */}
+            {/* 4. ALTTAKİ 9'LU METRİK TABLOSU */}
             <div>
               <div className="flex items-center justify-between mb-2 pl-1">
                 <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
@@ -678,15 +681,15 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 )}
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <KPICard title="Rota" value={displayData.rotaOrani} target={TARGETS.rotaOrani} suffix="%" color={parseMetric(displayData.rotaOrani) < TARGETS.rotaOrani ? "red" : "green"} icon={TrendingUp} />
-                <KPICard title="TVS" value={displayData.tvsOrani} target={TARGETS.tvsOrani} suffix="%" color={parseMetric(displayData.tvsOrani) < TARGETS.tvsOrani ? "red" : "green"} icon={Activity} />
-                <KPICard title="Check-in" value={displayData.checkInOrani} target={TARGETS.checkInOrani} suffix="%" color={parseMetric(displayData.checkInOrani) < TARGETS.checkInOrani ? "red" : "green"} icon={CheckCircle2} />
-                <KPICard title="SMS" value={displayData.smsOrani} target={TARGETS.smsOrani} suffix="%" color={parseMetric(displayData.smsOrani) < TARGETS.smsOrani ? "red" : "green"} icon={Smartphone} />
-                <KPICard title="E-ATF" value={displayData.eAtfOrani} target={TARGETS.eAtfOrani} suffix="%" color={parseMetric(displayData.eAtfOrani) < TARGETS.eAtfOrani ? "red" : "green"} icon={FileText} />
-                <KPICard title="HTF" value={displayData.htfOrani} target={TARGETS.htfOrani} suffix="%" color={parseMetric(displayData.htfOrani) < TARGETS.htfOrani ? "red" : "green"} icon={Activity} />
-                <KPICard title="E-İhbar" value={displayData.elektronikIhbar} target={90} suffix="%" color={parseMetric(displayData.elektronikIhbar) < 90 ? "red" : "green"} icon={Mail} />
-                <KPICard title="K. Sende" value={displayData.kontrolSende} target={TARGETS.kontrolSende} suffix="%" color={parseMetric(displayData.kontrolSende) < TARGETS.kontrolSende ? "red" : "green"} icon={ShieldCheck} />
-                <KPICard title="Ölçüm Tartım" value={displayData.olcumTartim} target={TARGETS.olcumTartim} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
+                <KPICard title="Rota" value={formatDisplayMetric(displayData.rotaOrani)} target={TARGETS.rotaOrani} suffix="%" color={parseMetric(displayData.rotaOrani) < TARGETS.rotaOrani ? "red" : "green"} icon={TrendingUp} />
+                <KPICard title="TVS" value={formatDisplayMetric(displayData.tvsOrani)} target={TARGETS.tvsOrani} suffix="%" color={parseMetric(displayData.tvsOrani) < TARGETS.tvsOrani ? "red" : "green"} icon={Activity} />
+                <KPICard title="Check-in" value={formatDisplayMetric(displayData.checkInOrani)} target={TARGETS.checkInOrani} suffix="%" color={parseMetric(displayData.checkInOrani) < TARGETS.checkInOrani ? "red" : "green"} icon={CheckCircle2} />
+                <KPICard title="SMS" value={formatDisplayMetric(displayData.smsOrani)} target={TARGETS.smsOrani} suffix="%" color={parseMetric(displayData.smsOrani) < TARGETS.smsOrani ? "red" : "green"} icon={Smartphone} />
+                <KPICard title="E-ATF" value={formatDisplayMetric(displayData.eAtfOrani)} target={TARGETS.eAtfOrani} suffix="%" color={parseMetric(displayData.eAtfOrani) < TARGETS.eAtfOrani ? "red" : "green"} icon={FileText} />
+                <KPICard title="HTF" value={formatDisplayMetric(displayData.htfOrani)} target={TARGETS.htfOrani} suffix="%" color={parseMetric(displayData.htfOrani) < TARGETS.htfOrani ? "red" : "green"} icon={Activity} />
+                <KPICard title="E-İhbar" value={formatDisplayMetric(displayData.elektronikIhbar)} target={90} suffix="%" color={parseMetric(displayData.elektronikIhbar) < 90 ? "red" : "green"} icon={Mail} />
+                <KPICard title="K. Sende" value={formatDisplayMetric(displayData.kontrolSende)} target={TARGETS.kontrolSende} suffix="%" color={parseMetric(displayData.kontrolSende) < TARGETS.kontrolSende ? "red" : "green"} icon={ShieldCheck} />
+                <KPICard title="Ölçüm Tartım" value={formatNumber(displayData.olcumTartim)} target={TARGETS.olcumTartim} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
               </div>
             </div>
           </>
@@ -744,16 +747,16 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                             {person.name}
                           </td>
                           <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {r !== null ? `%${r}` : "-"}
+                            {r !== null ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
                           </td>
                           <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {t !== null ? `%${t}` : "-"}
+                            {t !== null ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
                           </td>
                           <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${c !== null && c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {c !== null ? `%${c}` : "-"}
+                            {c !== null ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
                           </td>
                           <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${s !== null && s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {s !== null ? `%${s}` : "-"}
+                            {s !== null ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
                           </td>
                           <td className="p-1 sm:p-3 text-center">
                             {isAnyFail && (
