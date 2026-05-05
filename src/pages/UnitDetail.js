@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
@@ -100,191 +100,266 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     reader.readAsDataURL(blob);
   });
 
-  const generatePDF = async (type) => {
-    if (!displayData) return;
-    setIsGeneratingPdf(true); 
+  // ZIP kütüphanelerini dinamik yüklemek için yardımcı fonksiyon (Terminal kullanılmadığı için)
+  const loadZipLibraries = () => new Promise((resolve, reject) => {
+    if (window.JSZip) return resolve(window.JSZip);
+    const script = document.createElement('script');
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    script.onload = () => {
+      const fsScript = document.createElement('script');
+      fsScript.src = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js";
+      fsScript.onload = () => resolve(window.JSZip);
+      fsScript.onerror = reject;
+      document.head.appendChild(fsScript);
+    };
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
 
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
+  // PDF Oluşturma Çekirdek Fonksiyonu (Tekil ve Toplu kullanım için)
+  const createPdfDoc = async (type, targetUnit, targetData, targetRegionData, year, month, isYearAvg, preloadedFont) => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    let base64Font = preloadedFont;
+    if (!base64Font) {
       try {
         const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
         const blob = await response.blob();
-        const base64Font = await getBase64(blob);
-        
-        doc.addFileToVFS("Roboto.ttf", base64Font);
-        doc.addFont("Roboto.ttf", "Roboto", "normal");
-        doc.setFont("Roboto");
-      } catch (e) {
-        console.warn("Font indirilemedi.");
-      }
+        base64Font = await getBase64(blob);
+      } catch (e) { console.warn("Font indirilemedi."); }
+    }
 
-      const donemText = showYearAvg ? `${selectedYear} Yılı Ortalaması` : `${selectedYear} - ${MONTH_NAMES[selectedMonth]}`;
-      
-      doc.setFontSize(18);
+    if (base64Font) {
+      doc.addFileToVFS("Roboto.ttf", base64Font);
+      doc.addFont("Roboto.ttf", "Roboto", "normal");
+      doc.setFont("Roboto");
+    }
+
+    const donemText = isYearAvg ? `${year} Yılı Ortalaması` : `${year} - ${MONTH_NAMES[month]}`;
+    
+    doc.setFontSize(18);
+    doc.setTextColor(40);
+    const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON BİRİM KARNESİ";
+    doc.text(title, 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Birim: ${targetUnit}`, 14, 30);
+    doc.text(`Dönem: ${donemText}`, 14, 35);
+    doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
+
+    let startY = 45;
+
+    // ÖN YAZI (Sadece Karne İçin)
+    if (type === 'report') {
+      doc.setFontSize(10);
+      doc.setTextColor(60);
+      const introText = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıdaki tabloda bilgilerinize sunulmuştur. Yapılan değerlendirme sonucunda, kırmızı ile işaretlenen satırlarda hedeflenen başarı seviyesine ulaşılamadığı tespit edilmiştir.\n\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm arkadaşlarımıza başarılar dileriz.";
+      const splitIntro = doc.splitTextToSize(introText, 180);
+      doc.text(splitIntro, 14, 50);
+      startY = 50 + (splitIntro.length * 5) + 5;
+    }
+
+    const tableRows = [
+      ["Teslim Performansı", `%${targetData.teslimPerformansi || "-"}`, `%${targetRegionData?.teslimPerformansi || "-"}`, "%95"],
+      ["Adres Alım Oranı", `%${targetData.adresAlimOrani || "-"}`, `%${targetRegionData?.adresAlimOrani || "-"}`, "%90"],
+      ["Müşteri Şikayet", formatNumber(targetData.musteriSikayet), formatNumber(targetRegionData?.musteriSikayet), "0"],
+      ["Rota Oranı", `%${targetData.rotaOrani || "-"}`, `%${targetRegionData?.rotaOrani || "-"}`, "%80"],
+      ["TVS Oranı", `%${targetData.tvsOrani || "-"}`, `%${targetRegionData?.tvsOrani || "-"}`, "%90"],
+      ["Check-in Oranı", `%${targetData.checkInOrani || "-"}`, `%${targetRegionData?.checkInOrani || "-"}`, "%90"],
+      ["SMS Oranı", `%${targetData.smsOrani || "-"}`, `%${targetRegionData?.smsOrani || "-"}`, "%50"],
+      ["E-ATF Oranı", `%${targetData.eAtfOrani || "-"}`, `%${targetRegionData?.eAtfOrani || "-"}`, "%80"],
+      ["HTF Oranı", `%${targetData.htfOrani || "-"}`, `%${targetRegionData?.htfOrani || "-"}`, "%90"],
+      ["Kontrol Sende", `%${targetData.kontrolSende || "-"}`, `%${targetRegionData?.kontrolSende || "-"}`, "%90"],
+      ["Gelen Kargo (Belge)", formatNumber(targetData.gelenKargo), formatNumber(targetRegionData?.gelenKargo), "-"],
+      ["Giden Kargo (Belge)", formatNumber(targetData.gidenKargo), formatNumber(targetRegionData?.gidenKargo), "-"],
+      ["Ölçüm Tartım", formatNumber(targetData.olcumTartim), formatNumber(targetRegionData?.olcumTartim), "0"],
+    ];
+
+    doc.autoTable({
+      startY: startY,
+      head: [['KPI Metriği', 'Birim Değeri', 'Bölge Ort.', 'Hedef']],
+      body: tableRows,
+      theme: 'grid',
+      styles: { font: 'Roboto', fontSize: 9 }, 
+      headStyles: { font: 'Roboto', fillColor: type === 'defense' ? [220, 38, 38] : [59, 130, 246], halign: 'center' },
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
+      didParseCell: function(data) {
+        if (data.section === 'body') {
+          const metricName = data.row.raw[0];
+          let isFail = false;
+          
+          const rVal = parseMetric(targetData[
+            metricName === "Teslim Performansı" ? "teslimPerformansi" : 
+            metricName === "Adres Alım Oranı" ? "adresAlimOrani" :
+            metricName === "Müşteri Şikayet" ? "musteriSikayet" :
+            metricName === "Rota Oranı" ? "rotaOrani" : 
+            metricName === "TVS Oranı" ? "tvsOrani" : 
+            metricName === "Check-in Oranı" ? "checkInOrani" : 
+            metricName === "SMS Oranı" ? "smsOrani" : 
+            metricName === "E-ATF Oranı" ? "eAtfOrani" : 
+            metricName === "HTF Oranı" ? "htfOrani" : 
+            metricName === "Kontrol Sende" ? "kontrolSende" : 
+            metricName === "Ölçüm Tartım" ? "olcumTartim" : ""
+          ]);
+          
+          if (metricName === "Teslim Performansı" && rVal !== null && rVal < TARGETS.teslimPerformansi) isFail = true;
+          if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < TARGETS.adresAlimOrani) isFail = true;
+          if (metricName === "Müşteri Şikayet" && rVal !== null && rVal > TARGETS.musteriSikayet) isFail = true;
+          if (metricName === "Rota Oranı" && rVal !== null && rVal < TARGETS.rotaOrani) isFail = true;
+          if (metricName === "TVS Oranı" && rVal !== null && rVal < TARGETS.tvsOrani) isFail = true;
+          if (metricName === "Check-in Oranı" && rVal !== null && rVal < TARGETS.checkInOrani) isFail = true;
+          if (metricName === "SMS Oranı" && rVal !== null && rVal < TARGETS.smsOrani) isFail = true;
+          if (metricName === "E-ATF Oranı" && rVal !== null && rVal < TARGETS.eAtfOrani) isFail = true;
+          if (metricName === "HTF Oranı" && rVal !== null && rVal < TARGETS.htfOrani) isFail = true;
+          if (metricName === "Kontrol Sende" && rVal !== null && rVal < TARGETS.kontrolSende) isFail = true;
+          if (metricName === "Ölçüm Tartım" && rVal !== null && rVal > TARGETS.olcumTartim) isFail = true;
+
+          if (isFail) { 
+            data.cell.styles.fillColor = [254, 226, 226]; 
+            data.cell.styles.textColor = [185, 28, 28]; 
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      }
+    });
+
+    let finalY = doc.lastAutoTable.finalY + 10;
+    
+    if (type === 'defense') {
+      doc.setFontSize(10);
       doc.setTextColor(40);
-      const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON BİRİM KARNESİ";
-      doc.text(title, 14, 22);
+      const defenseText = "Sayın Birim Yöneticisi,\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda biriminizin şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartlar üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.";
+      const splitText = doc.splitTextToSize(defenseText, 180);
+      doc.text(splitText, 14, finalY);
+      finalY += splitText.length * 5 + 10;
+
+      doc.setFontSize(11);
+      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
+      doc.setDrawColor(200);
+      for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
+
+      finalY += 75;
+      doc.setFontSize(10);
+      doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
+      doc.text("İmza:", 140, finalY);
+    }
+
+    // 2. SAYFA: PERSONEL DETAYLARI
+    if (type === 'report' && targetData.personnel && targetData.personnel.length > 0) {
+      doc.addPage();
+      doc.setFontSize(16);
+      doc.setTextColor(40);
+      doc.text("PERSONEL PERFORMANS DETAYLARI", 14, 22);
       
       doc.setFontSize(10);
       doc.setTextColor(100);
-      doc.text(`Birim: ${selectedUnit}`, 14, 30);
-      doc.text(`Dönem: ${donemText}`, 14, 35);
-      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
+      doc.text(`Birim: ${targetUnit} | Dönem: ${donemText}`, 14, 30);
 
-      let startY = 45;
-
-      // ÖN YAZI EKLEME (Sadece Karne İçin)
-      if (type === 'report') {
-        doc.setFontSize(10);
-        doc.setTextColor(60);
-        const introText = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıdaki tabloda bilgilerinize sunulmuştur. Yapılan değerlendirme sonucunda, kırmızı ile işaretlenen satırlarda hedeflenen başarı seviyesine ulaşılamadığı tespit edilmiştir.\n\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm arkadaşlarımıza başarılar dileriz.";
-        const splitIntro = doc.splitTextToSize(introText, 180);
-        doc.text(splitIntro, 14, 50);
-        startY = 50 + (splitIntro.length * 5) + 5;
-      }
-
-      const tableRows = [
-        ["Teslim Performansı", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
-        ["Adres Alım Oranı", `%${displayData.adresAlimOrani || "-"}`, `%${displayRegionData?.adresAlimOrani || "-"}`, "%90"],
-        ["Müşteri Şikayet", formatNumber(displayData.musteriSikayet), formatNumber(displayRegionData?.musteriSikayet), "0"],
-        ["Rota Oranı", `%${displayData.rotaOrani || "-"}`, `%${displayRegionData?.rotaOrani || "-"}`, "%80"],
-        ["TVS Oranı", `%${displayData.tvsOrani || "-"}`, `%${displayRegionData?.tvsOrani || "-"}`, "%90"],
-        ["Check-in Oranı", `%${displayData.checkInOrani || "-"}`, `%${displayRegionData?.checkInOrani || "-"}`, "%90"],
-        ["SMS Oranı", `%${displayData.smsOrani || "-"}`, `%${displayRegionData?.smsOrani || "-"}`, "%50"],
-        ["E-ATF Oranı", `%${displayData.eAtfOrani || "-"}`, `%${displayRegionData?.eAtfOrani || "-"}`, "%80"],
-        ["HTF Oranı", `%${displayData.htfOrani || "-"}`, `%${displayRegionData?.htfOrani || "-"}`, "%90"],
-        ["Kontrol Sende", `%${displayData.kontrolSende || "-"}`, `%${displayRegionData?.kontrolSende || "-"}`, "%90"],
-        ["Gelen Kargo (Belge)", formatNumber(displayData.gelenKargo), formatNumber(displayRegionData?.gelenKargo), "-"],
-        ["Giden Kargo (Belge)", formatNumber(displayData.gidenKargo), formatNumber(displayRegionData?.gidenKargo), "-"],
-        ["Ölçüm Tartım", formatNumber(displayData.olcumTartim), formatNumber(displayRegionData?.olcumTartim), "0"],
-      ];
+      const personnelRows = targetData.personnel
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(p => [
+          p.name,
+          `%${p.rotaOrani || "-"}`,
+          `%${p.tvsOrani || "-"}`,
+          `%${p.checkInOrani || "-"}`,
+          `%${p.smsOrani || "-"}`
+        ]);
 
       doc.autoTable({
-        startY: startY,
-        head: [['KPI Metriği', 'Birim Değeri', 'Bölge Ort.', 'Hedef']],
-        body: tableRows,
-        theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 9 }, 
-        headStyles: { font: 'Roboto', fillColor: type === 'defense' ? [220, 38, 38] : [59, 130, 246], halign: 'center' },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
+        startY: 35,
+        head: [['Personel Ad Soyad', 'Rota %', 'TVS %', 'Check-in %', 'SMS %']],
+        body: personnelRows,
+        theme: 'striped',
+        styles: { font: 'Roboto', fontSize: 9 },
+        headStyles: { fillColor: [100, 116, 139], halign: 'center' },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
         didParseCell: function(data) {
           if (data.section === 'body') {
-            const metricName = data.row.raw[0];
+            const colIndex = data.column.index;
+            const cellVal = parseMetric(data.cell.raw);
             let isFail = false;
-            
-            const rVal = parseMetric(displayData[
-              metricName === "Teslim Performansı" ? "teslimPerformansi" : 
-              metricName === "Adres Alım Oranı" ? "adresAlimOrani" :
-              metricName === "Müşteri Şikayet" ? "musteriSikayet" :
-              metricName === "Rota Oranı" ? "rotaOrani" : 
-              metricName === "TVS Oranı" ? "tvsOrani" : 
-              metricName === "Check-in Oranı" ? "checkInOrani" : 
-              metricName === "SMS Oranı" ? "smsOrani" : 
-              metricName === "E-ATF Oranı" ? "eAtfOrani" : 
-              metricName === "HTF Oranı" ? "htfOrani" : 
-              metricName === "Kontrol Sende" ? "kontrolSende" : 
-              metricName === "Ölçüm Tartım" ? "olcumTartim" : ""
-            ]);
-            
-            if (metricName === "Teslim Performansı" && rVal !== null && rVal < TARGETS.teslimPerformansi) isFail = true;
-            if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < TARGETS.adresAlimOrani) isFail = true;
-            if (metricName === "Müşteri Şikayet" && rVal !== null && rVal > TARGETS.musteriSikayet) isFail = true;
-            if (metricName === "Rota Oranı" && rVal !== null && rVal < TARGETS.rotaOrani) isFail = true;
-            if (metricName === "TVS Oranı" && rVal !== null && rVal < TARGETS.tvsOrani) isFail = true;
-            if (metricName === "Check-in Oranı" && rVal !== null && rVal < TARGETS.checkInOrani) isFail = true;
-            if (metricName === "SMS Oranı" && rVal !== null && rVal < TARGETS.smsOrani) isFail = true;
-            if (metricName === "E-ATF Oranı" && rVal !== null && rVal < TARGETS.eAtfOrani) isFail = true;
-            if (metricName === "HTF Oranı" && rVal !== null && rVal < TARGETS.htfOrani) isFail = true;
-            if (metricName === "Kontrol Sende" && rVal !== null && rVal < TARGETS.kontrolSende) isFail = true;
-            if (metricName === "Ölçüm Tartım" && rVal !== null && rVal > TARGETS.olcumTartim) isFail = true;
 
-            if (isFail) { 
-              data.cell.styles.fillColor = [254, 226, 226]; 
-              data.cell.styles.textColor = [185, 28, 28]; 
+            if (colIndex === 1 && cellVal !== null && cellVal < TARGETS.rotaOrani) isFail = true;
+            if (colIndex === 2 && cellVal !== null && cellVal < TARGETS.tvsOrani) isFail = true;
+            if (colIndex === 3 && cellVal !== null && cellVal < TARGETS.checkInOrani) isFail = true;
+            if (colIndex === 4 && cellVal !== null && cellVal < TARGETS.smsOrani) isFail = true;
+
+            if (isFail) {
+              data.cell.styles.textColor = [185, 28, 28];
               data.cell.styles.fontStyle = 'bold';
             }
           }
         }
       });
+    }
 
-      let finalY = doc.lastAutoTable.finalY + 10;
-      
-      if (type === 'defense') {
-        doc.setFontSize(10);
-        doc.setTextColor(40);
-        const defenseText = "Sayın Birim Yöneticisi,\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda biriminizin şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartlar üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.";
-        const splitText = doc.splitTextToSize(defenseText, 180);
-        doc.text(splitText, 14, finalY);
-        finalY += splitText.length * 5 + 10;
+    return doc;
+  };
 
-        doc.setFontSize(11);
-        doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
-        doc.setDrawColor(200);
-        for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
+  const generatePDF = async (type) => {
+    if (!displayData) return;
+    setIsGeneratingPdf(true); 
 
-        finalY += 75;
-        doc.setFontSize(10);
-        doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
-        doc.text("İmza:", 140, finalY);
-      }
-
-      // 2. SAYFA: PERSONEL DETAYLARI (Sadece Karne İçin ve Personel Varsa)
-      if (type === 'report' && displayData.personnel && displayData.personnel.length > 0) {
-        doc.addPage();
-        doc.setFontSize(16);
-        doc.setTextColor(40);
-        doc.text("PERSONEL PERFORMANS DETAYLARI", 14, 22);
-        
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text(`Birim: ${selectedUnit} | Dönem: ${donemText}`, 14, 30);
-
-        const personnelRows = displayData.personnel
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map(p => [
-            p.name,
-            `%${p.rotaOrani || "-"}`,
-            `%${p.tvsOrani || "-"}`,
-            `%${p.checkInOrani || "-"}`,
-            `%${p.smsOrani || "-"}`
-          ]);
-
-        doc.autoTable({
-          startY: 35,
-          head: [['Personel Ad Soyad', 'Rota %', 'TVS %', 'Check-in %', 'SMS %']],
-          body: personnelRows,
-          theme: 'striped',
-          styles: { font: 'Roboto', fontSize: 9 },
-          headStyles: { fillColor: [100, 116, 139], halign: 'center' },
-          columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
-          didParseCell: function(data) {
-            if (data.section === 'body') {
-              const colIndex = data.column.index;
-              const cellVal = parseMetric(data.cell.raw);
-              let isFail = false;
-
-              if (colIndex === 1 && cellVal !== null && cellVal < TARGETS.rotaOrani) isFail = true;
-              if (colIndex === 2 && cellVal !== null && cellVal < TARGETS.tvsOrani) isFail = true;
-              if (colIndex === 3 && cellVal !== null && cellVal < TARGETS.checkInOrani) isFail = true;
-              if (colIndex === 4 && cellVal !== null && cellVal < TARGETS.smsOrani) isFail = true;
-
-              if (isFail) {
-                data.cell.styles.textColor = [185, 28, 28];
-                data.cell.styles.fontStyle = 'bold';
-              }
-            }
-          }
-        });
-      }
-
-      doc.save(type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Birim_Karnesi.pdf`);
-
+    try {
+      const doc = await createPdfDoc(type, selectedUnit, displayData, displayRegionData, selectedYear, selectedMonth, showYearAvg, null);
+      // İstek: Sadece birim adı ile indir
+      const fileName = type === 'defense' ? `${selectedUnit}_Savunma.pdf` : `${selectedUnit}.pdf`;
+      doc.save(fileName);
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
       setIsGeneratingPdf(false); 
       setShowPdfModal(false); 
+    }
+  };
+
+  // YENİ: Toplu ZIP İndirme Fonksiyonu
+  const generateBulkZIP = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const JSZipLib = await loadZipLibraries();
+      const zip = new JSZipLib();
+
+      let base64Font = null;
+      try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+        const blob = await response.blob();
+        base64Font = await getBase64(blob);
+      } catch(e) { console.warn("Font indirilemedi."); }
+
+      const targetRegionData = showYearAvg
+        ? calculateYearlyAverage("BÖLGE")
+        : allData.find(d => d.unit === "BÖLGE" && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+
+      // BÖLGE dahil tüm birimler için döngü
+      for (const unit of UNITS) {
+        if(unit === "BÖLGE") continue; // Bölge geneli raporunu ayrı tutmak istersen bu satırı kaldırabilirsin
+
+        const unitData = showYearAvg
+          ? calculateYearlyAverage(unit)
+          : allData.find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+        
+        // Sadece teslim performansı olan (verisi girilmiş) birimleri dahil et
+        if (unitData && unitData.teslimPerformansi) {
+          const doc = await createPdfDoc('report', unit, unitData, targetRegionData, selectedYear, selectedMonth, showYearAvg, base64Font);
+          const pdfBlob = doc.output('blob');
+          zip.file(`${unit}.pdf`, pdfBlob); // İstek: Sadece birim adı olacak
+        }
+      }
+
+      // ZIP dosyasını oluştur ve indir
+      const zipContent = await zip.generateAsync({ type: "blob" });
+      const donemStr = showYearAvg ? `${selectedYear}_Yil_Ortalamasi` : `${selectedYear}_${MONTH_NAMES[selectedMonth]}`;
+      window.saveAs(zipContent, `Birim_Karneleri_${donemStr}.zip`);
+
+    } catch (error) {
+      console.error("Toplu ZIP oluşturulurken hata:", error);
+      alert("Toplu indirme sırasında bir hata oluştu.");
+    } finally {
+      setIsGeneratingPdf(false);
+      setShowPdfModal(false);
     }
   };
 
@@ -369,7 +444,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.text("Personel Ad / Soyad:", 14, finalY);
       doc.text("İmza:", 140, finalY);
 
-      doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma_${selectedMonth}_${selectedYear}.pdf`);
+      doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma.pdf`);
 
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
@@ -479,7 +554,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               </div>
             </div>
 
-            {/* 3. ANA METRİKLER (KESİNLİKLE YAN YANA 3'LÜ DÜZEN) */}
+            {/* 3. ANA METRİKLER */}
             <div className="grid grid-cols-3 gap-2 mb-4">
               
               {/* Teslim Performansı */}
@@ -648,7 +723,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       {/* BELGE SEÇİM MODALI */}
       {showPdfModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPdfModal(false)}>
-          <div className="bg-white dark:bg-slate-800 w-full max-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <FileDown className="text-blue-600" size={20} /> Belge Dışa Aktar
@@ -667,6 +742,16 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 <div>
                   <h4 className="font-bold text-blue-800 dark:text-blue-400">Birim Karnesi</h4>
                   <p className="text-[10px] sm:text-xs text-blue-600/80 dark:text-blue-400/80 mt-0.5">Operasyonel faaliyetler ve personel detayları.</p>
+                </div>
+              </button>
+
+              <button onClick={generateBulkZIP} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-4 rounded-xl border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800/50 transition-colors text-left disabled:opacity-50">
+                <div className="w-10 h-10 rounded-full bg-indigo-200 dark:bg-indigo-800/50 flex items-center justify-center text-indigo-700 dark:text-indigo-400 shrink-0">
+                  {isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <Archive size={20} />}
+                </div>
+                <div>
+                  <h4 className="font-bold text-indigo-800 dark:text-indigo-400">Toplu İndir (ZIP)</h4>
+                  <p className="text-[10px] sm:text-xs text-indigo-600/80 dark:text-indigo-400/80 mt-0.5">Tüm birimlerin karnelerini tek bir ZIP olarak indir.</p>
                 </div>
               </button>
 
