@@ -33,17 +33,22 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     olcumTartim: 20
   };
 
+  // 1. MANTIK İÇİN KUSURSUZ OKUYUCU (Boşlukları vs. temizler)
   const parseMetric = (val) => {
     if (val === undefined || val === null || val === "") return null;
-    const cleanStr = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
+    const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
     const num = parseFloat(cleanStr);
     return isNaN(num) ? null : num;
   };
 
-  // ONDALIKLI SAYILARI KORUYAN VE VİRGÜL İLE GÖSTEREN YENİ FORMATLAYICI
+  // 2. GÖRSEL İÇİN KUSURSUZ GÖSTERİCİ (Küsüratı asla kaybetmez, virgülle gösterir)
   const formatDisplayMetric = (val) => {
-    const num = parseMetric(val);
-    return num !== null ? num.toLocaleString('tr-TR', { maximumFractionDigits: 2 }) : "-";
+    if (val === undefined || val === null || val === "") return "-";
+    let str = String(val).replace(/%/g, '').replace(/\s/g, '').trim();
+    if (str.includes('.') && !str.includes(',')) {
+      str = str.replace('.', ',');
+    }
+    return str;
   };
 
   useEffect(() => {
@@ -249,7 +254,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       startY = 50 + (splitIntro.length * 4) + 8;
     }
 
-    // BURASI GÜNCELLENDİ: Ölçüm Tartım, Gelen ve Giden Kargoların Üstüne Alındı
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani)}`, `%${TARGETS.adresAlimOrani}`],
