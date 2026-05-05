@@ -19,7 +19,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
   const availableYears = [2024, 2025, 2026];
   const TARGETS = { 
-    teslimPerformansi: 94,
+    teslimPerformansi: 95,
     adresAlimOrani: 90,
     musteriSikayet: 0,
     rotaOrani: 80, 
@@ -100,6 +100,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     reader.readAsDataURL(blob);
   });
 
+  // ZIP kütüphanelerini dinamik yüklemek için yardımcı fonksiyon (Terminal kullanılmadığı için)
   const loadZipLibraries = () => new Promise((resolve, reject) => {
     if (window.JSZip) return resolve(window.JSZip);
     const script = document.createElement('script');
@@ -115,83 +116,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     document.head.appendChild(script);
   });
 
-  // --- AKILLI ANALİZ METNİ OLUŞTURUCU ---
-  const generateDynamicAnalysis = (data) => {
-    const t = parseMetric(data.teslimPerformansi);
-    const a = parseMetric(data.adresAlimOrani);
-    const ms = parseMetric(data.musteriSikayet);
-    const r = parseMetric(data.rotaOrani);
-    const tvs = parseMetric(data.tvsOrani);
-    const c = parseMetric(data.checkInOrani);
-    const s = parseMetric(data.smsOrani);
-    const eatf = parseMetric(data.eAtfOrani);
-    const htf = parseMetric(data.htfOrani);
-    const ks = parseMetric(data.kontrolSende);
-    const ot = parseMetric(data.olcumTartim);
-
-    let text = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz sistemimiz tarafından analiz edilmiş olup, biriminize ait karne değerlendirmesi aşağıda bilgilerinize sunulmuştur:\n\n";
-
-    if (t !== null) {
-      if (t >= 95) text += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
-      else text += "• Teslim performansınız hedef altı kalmıştır, ilgili ayda hedeflenen oranı yakalamanız gerekmektedir.\n";
-    }
-
-    if (a !== null) {
-      if (a >= 90) text += "• Adres alım oranınız başarılı seviyededir.\n";
-      else if (a >= 80) text += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
-      else text += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
-    }
-
-    if (ms !== null) {
-      if (ms === 0) text += "• İlgili dönemde şubeye ait müşteri şikayeti bulunmamaktadır, çok iyi bir performans sergilenmiştir.\n";
-      else if (ms === 1) text += "• İlgili dönemde 1 adet müşteri şikayetiniz bulunmaktadır, operasyonel süreçlerde dikkatli olunmalıdır.\n";
-      else text += `• İlgili dönemde ${ms} adet müşteri şikayeti tespit edilmiştir. Bu durum ciddi uyarı gerektirmekte olup süreçlerinizi acilen gözden geçirmeniz şarttır.\n`;
-    }
-
-    if (r !== null && tvs !== null && c !== null) {
-      let rDurum = r >= 85 ? "başarılı" : (r >= 80 ? "ortalama" : "başarısız");
-      let tDurum = tvs >= 95 ? "başarılı" : (tvs >= 90 ? "ortalama" : "başarısız");
-      let cDurum = c >= 95 ? "başarılı" : (c >= 90 ? "ortalama" : "başarısız");
-      
-      text += `• Operasyonel altyapının en önemli kriterlerinden olan Rota oranınız ${rDurum} seviyede gerçekleşmiştir. Buna bağlı olarak değerlendirilen TVS oranınız ${tDurum}, Check-in oranınız ise ${cDurum} seviyededir.\n`;
-    }
-
-    if (s !== null) {
-      if (s >= 70) text += "• SMS kullanım oranınız başarılı seviyededir.\n";
-      else if (s >= 65) text += "• SMS kullanım oranınız ortalama seviyededir.\n";
-      else text += "• SMS oranınız başarısızdır, kuryelerin SMS kullanımı konusunda uyarılması gerekmektedir.\n";
-    }
-
-    if (eatf !== null) {
-      if (eatf >= 95) text += "• E-ATF oranınız başarılıdır.\n";
-      else if (eatf >= 90) text += "• E-ATF oranınız ortalamadır.\n";
-      else text += "• E-ATF oranınız başarısızdır.\n";
-    }
-
-    if (htf !== null) {
-      if (htf >= 95) text += "• HTF oranınız başarılıdır.\n";
-      else if (htf >= 90) text += "• HTF oranınız ortalamadır.\n";
-      else text += "• HTF oranınız başarısızdır.\n";
-    }
-
-    if (ks !== null) {
-      if (ks >= 90) text += "• Kontrol Sende uygulamasını kullanım oranınız başarılıdır.\n";
-      else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız ortalamadır.\n";
-      else text += "• Kontrol Sende oranınız başarısızdır.\n";
-    }
-
-    if (ot !== null) {
-      if (ot <= 20) text += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
-      else if (ot <= 40) text += "• Ölçüm/Tartım farkı işlemleriniz ortalama seviyededir, artış eğilimine karşı dikkat edilmelidir.\n";
-      else text += "• Ölçüm/Tartım sayınız kritik seviyededir. Kaçak kontrollerinin ve tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
-    }
-
-    text += "\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm arkadaşlarımıza başarılar dileriz.";
-
-    return text;
-  };
-  // ------------------------------------------
-
+  // PDF Oluşturma Çekirdek Fonksiyonu (Tekil ve Toplu kullanım için)
   const createPdfDoc = async (type, targetUnit, targetData, targetRegionData, year, month, isYearAvg, preloadedFont) => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -226,17 +151,14 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
     let startY = 45;
 
-    // ÖN YAZI (Sadece Karne İçin - Akıllı Analiz Entegrasyonu)
+    // ÖN YAZI (Sadece Karne İçin)
     if (type === 'report') {
-      doc.setFontSize(9); 
+      doc.setFontSize(10);
       doc.setTextColor(60);
-      
-      const introText = generateDynamicAnalysis(targetData);
-      
-      const splitIntro = doc.splitTextToSize(introText, 182);
+      const introText = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıdaki tabloda bilgilerinize sunulmuştur. Yapılan değerlendirme sonucunda, kırmızı ile işaretlenen satırlarda hedeflenen başarı seviyesine ulaşılamadığı tespit edilmiştir.\n\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm arkadaşlarımıza başarılar dileriz.";
+      const splitIntro = doc.splitTextToSize(introText, 180);
       doc.text(splitIntro, 14, 50);
-      
-      startY = 50 + (splitIntro.length * 4) + 8;
+      startY = 50 + (splitIntro.length * 5) + 5;
     }
 
     const tableRows = [
@@ -382,6 +304,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
     try {
       const doc = await createPdfDoc(type, selectedUnit, displayData, displayRegionData, selectedYear, selectedMonth, showYearAvg, null);
+      // İstek: Sadece birim adı ile indir
       const fileName = type === 'defense' ? `${selectedUnit}_Savunma.pdf` : `${selectedUnit}.pdf`;
       doc.save(fileName);
     } catch (error) {
@@ -392,6 +315,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     }
   };
 
+  // YENİ: Toplu ZIP İndirme Fonksiyonu
   const generateBulkZIP = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -409,20 +333,23 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         ? calculateYearlyAverage("BÖLGE")
         : allData.find(d => d.unit === "BÖLGE" && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
 
+      // BÖLGE dahil tüm birimler için döngü
       for (const unit of UNITS) {
-        if(unit === "BÖLGE") continue;
+        if(unit === "BÖLGE") continue; // Bölge geneli raporunu ayrı tutmak istersen bu satırı kaldırabilirsin
 
         const unitData = showYearAvg
           ? calculateYearlyAverage(unit)
           : allData.find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
         
+        // Sadece teslim performansı olan (verisi girilmiş) birimleri dahil et
         if (unitData && unitData.teslimPerformansi) {
           const doc = await createPdfDoc('report', unit, unitData, targetRegionData, selectedYear, selectedMonth, showYearAvg, base64Font);
           const pdfBlob = doc.output('blob');
-          zip.file(`${unit}.pdf`, pdfBlob); 
+          zip.file(`${unit}.pdf`, pdfBlob); // İstek: Sadece birim adı olacak
         }
       }
 
+      // ZIP dosyasını oluştur ve indir
       const zipContent = await zip.generateAsync({ type: "blob" });
       const donemStr = showYearAvg ? `${selectedYear}_Yil_Ortalamasi` : `${selectedYear}_${MONTH_NAMES[selectedMonth]}`;
       window.saveAs(zipContent, `Birim_Karneleri_${donemStr}.zip`);
@@ -814,7 +741,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 </div>
                 <div>
                   <h4 className="font-bold text-blue-800 dark:text-blue-400">Birim Karnesi</h4>
-                  <p className="text-[10px] sm:text-xs text-blue-600/80 dark:text-blue-400/80 mt-0.5">Yapay zeka analizli performans raporu.</p>
+                  <p className="text-[10px] sm:text-xs text-blue-600/80 dark:text-blue-400/80 mt-0.5">Operasyonel faaliyetler ve personel detayları.</p>
                 </div>
               </button>
 
