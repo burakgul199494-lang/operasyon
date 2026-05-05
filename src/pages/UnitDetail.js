@@ -18,7 +18,19 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
 
   const availableYears = [2024, 2025, 2026];
-  const TARGETS = { rotaOrani: 80, tvsOrani: 90, checkInOrani: 90, smsOrani: 50 };
+  const TARGETS = { 
+    teslimPerformansi: 95,
+    adresAlimOrani: 90,
+    musteriSikayet: 0,
+    rotaOrani: 80, 
+    tvsOrani: 90, 
+    checkInOrani: 90, 
+    smsOrani: 50,
+    eAtfOrani: 80,
+    htfOrani: 90,
+    kontrolSende: 90,
+    olcumTartim: 0
+  };
 
   const parseMetric = (val) => {
     if (val === undefined || val === null || val === "") return null;
@@ -111,7 +123,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       
       doc.setFontSize(18);
       doc.setTextColor(40);
-      const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON PERFORMANS RAPORU";
+      const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON BİRİM KARNESİ";
       doc.text(title, 14, 22);
       
       doc.setFontSize(10);
@@ -119,6 +131,18 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.text(`Birim: ${selectedUnit}`, 14, 30);
       doc.text(`Dönem: ${donemText}`, 14, 35);
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
+
+      let startY = 45;
+
+      // ÖN YAZI EKLEME (Sadece Karne İçin)
+      if (type === 'report') {
+        doc.setFontSize(10);
+        doc.setTextColor(60);
+        const introText = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıdaki tabloda bilgilerinize sunulmuştur. Yapılan değerlendirme sonucunda, kırmızı ile işaretlenen satırlarda hedeflenen başarı seviyesine ulaşılamadığı tespit edilmiştir.\n\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm arkadaşlarımıza başarılar dileriz.";
+        const splitIntro = doc.splitTextToSize(introText, 180);
+        doc.text(splitIntro, 14, 50);
+        startY = 50 + (splitIntro.length * 5) + 5;
+      }
 
       const tableRows = [
         ["Teslim Performansı", `%${displayData.teslimPerformansi || "-"}`, `%${displayRegionData?.teslimPerformansi || "-"}`, "%95"],
@@ -137,15 +161,15 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       ];
 
       doc.autoTable({
-        startY: 45,
+        startY: startY,
         head: [['KPI Metriği', 'Birim Değeri', 'Bölge Ort.', 'Hedef']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 9 }, 
-        headStyles: { font: 'Roboto', fillColor: type === 'defense' ? [220, 38, 38] : [5, 150, 105], halign: 'center' },
+        headStyles: { font: 'Roboto', fillColor: type === 'defense' ? [220, 38, 38] : [59, 130, 246], halign: 'center' },
         columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
         didParseCell: function(data) {
-          if (type === 'defense' && data.section === 'body') {
+          if (data.section === 'body') {
             const metricName = data.row.raw[0];
             let isFail = false;
             
@@ -163,19 +187,23 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               metricName === "Ölçüm Tartım" ? "olcumTartim" : ""
             ]);
             
-            if (metricName === "Teslim Performansı" && rVal !== null && rVal < 95) isFail = true;
-            if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < 90) isFail = true;
-            if (metricName === "Müşteri Şikayet" && rVal !== null && rVal > 0) isFail = true;
-            if (metricName === "Rota Oranı" && rVal !== null && rVal < 80) isFail = true;
-            if (metricName === "TVS Oranı" && rVal !== null && rVal < 90) isFail = true;
-            if (metricName === "Check-in Oranı" && rVal !== null && rVal < 90) isFail = true;
-            if (metricName === "SMS Oranı" && rVal !== null && rVal < 50) isFail = true;
-            if (metricName === "E-ATF Oranı" && rVal !== null && rVal < 80) isFail = true;
-            if (metricName === "HTF Oranı" && rVal !== null && rVal < 90) isFail = true;
-            if (metricName === "Kontrol Sende" && rVal !== null && rVal < 90) isFail = true;
-            if (metricName === "Ölçüm Tartım" && rVal !== null && rVal > 0) isFail = true;
+            if (metricName === "Teslim Performansı" && rVal !== null && rVal < TARGETS.teslimPerformansi) isFail = true;
+            if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < TARGETS.adresAlimOrani) isFail = true;
+            if (metricName === "Müşteri Şikayet" && rVal !== null && rVal > TARGETS.musteriSikayet) isFail = true;
+            if (metricName === "Rota Oranı" && rVal !== null && rVal < TARGETS.rotaOrani) isFail = true;
+            if (metricName === "TVS Oranı" && rVal !== null && rVal < TARGETS.tvsOrani) isFail = true;
+            if (metricName === "Check-in Oranı" && rVal !== null && rVal < TARGETS.checkInOrani) isFail = true;
+            if (metricName === "SMS Oranı" && rVal !== null && rVal < TARGETS.smsOrani) isFail = true;
+            if (metricName === "E-ATF Oranı" && rVal !== null && rVal < TARGETS.eAtfOrani) isFail = true;
+            if (metricName === "HTF Oranı" && rVal !== null && rVal < TARGETS.htfOrani) isFail = true;
+            if (metricName === "Kontrol Sende" && rVal !== null && rVal < TARGETS.kontrolSende) isFail = true;
+            if (metricName === "Ölçüm Tartım" && rVal !== null && rVal > TARGETS.olcumTartim) isFail = true;
 
-            if (isFail) { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [185, 28, 28]; }
+            if (isFail) { 
+              data.cell.styles.fillColor = [254, 226, 226]; 
+              data.cell.styles.textColor = [185, 28, 28]; 
+              data.cell.styles.fontStyle = 'bold';
+            }
           }
         }
       });
@@ -201,7 +229,56 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         doc.text("İmza:", 140, finalY);
       }
 
-      doc.save(type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Performans_Raporu.pdf`);
+      // 2. SAYFA: PERSONEL DETAYLARI (Sadece Karne İçin ve Personel Varsa)
+      if (type === 'report' && displayData.personnel && displayData.personnel.length > 0) {
+        doc.addPage();
+        doc.setFontSize(16);
+        doc.setTextColor(40);
+        doc.text("PERSONEL PERFORMANS DETAYLARI", 14, 22);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Birim: ${selectedUnit} | Dönem: ${donemText}`, 14, 30);
+
+        const personnelRows = displayData.personnel
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map(p => [
+            p.name,
+            `%${p.rotaOrani || "-"}`,
+            `%${p.tvsOrani || "-"}`,
+            `%${p.checkInOrani || "-"}`,
+            `%${p.smsOrani || "-"}`
+          ]);
+
+        doc.autoTable({
+          startY: 35,
+          head: [['Personel Ad Soyad', 'Rota %', 'TVS %', 'Check-in %', 'SMS %']],
+          body: personnelRows,
+          theme: 'striped',
+          styles: { font: 'Roboto', fontSize: 9 },
+          headStyles: { fillColor: [100, 116, 139], halign: 'center' },
+          columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+          didParseCell: function(data) {
+            if (data.section === 'body') {
+              const colIndex = data.column.index;
+              const cellVal = parseMetric(data.cell.raw);
+              let isFail = false;
+
+              if (colIndex === 1 && cellVal !== null && cellVal < TARGETS.rotaOrani) isFail = true;
+              if (colIndex === 2 && cellVal !== null && cellVal < TARGETS.tvsOrani) isFail = true;
+              if (colIndex === 3 && cellVal !== null && cellVal < TARGETS.checkInOrani) isFail = true;
+              if (colIndex === 4 && cellVal !== null && cellVal < TARGETS.smsOrani) isFail = true;
+
+              if (isFail) {
+                data.cell.styles.textColor = [185, 28, 28];
+                data.cell.styles.fontStyle = 'bold';
+              }
+            }
+          }
+        });
+      }
+
+      doc.save(type === 'defense' ? `${selectedUnit}_Savunma_Formu.pdf` : `${selectedUnit}_Birim_Karnesi.pdf`);
 
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
@@ -524,26 +601,26 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                       const s = parseMetric(person.smsOrani);
 
                       const isAnyFail = 
-                        (r !== null && r < TARGETS.rotaOrani) ||
-                        (t !== null && t < TARGETS.tvsOrani) ||
-                        (c !== null && c < TARGETS.checkInOrani) ||
-                        (s !== null && s < TARGETS.smsOrani);
+                        (r !== null && r < 80) ||
+                        (t !== null && t < 90) ||
+                        (c !== null && c < 90) ||
+                        (s !== null && s < 50);
 
                       return (
                         <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
                           <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                             {person.name}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${r !== null && r < 80 ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
                             {r !== null ? `%${r}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${t !== null && t < 90 ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
                             {t !== null ? `%${t}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${c !== null && c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${c !== null && c < 90 ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
                             {c !== null ? `%${c}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${s !== null && s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${s !== null && s < 50 ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
                             {s !== null ? `%${s}` : "-"}
                           </td>
                           <td className="p-1 sm:p-3 text-center">
@@ -571,7 +648,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       {/* BELGE SEÇİM MODALI */}
       {showPdfModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPdfModal(false)}>
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 w-full max-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <FileDown className="text-blue-600" size={20} /> Belge Dışa Aktar
@@ -583,13 +660,13 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               )}
             </div>
             <div className="p-5 space-y-3">
-              <button onClick={() => generatePDF('report')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-4 rounded-xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/50 transition-colors text-left disabled:opacity-50">
-                <div className="w-10 h-10 rounded-full bg-emerald-200 dark:bg-emerald-800/50 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0">
+              <button onClick={() => generatePDF('report')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-4 rounded-xl border border-blue-100 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800/50 transition-colors text-left disabled:opacity-50">
+                <div className="w-10 h-10 rounded-full bg-blue-200 dark:bg-blue-800/50 flex items-center justify-center text-blue-700 dark:text-blue-400 shrink-0">
                   {isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <FileText size={20} />}
                 </div>
                 <div>
-                  <h4 className="font-bold text-emerald-800 dark:text-emerald-400">Performans Raporu</h4>
-                  <p className="text-[10px] sm:text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">Standart aylık performans tablosu.</p>
+                  <h4 className="font-bold text-blue-800 dark:text-blue-400">Birim Karnesi</h4>
+                  <p className="text-[10px] sm:text-xs text-blue-600/80 dark:text-blue-400/80 mt-0.5">Operasyonel faaliyetler ve personel detayları.</p>
                 </div>
               </button>
 
