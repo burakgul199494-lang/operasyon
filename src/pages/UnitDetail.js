@@ -249,6 +249,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       startY = 50 + (splitIntro.length * 4) + 8;
     }
 
+    // BURASI GÜNCELLENDİ: Ölçüm Tartım, Gelen ve Giden Kargoların Üstüne Alındı
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani)}`, `%${TARGETS.adresAlimOrani}`],
@@ -260,9 +261,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       ["E-ATF Oranı", `%${formatDisplayMetric(targetData.eAtfOrani)}`, `%${TARGETS.eAtfOrani}`],
       ["HTF Oranı", `%${formatDisplayMetric(targetData.htfOrani)}`, `%${TARGETS.htfOrani}`],
       ["Kontrol Sende", `%${formatDisplayMetric(targetData.kontrolSende)}`, `%${TARGETS.kontrolSende}`],
+      ["Ölçüm Tartım", formatNumber(targetData.olcumTartim), `${TARGETS.olcumTartim}`],
       ["Gelen Kargo (Belge)", formatNumber(targetData.gelenKargo), "-"],
       ["Giden Kargo (Belge)", formatNumber(targetData.gidenKargo), "-"],
-      ["Ölçüm Tartım", formatNumber(targetData.olcumTartim), `${TARGETS.olcumTartim}`],
     ];
 
     doc.autoTable({
