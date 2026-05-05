@@ -136,7 +136,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
     if (t !== null) {
       if (t >= TARGETS.teslimPerformansi) text += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
-      else text += "• Teslim performansınız ilgili ay içerisinde hedef altı kalmıştır, bundan sonraki süreçte hedeflenen oranı yakalamanız kritik önem arz etmektedir.\n";
+      else text += "• Teslim performansınız ilgili ay içerisinde hedef altı kalmıştır, dağıtım planlamalarınızda mutlaka günlük kargolara öncelik verilmelidir.\n";
     }
 
     if (a !== null) {
@@ -252,7 +252,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani)}`, `%${TARGETS.adresAlimOrani}`],
-      ["Müşteri Şikayet", formatNumber(targetData.musteriSikayet), `${TARGETS.musteriSikayet}`],
+      ["Operasyonel Kaynaklı Müşteri Şikayet", formatNumber(targetData.musteriSikayet), `${TARGETS.musteriSikayet}`],
       ["Rota Oranı", `%${formatDisplayMetric(targetData.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
       ["TVS Oranı", `%${formatDisplayMetric(targetData.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
       ["Check-in Oranı", `%${formatDisplayMetric(targetData.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
@@ -281,7 +281,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
           const rVal = parseMetric(targetData[
             metricName === "Teslim Performansı" ? "teslimPerformansi" : 
             metricName === "Adres Alım Oranı" ? "adresAlimOrani" :
-            metricName === "Müşteri Şikayet" ? "musteriSikayet" :
+            metricName === "Operasyonel Kaynaklı Müşteri Şikayet" ? "musteriSikayet" :
             metricName === "Rota Oranı" ? "rotaOrani" : 
             metricName === "TVS Oranı" ? "tvsOrani" : 
             metricName === "Check-in Oranı" ? "checkInOrani" : 
@@ -294,7 +294,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
           
           if (metricName === "Teslim Performansı" && rVal !== null && rVal < TARGETS.teslimPerformansi) isFail = true;
           if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < TARGETS.adresAlimOrani) isFail = true;
-          if (metricName === "Müşteri Şikayet" && rVal !== null && rVal > TARGETS.musteriSikayet) isFail = true;
+          if (metricName === "Operasyonel Kaynaklı Müşteri Şikayet" && rVal !== null && rVal > TARGETS.musteriSikayet) isFail = true;
           if (metricName === "Rota Oranı" && rVal !== null && rVal < TARGETS.rotaOrani) isFail = true;
           if (metricName === "TVS Oranı" && rVal !== null && rVal < TARGETS.tvsOrani) isFail = true;
           if (metricName === "Check-in Oranı" && rVal !== null && rVal < TARGETS.checkInOrani) isFail = true;
