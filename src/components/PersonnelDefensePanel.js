@@ -9,7 +9,9 @@ const PersonnelDefensePanel = ({ allData }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const availableYears = [2024, 2025, 2026];
-  const TARGETS = { rotaOrani: 80, tvsOrani: 90, checkInOrani: 90, smsOrani: 50 };
+  
+  // BURASI GÜNCELLENDİ
+  const TARGETS = { rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70 };
 
   const parseMetric = (val) => {
     if (val === undefined || val === null || val === "") return null;
