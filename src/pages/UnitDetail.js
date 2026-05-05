@@ -403,7 +403,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     }
   };
 
-  // --- YENİ TEBRİK BELGESİ OLUŞTURUCU ---
   const generateTebrikPDF = async (person) => {
     setIsGeneratingPdf(true);
     try {
@@ -420,7 +419,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       } catch (e) { console.warn("Font indirilemedi."); }
 
       doc.setFontSize(18);
-      doc.setTextColor(22, 163, 74); // Yeşil Renk
+      doc.setTextColor(22, 163, 74); 
       doc.text("PERSONEL PERFORMANS TEBRİK BELGESİ", 14, 22);
       
       doc.setFontSize(10);
@@ -454,12 +453,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       const splitText = doc.splitTextToSize(tebrikText, 180);
       doc.text(splitText, 14, finalY);
       
-      finalY += splitText.length * 5 + 20;
-      doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
-      doc.text("İmza:", 140, finalY);
+      // Tebrik belgesinden yönetici imza ad soyad bölümü kaldırıldı.
 
       doc.save(`${person.name.replace(/\s+/g, '_')}_Tebrik.pdf`);
-
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
@@ -801,20 +797,13 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                       const c = parseMetric(person.checkInOrani);
                       const s = parseMetric(person.smsOrani);
 
-                      const isTebrik = (r !== null && r >= TARGETS.rotaOrani) && 
-                                       (t !== null && t >= TARGETS.tvsOrani) && 
-                                       (c !== null && c >= TARGETS.checkInOrani) && 
-                                       (s !== null && s >= TARGETS.smsOrani);
+                      const isAnyFail = 
+                        (r !== null && r < TARGETS.rotaOrani) ||
+                        (t !== null && t < TARGETS.tvsOrani) ||
+                        (c !== null && c < TARGETS.checkInOrani) ||
+                        (s !== null && s < TARGETS.smsOrani);
 
-                      const isAllFail = (r !== null && r < TARGETS.rotaOrani) && 
-                                        (t !== null && t < TARGETS.tvsOrani) && 
-                                        (c !== null && c < TARGETS.checkInOrani) && 
-                                        (s !== null && s < TARGETS.smsOrani);
-
-                      const isRotaTvsFail = (r !== null && r < TARGETS.rotaOrani) && 
-                                            (t !== null && t < TARGETS.tvsOrani);
-
-                      const isDefense = isAllFail || isRotaTvsFail;
+                      const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
 
                       return (
                         <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
@@ -843,7 +832,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                                 {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3 sm:h-3" /> : <Award size={10} className="sm:w-3 sm:h-3" />}
                                 <span className="hidden sm:inline">Tebrik</span>
                               </button>
-                            ) : isDefense ? (
+                            ) : isAnyFail ? (
                               <button 
                                 onClick={() => generatePersonnelPDF(person)}
                                 disabled={isGeneratingPdf}
