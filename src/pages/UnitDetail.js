@@ -132,15 +132,15 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const ks = parseMetric(data.kontrolSende);
     const ot = parseMetric(data.olcumTartim);
 
-    let text = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz sistemimiz tarafından analiz edilmiş olup, biriminize ait karne değerlendirmesi aşağıda bilgilerinize sunulmuştur:\n\n";
+    let text = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıda tarafınıza sunulmuştur:\n\n";
 
     if (t !== null) {
       if (t >= TARGETS.teslimPerformansi) text += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
-      else text += "• Teslim performansınız hedef altı kalmıştır, ilgili ayda hedeflenen oranı yakalamanız gerekmektedir.\n";
+      else text += "• Teslim performansınız ilgili ay içerisinde hedef altı kalmıştır, bundan sonraki süreçte hedeflenen oranı yakalamanız kritik önem arz etmektedir.\n";
     }
 
     if (a !== null) {
-      if (a >= TARGETS.adresAlimOrani) text += "• Adres alım oranınız başarılı seviyededir.\n";
+      if (a >= TARGETS.adresAlimOrani) text += "• Adres alım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (a >= 80) text += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
       else text += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
     }
@@ -152,54 +152,54 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     }
 
     if (r !== null) {
-      if (r >= TARGETS.rotaOrani) text += "• Operasyonel altyapının en önemli kriterlerinden olan Rota oranınız başarılı seviyededir.\n";
-      else if (r >= 80) text += "• Rota oranınız ortalama seviyededir, planlama süreçlerinde iyileştirmeler gerekmektedir.\n";
+      if (r >= TARGETS.rotaOrani) text += "• Rota oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (r >= 80) text += "• Rota oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
       else text += "• Rota oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
     }
 
     if (tvs !== null) {
-      if (tvs >= TARGETS.tvsOrani) text += "• TVS (Teslimat Verimlilik Sistemi) oranınız başarılı seviyededir.\n";
-      else if (tvs >= 90) text += "• TVS oranınız ortalama seviyededir.\n";
-      else text += "• TVS oranınız hedeflerin çok altındadır, kurye işlemlerinin anlık takibi sağlanmalıdır.\n";
+      if (tvs >= TARGETS.tvsOrani) text += "• TVS oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (tvs >= 90) text += "• TVS oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• TVS oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
     }
 
     if (c !== null) {
-      if (c >= TARGETS.checkInOrani) text += "• Check-in (Şube İçi İşlem) oranınız başarılı seviyededir.\n";
-      else if (c >= 85) text += "• Check-in oranınız ortalama seviyededir.\n";
-      else text += "• Check-in oranınız başarısızdır, şube içi operasyonel takibin artırılması gerekmektedir.\n";
+      if (c >= TARGETS.checkInOrani) text += "• Check-in oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (c >= 85) text += "• Check-in oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• Check-in oranınız başarısızdır, kurye arkadaşlarımızın mutlaka her teslimat sonrası check-in yapması zorunludur.\n";
     }
 
     if (s !== null) {
-      if (s >= TARGETS.smsOrani) text += "• SMS kullanım oranınız başarılı seviyededir.\n";
-      else if (s >= 65) text += "• SMS kullanım oranınız ortalama seviyededir.\n";
-      else text += "• SMS oranınız başarısızdır, kuryelerin SMS kullanımı konusunda uyarılması gerekmektedir.\n";
+      if (s >= TARGETS.smsOrani) text += "• SMS ile teslimat oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (s >= 65) text += "• SMS ile teslimat oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• SMS ile teslimat oranınız başarısızdır, kurye arkadaşlarımızın kargo tesliminde mutlaka sms ile teslimat yöntemine yönlendirilmesi gerekmektedir.\n";
     }
 
     if (eatf !== null) {
-      if (eatf >= TARGETS.eAtfOrani) text += "• E-ATF oranınız başarılıdır.\n";
-      else if (eatf >= 90) text += "• E-ATF oranınız ortalamadır.\n";
-      else text += "• E-ATF oranınız başarısızdır.\n";
+      if (eatf >= TARGETS.eAtfOrani) text += "• E-atf oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (eatf >= 90) text += "• E-ATF oranınız hedeflenen orana yakındır, kurye arkadaşlarımızın mutlaka E-atf düzenlemesi, ve operatör arkadaşlarımızın mutlaka eşleme yapması gerekmektedir.\n";
+      else text += "• E-ATF oranınız başarısızdır, bu alanda mutlaka tüm kurye ve operatör arkadaşlarımıza eğitim planlaması yapılmalıdır.\n";
     }
 
     if (htf !== null) {
-      if (htf >= TARGETS.htfOrani) text += "• HTF oranınız başarılıdır.\n";
-      else if (htf >= 85) text += "• HTF oranınız ortalamadır.\n";
-      else text += "• HTF oranınız başarısızdır.\n";
+      if (htf >= TARGETS.htfOrani) text += "• HTF oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (htf >= 85) text += "• HTF oranınız hedeflenen oranlara yakın gerçekleşmiştir, mutlaka operatör arkadaşlarımızın aktarma merkezlerinde tutulan HTF'lere karşılık HTF tutması gerekmektedir.\n";
+      else text += "• HTF oranınız başarısızdır, bu konuda ciddi bir sıkıntı mevcuttur, mutlaka kargo indirmelerinde HTF düzenlenmelidir.\n";
     }
 
     if (ks !== null) {
-      if (ks >= TARGETS.kontrolSende) text += "• Kontrol Sende uygulamasını kullanım oranınız başarılıdır.\n";
-      else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız ortalamadır.\n";
-      else text += "• Kontrol Sende oranınız başarısızdır.\n";
+      if (ks >= TARGETS.kontrolSende) text += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız hedefe yakındır, konuyla ilgili alınacak küçük aksiyonlar hedefi gerçekleştirmemizi sağlayacaktır.\n";
+      else text += "• Kontrol Sende oranınız hedefin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
     }
 
     if (ot !== null) {
       if (ot <= TARGETS.olcumTartim) text += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
       else if (ot <= 40) text += "• Ölçüm/Tartım farkı işlemleriniz ortalama seviyededir, artış eğilimine karşı dikkat edilmelidir.\n";
-      else text += "• Ölçüm/Tartım sayınız kritik seviyededir. Kaçak kontrollerinin ve tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
+      else text += "• Ölçüm/Tartım sayınız kritik seviyededir. Ölçüm tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
     }
 
-    text += "\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm arkadaşlarımıza başarılar dileriz.";
+    text += "\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm çalışma arkadaşlarımıza başarılar dileriz.";
 
     return text;
   };
