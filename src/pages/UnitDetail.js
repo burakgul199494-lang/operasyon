@@ -19,7 +19,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
   const availableYears = [2024, 2025, 2026];
   const TARGETS = { 
-    teslimPerformansi: 94,
+    teslimPerformansi: 95,
     adresAlimOrani: 90,
     musteriSikayet: 0,
     rotaOrani: 80, 
