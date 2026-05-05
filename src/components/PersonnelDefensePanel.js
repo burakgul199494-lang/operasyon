@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { FileDown, Search, Loader2, AlertCircle } from "lucide-react";
+import { FileDown, Search, Loader2, AlertCircle, Award } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const PersonnelDefensePanel = ({ allData }) => {
@@ -10,10 +10,8 @@ const PersonnelDefensePanel = ({ allData }) => {
 
   const availableYears = [2024, 2025, 2026];
   
-  // GÜNCEL KESİN HEDEFLER
   const TARGETS = { rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70 };
 
-  // 1. MANTIK İÇİN
   const parseMetric = (val) => {
     if (val === undefined || val === null || val === "") return null;
     const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
@@ -21,7 +19,6 @@ const PersonnelDefensePanel = ({ allData }) => {
     return isNaN(num) ? null : num;
   };
 
-  // 2. GÖRSEL İÇİN (Ondalık ve virgülleri korur)
   const formatDisplayMetric = (val) => {
     if (val === undefined || val === null || val === "") return "-";
     let str = String(val).replace(/%/g, '').replace(/\s/g, '').trim();
@@ -31,7 +28,8 @@ const PersonnelDefensePanel = ({ allData }) => {
     return str;
   };
 
-  const failedPersonnel = useMemo(() => {
+  // Tüm personeli yeni kurallarla filtrele
+  const filteredPersonnel = useMemo(() => {
     let list = [];
     if (!allData) return list;
 
@@ -46,15 +44,22 @@ const PersonnelDefensePanel = ({ allData }) => {
           const c = parseMetric(person.checkInOrani);
           const s = parseMetric(person.smsOrani);
 
-          const isFail = 
-            (r !== null && r < TARGETS.rotaOrani) ||
-            (t !== null && t < TARGETS.tvsOrani) ||
-            (c !== null && c < TARGETS.checkInOrani) ||
-            (s !== null && s < TARGETS.smsOrani);
+          const isTebrik = (r !== null && r >= TARGETS.rotaOrani) && 
+                           (t !== null && t >= TARGETS.tvsOrani) && 
+                           (c !== null && c >= TARGETS.checkInOrani) && 
+                           (s !== null && s >= TARGETS.smsOrani);
 
-          if (isFail) {
-            list.push({ ...person, unit: record.unit, month: record.month, year: record.year, unitRecord: record, parsedData: { r, t, c, s } });
-          }
+          const isAllFail = (r !== null && r < TARGETS.rotaOrani) && 
+                            (t !== null && t < TARGETS.tvsOrani) && 
+                            (c !== null && c < TARGETS.checkInOrani) && 
+                            (s !== null && s < TARGETS.smsOrani);
+
+          const isRotaTvsFail = (r !== null && r < TARGETS.rotaOrani) && 
+                                (t !== null && t < TARGETS.tvsOrani);
+
+          const isDefense = isAllFail || isRotaTvsFail;
+
+          list.push({ ...person, unit: record.unit, month: record.month, year: record.year, unitRecord: record, parsedData: { r, t, c, s }, isTebrik, isDefense });
         });
       }
     });
@@ -82,14 +87,7 @@ const PersonnelDefensePanel = ({ allData }) => {
         doc.addFileToVFS("Roboto.ttf", base64Font);
         doc.addFont("Roboto.ttf", "Roboto", "normal");
         doc.setFont("Roboto");
-      } catch (e) {
-        console.warn("Font indirilemedi.");
-      }
-
-      const r = parseMetric(person.rotaOrani);
-      const t = parseMetric(person.tvsOrani);
-      const c = parseMetric(person.checkInOrani);
-      const s = parseMetric(person.smsOrani);
+      } catch (e) { console.warn("Font indirilemedi."); }
 
       doc.setFontSize(18);
       doc.setTextColor(220, 38, 38);
@@ -160,14 +158,78 @@ const PersonnelDefensePanel = ({ allData }) => {
     }
   };
 
+  const generateTebrikPDF = async (person) => {
+    setIsGeneratingPdf(true);
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+        const blob = await response.blob();
+        const base64Font = await getBase64(blob);
+        doc.addFileToVFS("Roboto.ttf", base64Font);
+        doc.addFont("Roboto.ttf", "Roboto", "normal");
+        doc.setFont("Roboto");
+      } catch (e) { console.warn("Font indirilemedi."); }
+
+      doc.setFontSize(18);
+      doc.setTextColor(22, 163, 74); 
+      doc.text("PERSONEL PERFORMANS TEBRİK BELGESİ", 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Personel: ${person.name}`, 14, 30);
+      doc.text(`Birim: ${person.unit}`, 14, 35);
+      doc.text(`Dönem: ${person.year} - ${MONTH_NAMES[person.month]}`, 14, 40);
+      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
+
+      const tableRows = [
+        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
+      ];
+
+      doc.autoTable({
+        startY: 50,
+        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
+        body: tableRows,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 10 },
+        headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }
+      });
+
+      let finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setTextColor(40);
+      const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
+      const splitText = doc.splitTextToSize(tebrikText, 180);
+      doc.text(splitText, 14, finalY);
+      
+      finalY += splitText.length * 5 + 20;
+      doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
+      doc.text("İmza:", 140, finalY);
+
+      doc.save(`${person.name.replace(/\s+/g, '_')}_Tebrik_${person.month}_${person.year}.pdf`);
+    } catch (error) {
+      console.error("PDF oluşturulurken hata:", error);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mt-4 sm:mt-6">
       <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <AlertCircle className="text-rose-500" size={18} /> Personel Savunma Yönetimi
+            <Award className="text-emerald-500" size={20} />
+            <AlertCircle className="text-rose-500" size={18} />
+            Personel Savunma ve Tebrik Yönetimi
           </h2>
-          <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Hedef altı kalan personelleri listeleyin ve belge oluşturun.</p>
+          <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Tüm personelinizi listeleyin; hedefleri tutturanları tebrik edin, hedeften sapanlar için savunma oluşturun.</p>
         </div>
         
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
@@ -193,12 +255,12 @@ const PersonnelDefensePanel = ({ allData }) => {
               <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
               <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Check-in</th>
               <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">SMS</th>
-              <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">İşlem</th>
+              <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Durum / İşlem</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-            {failedPersonnel.length > 0 ? (
-              failedPersonnel.map((person, idx) => (
+            {filteredPersonnel.length > 0 ? (
+              filteredPersonnel.map((person, idx) => (
                 <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
                   <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-white sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                     {person.name}
@@ -217,20 +279,33 @@ const PersonnelDefensePanel = ({ allData }) => {
                     {person.smsOrani !== null && person.smsOrani !== "" ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
                   </td>
                   <td className="p-1 sm:p-3 text-center">
-                    <button 
-                      onClick={() => generatePersonnelPDF(person)}
-                      disabled={isGeneratingPdf}
-                      className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-colors disabled:opacity-50"
-                    >
-                      {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3.5 sm:h-3.5" /> : <FileDown size={10} className="sm:w-3.5 sm:h-3.5" />}
-                      <span className="hidden sm:inline">Belge Oluştur</span>
-                    </button>
+                    {person.isTebrik ? (
+                      <button 
+                        onClick={() => generateTebrikPDF(person)}
+                        disabled={isGeneratingPdf}
+                        className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3.5 sm:h-3.5" /> : <Award size={10} className="sm:w-3.5 sm:h-3.5" />}
+                        <span className="hidden sm:inline">Tebrik</span>
+                      </button>
+                    ) : person.isDefense ? (
+                      <button 
+                        onClick={() => generatePersonnelPDF(person)}
+                        disabled={isGeneratingPdf}
+                        className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3.5 sm:h-3.5" /> : <FileDown size={10} className="sm:w-3.5 sm:h-3.5" />}
+                        <span className="hidden sm:inline">Savunma</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium px-2">İşlem Gerekmiyor</span>
+                    )}
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="6" className="p-6 sm:p-8 text-center text-xs sm:text-sm text-slate-400">Bu kriterlere uygun hedef altı personel bulunmamaktadır. Harika! 🎉</td>
+                <td colSpan="6" className="p-6 sm:p-8 text-center text-xs sm:text-sm text-slate-400">Bu döneme ait personel verisi bulunmamaktadır.</td>
               </tr>
             )}
           </tbody>
