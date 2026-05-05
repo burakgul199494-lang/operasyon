@@ -1,5 +1,4 @@
 import React from "react";
-import { formatNumber } from "../utils/helpers";
 
 const KPICard = ({
   title,
@@ -37,6 +36,25 @@ const KPICard = ({
     targetClass = "bg-white/20 text-white shadow-sm backdrop-blur-md";
   }
 
+  // VİRGÜLLÜ SAYILARI KORUYAN GÜVENLİ FORMATLAYICI
+  const renderValue = (val) => {
+    if (val === undefined || val === null || val === "") return "-";
+    
+    // Eğer veri zaten "76,93" gibi virgül içeriyorsa bozmadan direkt göster
+    const strVal = String(val);
+    if (strVal.includes(',')) {
+      return strVal;
+    }
+
+    // Eğer düz sayı (noktalı veya tam sayı) ise Türkçe formata çevir
+    const num = parseFloat(strVal);
+    if (!isNaN(num)) {
+      return num.toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+    }
+    
+    return strVal;
+  };
+
   return (
     <div className={`rounded-2xl border transition-all duration-300 flex flex-col relative overflow-hidden min-h-[115px] ${bgClass}`}>
       <div className="p-3 pb-0 flex flex-col items-center text-center relative z-10">
@@ -50,7 +68,7 @@ const KPICard = ({
 
       <div className="flex-1 flex flex-col items-center justify-center z-10 pb-2">
         <span className={`text-2xl font-black tracking-tight leading-none mb-1.5 ${textClass}`}>
-          {formatNumber(value)}
+          {renderValue(value)}
           <span className="text-xs font-bold opacity-75 ml-0.5">{suffix}</span>
         </span>
         
@@ -64,7 +82,7 @@ const KPICard = ({
       {comparisonValue !== undefined && comparisonValue !== null && (
         <div className={`px-2 py-1.5 text-[9px] font-bold text-center flex items-center justify-center gap-1.5 backdrop-blur-sm ${footerClass}`}>
           <span className="opacity-70 tracking-wider">BÖLGE ORT:</span>
-          <span className="text-[10px]">{formatNumber(comparisonValue)}</span>
+          <span className="text-[10px]">{renderValue(comparisonValue)}</span>
         </div>
       )}
     </div>
