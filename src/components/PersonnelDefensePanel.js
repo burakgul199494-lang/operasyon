@@ -10,7 +10,7 @@ const PersonnelDefensePanel = ({ allData }) => {
 
   const availableYears = [2024, 2025, 2026];
   
-  // BURASI GÜNCELLENDİ
+  // GÜNCEL KESİN HEDEFLER
   const TARGETS = { rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70 };
 
   const parseMetric = (val) => {
@@ -18,6 +18,12 @@ const PersonnelDefensePanel = ({ allData }) => {
     const cleanStr = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
     const num = parseFloat(cleanStr);
     return isNaN(num) ? null : num;
+  };
+
+  // ONDALIKLI SAYILARI KORUYAN FORMATLAYICI
+  const formatDisplayMetric = (val) => {
+    const num = parseMetric(val);
+    return num !== null ? num.toLocaleString('tr-TR', { maximumFractionDigits: 2 }) : "-";
   };
 
   const failedPersonnel = useMemo(() => {
@@ -87,20 +93,20 @@ const PersonnelDefensePanel = ({ allData }) => {
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
       const tableRows = [
-        ["Rota Oranı", `%${person.parsedData.r ?? "-"}`, `%${parseMetric(person.unitRecord.rotaOrani) ?? "-"}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${person.parsedData.t ?? "-"}`, `%${parseMetric(person.unitRecord.tvsOrani) ?? "-"}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${person.parsedData.c ?? "-"}`, `%${parseMetric(person.unitRecord.checkInOrani) ?? "-"}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${person.parsedData.s ?? "-"}`, `%${parseMetric(person.unitRecord.smsOrani) ?? "-"}`, `%${TARGETS.smsOrani}`]
+        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
       ];
 
       doc.autoTable({
         startY: 50,
-        head: [['KPI Metriği', 'Personel Değeri', 'Birim Ort.', 'Hedef']],
+        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 10 },
         headStyles: { fillColor: [220, 38, 38], halign: 'center', font: 'Roboto' },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
         didParseCell: function(data) {
           if (data.section === 'body') {
             const metricName = data.row.raw[0];
@@ -172,7 +178,6 @@ const PersonnelDefensePanel = ({ allData }) => {
         <table className="w-full text-left whitespace-nowrap border-collapse">
           <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
             <tr>
-              {/* Birim Sütunu Kaldırıldı */}
               <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Ad Soyad</th>
               <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota</th>
               <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
@@ -185,17 +190,22 @@ const PersonnelDefensePanel = ({ allData }) => {
             {failedPersonnel.length > 0 ? (
               failedPersonnel.map((person, idx) => (
                 <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                  {/* Birim Sütunu Kaldırıldı */}
-                  
-                  {/* YAPIŞKAN (STICKY) İSİM SÜTUNU */}
                   <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-white sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                     {person.name}
                   </td>
                   
-                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>%{person.parsedData.r ?? "-"}</td>
-                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>%{person.parsedData.t ?? "-"}</td>
-                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>%{person.parsedData.c ?? "-"}</td>
-                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>%{person.parsedData.s ?? "-"}</td>
+                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {person.parsedData.r !== null ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
+                  </td>
+                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {person.parsedData.t !== null ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
+                  </td>
+                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {person.parsedData.c !== null ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
+                  </td>
+                  <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {person.parsedData.s !== null ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
+                  </td>
                   <td className="p-1 sm:p-3 text-center">
                     <button 
                       onClick={() => generatePersonnelPDF(person)}
