@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { FileDown, Search, Loader2, AlertCircle, Award } from "lucide-react";
+import { FileDown, Loader2, AlertCircle, Award, Archive } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const PersonnelDefensePanel = ({ allData }) => {
@@ -65,6 +65,21 @@ const PersonnelDefensePanel = ({ allData }) => {
     reader.onloadend = () => resolve(reader.result.split(',')[1]);
     reader.onerror = reject;
     reader.readAsDataURL(blob);
+  });
+
+  const loadZipLibraries = () => new Promise((resolve, reject) => {
+    if (window.JSZip) return resolve(window.JSZip);
+    const script = document.createElement('script');
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    script.onload = () => {
+      const fsScript = document.createElement('script');
+      fsScript.src = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js";
+      fsScript.onload = () => resolve(window.JSZip);
+      fsScript.onerror = reject;
+      document.head.appendChild(fsScript);
+    };
+    script.onerror = reject;
+    document.head.appendChild(script);
   });
 
   const generatePersonnelPDF = async (person) => {
@@ -202,12 +217,119 @@ const PersonnelDefensePanel = ({ allData }) => {
       const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
       const splitText = doc.splitTextToSize(tebrikText, 180);
       doc.text(splitText, 14, finalY);
-      
-      // Tebrik belgesinden yönetici imza ad soyad bölümü kaldırıldı.
 
-      doc.save(`${person.name.replace(/\s+/g, '_')}_Tebrik_${person.month}_${person.year}.pdf`);
+      doc.save(`${person.unit}_${person.name.replace(/\s+/g, '_')}_Tebrik.pdf`);
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  // --- YENİ: TOPLU TEBRİK İNDİRME FONKSİYONU ---
+  const generateBulkTebrikZIP = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const JSZipLib = await loadZipLibraries();
+      const zip = new JSZipLib();
+
+      let base64Font = null;
+      try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+        const blob = await response.blob();
+        base64Font = await getBase64(blob);
+      } catch(e) { console.warn("Font indirilemedi."); }
+
+      let tebrikCount = 0;
+
+      // Seçili ay ve yıldaki TÜM birimlerin personellerini tara
+      allData.forEach(record => {
+        if (record.year !== parseInt(selectedYear) || record.month !== parseInt(selectedMonth)) return;
+
+        if (record.personnel && Array.isArray(record.personnel)) {
+          record.personnel.forEach(person => {
+            const r = parseMetric(person.rotaOrani);
+            const t = parseMetric(person.tvsOrani);
+            const c = parseMetric(person.checkInOrani);
+            const s = parseMetric(person.smsOrani);
+
+            const isAnyFail = 
+              (r !== null && r < TARGETS.rotaOrani) ||
+              (t !== null && t < TARGETS.tvsOrani) ||
+              (c !== null && c < TARGETS.checkInOrani) ||
+              (s !== null && s < TARGETS.smsOrani);
+
+            const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
+
+            // Sadece tebrik hakkedenlere PDF oluştur
+            if (isTebrik) {
+              tebrikCount++;
+              const { jsPDF } = window.jspdf;
+              const doc = new jsPDF();
+
+              if (base64Font) {
+                doc.addFileToVFS("Roboto.ttf", base64Font);
+                doc.addFont("Roboto.ttf", "Roboto", "normal");
+                doc.setFont("Roboto");
+              }
+
+              doc.setFontSize(18);
+              doc.setTextColor(22, 163, 74); 
+              doc.text("PERSONEL PERFORMANS TEBRİK BELGESİ", 14, 22);
+              
+              doc.setFontSize(10);
+              doc.setTextColor(100);
+              doc.text(`Personel: ${person.name}`, 14, 30);
+              doc.text(`Birim: ${record.unit}`, 14, 35);
+              doc.text(`Dönem: ${record.year} - ${MONTH_NAMES[record.month]}`, 14, 40);
+              doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
+
+              const tableRows = [
+                ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+                ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+                ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+                ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
+              ];
+
+              doc.autoTable({
+                startY: 50,
+                head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
+                body: tableRows,
+                theme: 'grid',
+                styles: { font: 'Roboto', fontSize: 10 },
+                headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
+                columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }
+              });
+
+              let finalY = doc.lastAutoTable.finalY + 10;
+              doc.setFontSize(10);
+              doc.setTextColor(40);
+              const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
+              const splitText = doc.splitTextToSize(tebrikText, 180);
+              doc.text(splitText, 14, finalY);
+
+              // İstenilen İsim Formatı: BIRIM_ADSOYAD.pdf (Örn: ADASAN_BURAK GÜL.pdf)
+              const safeName = person.name.replace(/[^a-zA-Z0-9 ğüşöçİĞÜŞÖÇ]/g, "").trim();
+              const fileName = `${record.unit}_${safeName}.pdf`;
+              
+              const pdfBlob = doc.output('blob');
+              zip.file(fileName, pdfBlob); 
+            }
+          });
+        }
+      });
+
+      if (tebrikCount === 0) {
+        alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemi için tebrik almayı hak eden personel bulunmamaktadır.`);
+        return;
+      }
+
+      const zipContent = await zip.generateAsync({ type: "blob" });
+      window.saveAs(zipContent, `Tebrik_Belgeleri_${MONTH_NAMES[selectedMonth]}_${selectedYear}.zip`);
+
+    } catch (error) {
+      console.error("Toplu Tebrik ZIP oluşturulurken hata:", error);
+      alert("Toplu indirme sırasında bir hata oluştu.");
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -224,17 +346,28 @@ const PersonnelDefensePanel = ({ allData }) => {
           <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Tüm personelinizi listeleyin; hedefleri tutturanları tebrik edin, sapanlar için savunma oluşturun.</p>
         </div>
         
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
-          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="flex-1 md:flex-none bg-white dark:bg-slate-800 text-[10px] sm:text-sm py-1.5 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="flex-1 md:flex-none bg-white dark:bg-slate-800 text-[10px] sm:text-sm py-1.5 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="flex-1 md:flex-none bg-white dark:bg-slate-800 text-[10px] sm:text-sm py-1.5 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none">
+          <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="flex-1 md:flex-none bg-white dark:bg-slate-800 text-[10px] sm:text-sm py-1.5 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             {MONTH_NAMES.map((m, i) => i !== 0 && <option key={i} value={i}>{m}</option>)}
           </select>
-          <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="w-full md:w-auto bg-white dark:bg-slate-800 text-[10px] sm:text-sm py-1.5 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none">
+          <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="w-full md:w-auto bg-white dark:bg-slate-800 text-[10px] sm:text-sm py-1.5 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             <option value="TÜMÜ">Tüm Birimler</option>
             {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
+          
+          {/* YENİ TOPLU İNDİR BUTONU */}
+          <button 
+            onClick={generateBulkTebrikZIP}
+            disabled={isGeneratingPdf}
+            className="w-full md:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold text-[10px] sm:text-sm py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm hover:shadow-md disabled:opacity-50 outline-none"
+            title="Seçili ay ve yıldaki tüm tebrik alan personelleri ZIP olarak indir"
+          >
+            {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
+            Toplu Tebrik İndir
+          </button>
         </div>
       </div>
 
@@ -254,8 +387,9 @@ const PersonnelDefensePanel = ({ allData }) => {
             {filteredPersonnel.length > 0 ? (
               filteredPersonnel.map((person, idx) => (
                 <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                  <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-white sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                  <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                     {person.name}
+                    <div className="text-[8px] sm:text-[10px] text-slate-400 font-normal">{person.unit}</div>
                   </td>
                   
                   <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
