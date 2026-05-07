@@ -21,14 +21,20 @@ export default function App() {
   const [allData, setAllData] = useState([]);
   const [unitInfo, setUnitInfo] = useState({});
   const [fleetData, setFleetData] = useState([]);
-  const [fleetKms, setFleetKms] = useState({}); // YENİ: KM Verilerini tutacak state
+  const [fleetKms, setFleetKms] = useState({});
 
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [isProfileOpen, setProfileOpen] = useState(false);
-  const [availableYears, setAvailableYears] = useState([2024, 2025, 2026]);
+
+  // YENİ: Otomatik Yıl Hesaplayıcı
+  const [availableYears, setAvailableYears] = useState(() => {
+    const currentYear = new Date().getFullYear();
+    // 2024'ten başlayıp bulunduğumuz yıl + 1 kadarını otomatik oluşturur
+    return Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
+  });
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem("darkMode");
@@ -93,7 +99,7 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // YENİ: Ortalama KM Listesi Dinleyicisi
+  // Araç KM Listesi
   useEffect(() => {
     if (!user) { setFleetKms({}); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_kms");
@@ -162,7 +168,7 @@ export default function App() {
             allData={allData}
             unitInfo={unitInfo}
             fleetData={fleetData}
-            fleetKms={fleetKms} // YENİ: KM datasını gönderiyoruz
+            fleetKms={fleetKms} 
             onSaveBatch={handleSaveBatch}
             onClose={() => navigate("/")}
             availableYears={availableYears}
