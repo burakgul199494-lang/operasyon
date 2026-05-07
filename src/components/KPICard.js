@@ -32,13 +32,18 @@ const KPICard = ({
     targetClass = "bg-white/20 text-white shadow-sm backdrop-blur-md";
   }
 
-  // DEĞER FORMATLAYICI: 70 -> 70,00
+  // YENİ: Suffix "%" ise ondalıklı göster, değilse (adet) tam sayı göster
   const renderValue = (val) => {
     if (val === undefined || val === null || val === "") return "-";
     let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
     let num = parseFloat(strVal);
+    
     if (!isNaN(num)) {
-      return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const isPercent = suffix === "%";
+      return num.toLocaleString('tr-TR', { 
+        minimumFractionDigits: isPercent ? 2 : 0, 
+        maximumFractionDigits: isPercent ? 2 : 0 
+      });
     }
     return val;
   };
@@ -62,8 +67,7 @@ const KPICard = ({
         
         {target !== undefined && (
           <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full tracking-wide ${targetClass}`}>
-            {/* ÖLÇÜM TARTIM İÇİN % İŞARETİ KALDIRILDI */}
-            {title === "Ölçüm Tartım" ? `Hedef: ${target}` : `Hedef: %${target}`}
+             {title === "Ölçüm Tartım" ? `Hedef: ${target}` : `Hedef: %${target}`}
           </span>
         )}
       </div>
