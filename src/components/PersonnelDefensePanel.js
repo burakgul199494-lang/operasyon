@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { FileDown, Loader2, AlertCircle, Award, Archive } from "lucide-react";
+import { FileDown, Loader2, AlertCircle, Award, Archive, X } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const PersonnelDefensePanel = ({ allData }) => {
@@ -8,7 +8,7 @@ const PersonnelDefensePanel = ({ allData }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // YENİ: Otomatik Yıl Hesaplayıcı
+  // Otomatik Yıl Hesaplayıcı
   const currentYear = new Date().getFullYear();
   const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
   
@@ -231,7 +231,6 @@ const PersonnelDefensePanel = ({ allData }) => {
   };
 
   const generateBulkTebrikZIP = async () => {
-    // Sadece tabloda listelenen ve tebrik alan personelleri buluyoruz
     const tebrikList = filteredPersonnel.filter(p => p.isTebrik);
 
     if (tebrikList.length === 0) {
@@ -296,7 +295,6 @@ const PersonnelDefensePanel = ({ allData }) => {
         const splitText = doc.splitTextToSize(tebrikText, 180);
         doc.text(splitText, 14, finalY);
 
-        // İstenilen İsim Formatı: ADASAN_BURAK GÜL.pdf
         const safeName = person.name.replace(/[^a-zA-Z0-9 ğüşöçİĞÜŞÖÇ]/g, "").trim();
         const fileName = `${person.unit}_${safeName}.pdf`;
         
