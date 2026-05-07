@@ -16,9 +16,10 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
 
-  const availableYears = [2024, 2025, 2026];
+  // YENİ: Otomatik Yıl Hesaplayıcı
+  const currentYear = new Date().getFullYear();
+  const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
   
-  // GÜNCEL KESİN HEDEFLER
   const TARGETS = { 
     teslimPerformansi: 96,
     adresAlimOrani: 90,
@@ -49,13 +50,12 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     return str;
   };
 
-  // HERHANGİ BİR METRİK VARSA EKRANI AÇMASI İÇİN TÜM METRİKLER LİSTESİ
   const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo"];
 
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
     
-    // YENİ: Sadece Teslim Performansı değil, "herhangi bir metrik" girildiyse o ayı aktif et
+    // GÜNCELLENDİ: Sadece "Teslim Performansı" değil, herhangi bir metrik doluysa ayı seçer
     const unitRecords = allData.filter(d => {
       if (d.unit !== selectedUnit) return false;
       return metricsList.some(m => d[m] !== null && d[m] !== undefined && d[m] !== "");
@@ -107,7 +107,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isAdresAlimBasarisiz = displayData && parseMetric(displayData.adresAlimOrani) < TARGETS.adresAlimOrani;
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   
-  // YENİ: Ekranda hata göstermemek için herhangi bir veri varsa "hasValidData" true olacak
+  // GÜNCELLENDİ: Herhangi bir veri varsa sayfayı aç
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
   const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -203,7 +203,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     if (ks !== null) {
       if (ks >= TARGETS.kontrolSende) text += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız hedefe yakındır, konuyla ilgili alınacak küçük aksiyonlar hedefi gerçekleştirmemizi sağlayacaktır.\n";
-      else text += "• Kontrol Sende oranınız heedin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
+      else text += "• Kontrol Sende oranınız hedefin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
     }
 
     if (ot !== null) {
@@ -638,7 +638,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isMusteriSikayetBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Şikayet" : "Şikayet"}</p>
-                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.musteriSikayet)}</h2>
+                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatNumber(displayData?.musteriSikayet)}</h2>
                   <div className="mt-auto"><span className="text-[8px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm">Hedef: {TARGETS.musteriSikayet}</span></div>
                 </div>
               </div>
@@ -729,35 +729,35 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                           <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                             {person.name}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {r !== null ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
+                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {person.rotaOrani !== null && person.rotaOrani !== "" ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {t !== null ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
+                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {person.tvsOrani !== null && person.tvsOrani !== "" ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${c !== null && c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {c !== null ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
+                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {person.checkInOrani !== null && person.checkInOrani !== "" ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 font-bold text-[10px] sm:text-sm text-center ${s !== null && s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {s !== null ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
+                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {person.smsOrani !== null && person.smsOrani !== "" ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
                           </td>
                           <td className="p-1 sm:p-3 text-center">
                             {isTebrik ? (
                               <button 
                                 onClick={() => generateTebrikPDF(person)}
                                 disabled={isGeneratingPdf}
-                                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50 rounded-md text-[9px] sm:text-xs font-bold transition-colors disabled:opacity-50"
+                                className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-colors disabled:opacity-50"
                               >
-                                {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3 sm:h-3" /> : <Award size={10} className="sm:w-3 sm:h-3" />}
+                                {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3.5 sm:h-3.5" /> : <Award size={10} className="sm:w-3.5 sm:h-3.5" />}
                                 <span className="hidden sm:inline">Tebrik</span>
                               </button>
                             ) : isAnyFail ? (
                               <button 
                                 onClick={() => generatePersonnelPDF(person)}
                                 disabled={isGeneratingPdf}
-                                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 rounded-md text-[9px] sm:text-xs font-bold transition-colors disabled:opacity-50"
+                                className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-colors disabled:opacity-50"
                               >
-                                {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3 sm:h-3" /> : <FileDown size={10} className="sm:w-3 sm:h-3" />}
+                                {isGeneratingPdf ? <Loader2 size={10} className="animate-spin sm:w-3.5 sm:h-3.5" /> : <FileDown size={10} className="sm:w-3.5 sm:h-3.5" />}
                                 <span className="hidden sm:inline">Savunma</span>
                               </button>
                             ) : (
