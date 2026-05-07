@@ -333,7 +333,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
         UNITS.forEach((unit) => {
           const unitRow = gridData[unit] || {};
           MONTH_INDICES.forEach((month) => {
-            // SIFIRLARIN SİLİNMESİNİ ENGELLEYEN KISIM
             const rawVal = unitRow[month];
             const cleanStr = rawVal !== undefined && rawVal !== null ? String(rawVal).trim().replace(",", ".") : "";
             const origRec = allData.find((d) => d.unit === unit && d.year === parseInt(selectedYear) && d.month === month);
@@ -389,7 +388,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
             const unitName = r.unit.trim().toUpperCase(); 
             if (!groupedByUnit[unitName]) groupedByUnit[unitName] = [];
             
-            // SIFIRLARIN SİLİNMESİNİ ENGELLEYEN KISIM
             groupedByUnit[unitName].push({
                 name: r.name.trim(),
                 rotaOrani: r.rotaOrani !== "" && r.rotaOrani !== null && r.rotaOrani !== undefined ? parseFloat(String(r.rotaOrani).replace(",", ".")) : null,
@@ -629,7 +627,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
                 </tr>
             ))}
 
-            {/* YENİ: KM Grid Render */}
             {activeTab === "kms" && kmsGrid.map((row, rIndex) => (
                 <tr key={rIndex} className="border-b border-slate-200 hover:bg-red-50 transition-colors">
                     {KMS_COLUMNS.map((colKey, cIndex) => {
