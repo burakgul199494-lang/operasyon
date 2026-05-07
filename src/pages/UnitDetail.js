@@ -18,6 +18,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
   const availableYears = [2024, 2025, 2026];
   
+  // GÜNCEL KESİN HEDEFLER
   const TARGETS = { 
     teslimPerformansi: 96,
     adresAlimOrani: 90,
@@ -48,9 +49,18 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     return str;
   };
 
+  // HERHANGİ BİR METRİK VARSA EKRANI AÇMASI İÇİN TÜM METRİKLER LİSTESİ
+  const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo"];
+
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
-    const unitRecords = allData.filter(d => d.unit === selectedUnit && d.teslimPerformansi !== null && d.teslimPerformansi !== undefined && d.teslimPerformansi !== "");
+    
+    // YENİ: Sadece Teslim Performansı değil, "herhangi bir metrik" girildiyse o ayı aktif et
+    const unitRecords = allData.filter(d => {
+      if (d.unit !== selectedUnit) return false;
+      return metricsList.some(m => d[m] !== null && d[m] !== undefined && d[m] !== "");
+    });
+
     if (unitRecords.length > 0) {
       unitRecords.sort((a, b) => (b.year - a.year) || (b.month - a.month));
       const latestRecord = unitRecords[0];
@@ -68,26 +78,25 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
     if (yearRecords.length === 0) return null;
 
-    const fields = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "htfOrani", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "elektronikIhbar", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "kontrolSende"];
     const totals = {}; const counts = {};
-    fields.forEach(f => { totals[f] = 0; counts[f] = 0; });
+    metricsList.forEach(f => { totals[f] = 0; counts[f] = 0; });
 
     yearRecords.forEach(record => {
-      fields.forEach(field => {
+      metricsList.forEach(field => {
         const val = record[field];
         if (val !== undefined && val !== null && val !== "") { totals[field] += parseFloat(val); counts[field] += 1; }
       });
     });
 
     const averages = {};
-    fields.forEach(field => {
+    metricsList.forEach(field => {
       if (counts[field] > 0) {
         if (["gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "musteriSikayet"].includes(field)) { 
           averages[field] = Math.round(totals[field]); 
         } else { 
           averages[field] = (totals[field] / counts[field]).toFixed(2); 
         }
-      } else { averages[field] = 0; }
+      } else { averages[field] = null; }
     });
     return averages;
   };
@@ -97,7 +106,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isTeslimBasarisiz = displayData && parseMetric(displayData.teslimPerformansi) < TARGETS.teslimPerformansi;
   const isAdresAlimBasarisiz = displayData && parseMetric(displayData.adresAlimOrani) < TARGETS.adresAlimOrani;
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
-  const hasValidData = displayData && displayData.teslimPerformansi !== null && displayData.teslimPerformansi !== undefined && displayData.teslimPerformansi !== "";
+  
+  // YENİ: Ekranda hata göstermemek için herhangi bir veri varsa "hasValidData" true olacak
+  const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
   const getBase64 = (blob) => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -192,7 +203,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     if (ks !== null) {
       if (ks >= TARGETS.kontrolSende) text += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız hedefe yakındır, konuyla ilgili alınacak küçük aksiyonlar hedefi gerçekleştirmemizi sağlayacaktır.\n";
-      else text += "• Kontrol Sende oranınız hedefin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
+      else text += "• Kontrol Sende oranınız heedin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
     }
 
     if (ot !== null) {
@@ -254,7 +265,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani)}`, `%${TARGETS.adresAlimOrani}`],
-      ["Operasyonel Kaynaklı Müşteri Şikayet", formatNumber(targetData.musteriSikayet), `${TARGETS.musteriSikayet}`],
+      ["Operasyonel Kaynaklı Müşteri Şikayet", formatDisplayMetric(targetData.musteriSikayet), `${TARGETS.musteriSikayet}`],
       ["Rota Oranı", `%${formatDisplayMetric(targetData.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
       ["TVS Oranı", `%${formatDisplayMetric(targetData.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
       ["Check-in Oranı", `%${formatDisplayMetric(targetData.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
@@ -262,9 +273,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       ["E-ATF Oranı", `%${formatDisplayMetric(targetData.eAtfOrani)}`, `%${TARGETS.eAtfOrani}`],
       ["HTF Oranı", `%${formatDisplayMetric(targetData.htfOrani)}`, `%${TARGETS.htfOrani}`],
       ["Kontrol Sende", `%${formatDisplayMetric(targetData.kontrolSende)}`, `%${TARGETS.kontrolSende}`],
-      ["Ölçüm Tartım", formatNumber(targetData.olcumTartim), `${TARGETS.olcumTartim}`],
-      ["Gelen Kargo (Belge)", formatNumber(targetData.gelenKargo), "-"],
-      ["Giden Kargo (Belge)", formatNumber(targetData.gidenKargo), "-"],
+      ["Ölçüm Tartım", formatDisplayMetric(targetData.olcumTartim), `${TARGETS.olcumTartim}`],
+      ["Gelen Kargo (Belge)", formatDisplayMetric(targetData.gelenKargo), "-"],
+      ["Giden Kargo (Belge)", formatDisplayMetric(targetData.gidenKargo), "-"],
     ];
 
     doc.autoTable({
@@ -452,10 +463,8 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
       const splitText = doc.splitTextToSize(tebrikText, 180);
       doc.text(splitText, 14, finalY);
-      
-      // Tebrik belgesinden yönetici imza ad soyad bölümü kaldırıldı.
 
-      doc.save(`${person.name.replace(/\s+/g, '_')}_Tebrik.pdf`);
+      doc.save(`${selectedUnit}_${person.name.replace(/\s+/g, '_')}_Tebrik.pdf`);
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
@@ -483,7 +492,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
           ? calculateYearlyAverage(unit)
           : allData.find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
         
-        if (unitData && unitData.teslimPerformansi) {
+        if (unitData && metricsList.some(m => unitData[m] !== null && unitData[m] !== undefined && unitData[m] !== "")) {
           const doc = await createPdfDoc('report', unit, unitData, selectedYear, selectedMonth, showYearAvg, base64Font);
           const pdfBlob = doc.output('blob');
           zip.file(`${unit}.pdf`, pdfBlob); 
@@ -500,96 +509,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     } finally {
       setIsGeneratingPdf(false);
       setShowPdfModal(false);
-    }
-  };
-
-  const generatePersonnelPDF = async (person) => {
-    setIsGeneratingPdf(true);
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      try {
-        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
-        const blob = await response.blob();
-        const base64Font = await getBase64(blob);
-        doc.addFileToVFS("Roboto.ttf", base64Font);
-        doc.addFont("Roboto.ttf", "Roboto", "normal");
-        doc.setFont("Roboto");
-      } catch (e) {
-        console.warn("Font indirilemedi.");
-      }
-
-      const r = parseMetric(person.rotaOrani);
-      const t = parseMetric(person.tvsOrani);
-      const c = parseMetric(person.checkInOrani);
-      const s = parseMetric(person.smsOrani);
-
-      doc.setFontSize(18);
-      doc.setTextColor(220, 38, 38);
-      doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Personel: ${person.name}`, 14, 30);
-      doc.text(`Birim: ${selectedUnit}`, 14, 35);
-      doc.text(`Dönem: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 40);
-      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
-
-      const tableRows = [
-        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
-      ];
-
-      doc.autoTable({
-        startY: 50,
-        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
-        body: tableRows,
-        theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 10 },
-        headStyles: { fillColor: [220, 38, 38], halign: 'center', font: 'Roboto' },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
-        didParseCell: function(data) {
-          if (data.section === 'body') {
-            const metricName = data.row.raw[0];
-            let isFail = false;
-            
-            if (metricName === "Rota Oranı" && r !== null && r < TARGETS.rotaOrani) isFail = true;
-            if (metricName === "TVS Oranı" && t !== null && t < TARGETS.tvsOrani) isFail = true;
-            if (metricName === "Check-in Oranı" && c !== null && c < TARGETS.checkInOrani) isFail = true;
-            if (metricName === "SMS Oranı" && s !== null && s < TARGETS.smsOrani) isFail = true;
-
-            if (isFail) { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [185, 28, 28]; data.cell.styles.fontStyle = 'bold'; }
-          }
-        }
-      });
-
-      let finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(10);
-      doc.setTextColor(40);
-      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartlar üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
-      const splitText = doc.splitTextToSize(defenseText, 180);
-      doc.text(splitText, 14, finalY);
-      finalY += splitText.length * 5 + 10;
-
-      doc.setFontSize(11);
-      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
-      doc.setDrawColor(200);
-      for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
-
-      finalY += 75;
-      doc.setFontSize(10);
-      doc.text("Personel Ad / Soyad:", 14, finalY);
-      doc.text("İmza:", 140, finalY);
-
-      doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma.pdf`);
-
-    } catch (error) {
-      console.error("PDF oluşturulurken hata:", error);
-    } finally {
-      setIsGeneratingPdf(false);
     }
   };
 
@@ -680,15 +599,15 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                     <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
                     <div className="flex justify-between items-end">
-                        <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatNumber(displayData.gelenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatNumber(displayData.gelenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                        <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatDisplayMetric(displayData.gelenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatDisplayMetric(displayData.gelenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                     </div>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                     <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
                     <div className="flex justify-between items-end">
-                        <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatNumber(displayData.gidenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatNumber(displayData.gidenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                        <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatDisplayMetric(displayData.gidenKargo)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                        <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{formatDisplayMetric(displayData.gidenAdet)}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                     </div>
                 </div>
               </div>
@@ -719,7 +638,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isMusteriSikayetBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Şikayet" : "Şikayet"}</p>
-                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatNumber(displayData?.musteriSikayet)}</h2>
+                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.musteriSikayet)}</h2>
                   <div className="mt-auto"><span className="text-[8px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm">Hedef: {TARGETS.musteriSikayet}</span></div>
                 </div>
               </div>
@@ -751,7 +670,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 <KPICard title="HTF" value={formatDisplayMetric(displayData.htfOrani)} target={TARGETS.htfOrani} suffix="%" color={parseMetric(displayData.htfOrani) < TARGETS.htfOrani ? "red" : "green"} icon={Activity} />
                 <KPICard title="E-İhbar" value={formatDisplayMetric(displayData.elektronikIhbar)} target={90} suffix="%" color={parseMetric(displayData.elektronikIhbar) < 90 ? "red" : "green"} icon={Mail} />
                 <KPICard title="K. Sende" value={formatDisplayMetric(displayData.kontrolSende)} target={TARGETS.kontrolSende} suffix="%" color={parseMetric(displayData.kontrolSende) < TARGETS.kontrolSende ? "red" : "green"} icon={ShieldCheck} />
-                <KPICard title="Ölçüm Tartım" value={formatNumber(displayData.olcumTartim)} target={TARGETS.olcumTartim} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
+                <KPICard title="Ölçüm Tartım" value={formatDisplayMetric(displayData.olcumTartim)} target={TARGETS.olcumTartim} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
               </div>
             </div>
           </>
