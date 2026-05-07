@@ -4,6 +4,62 @@ import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, S
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
+const TARGETS = { 
+  teslimPerformansi: 96,
+  adresAlimOrani: 90,
+  musteriSikayet: 0,
+  rotaOrani: 85, 
+  tvsOrani: 95, 
+  checkInOrani: 90, 
+  smsOrani: 70,
+  eAtfOrani: 95,
+  htfOrani: 90,
+  kontrolSende: 90,
+  olcumTartim: 20
+};
+
+const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo"];
+const currentYear = new Date().getFullYear();
+const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
+
+const parseMetric = (val) => {
+  if (val === undefined || val === null || val === "") return null;
+  const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
+  const num = parseFloat(cleanStr);
+  return isNaN(num) ? null : num;
+};
+
+const formatDisplayMetric = (val) => {
+  if (val === undefined || val === null || val === "") return "-";
+  let str = String(val).replace(/%/g, '').replace(/\s/g, '').trim();
+  if (str.includes('.') && !str.includes(',')) {
+    str = str.replace('.', ',');
+  }
+  return str;
+};
+
+const getBase64 = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onloadend = () => resolve(reader.result.split(',')[1]);
+  reader.onerror = reject;
+  reader.readAsDataURL(blob);
+});
+
+const loadZipLibraries = () => new Promise((resolve, reject) => {
+  if (window.JSZip) return resolve(window.JSZip);
+  const script = document.createElement('script');
+  script.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+  script.onload = () => {
+    const fsScript = document.createElement('script');
+    fsScript.src = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js";
+    fsScript.onload = () => resolve(window.JSZip);
+    fsScript.onerror = reject;
+    document.head.appendChild(fsScript);
+  };
+  script.onerror = reject;
+  document.head.appendChild(script);
+});
+
 const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
@@ -16,46 +72,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
 
-  // YENİ: Otomatik Yıl Hesaplayıcı
-  const currentYear = new Date().getFullYear();
-  const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
-  
-  const TARGETS = { 
-    teslimPerformansi: 96,
-    adresAlimOrani: 90,
-    musteriSikayet: 0,
-    rotaOrani: 85, 
-    tvsOrani: 95, 
-    checkInOrani: 90, 
-    smsOrani: 70,
-    eAtfOrani: 95,
-    htfOrani: 90,
-    kontrolSende: 90,
-    olcumTartim: 20
-  };
-
-  const parseMetric = (val) => {
-    if (val === undefined || val === null || val === "") return null;
-    const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
-    const num = parseFloat(cleanStr);
-    return isNaN(num) ? null : num;
-  };
-
-  const formatDisplayMetric = (val) => {
-    if (val === undefined || val === null || val === "") return "-";
-    let str = String(val).replace(/%/g, '').replace(/\s/g, '').trim();
-    if (str.includes('.') && !str.includes(',')) {
-      str = str.replace('.', ',');
-    }
-    return str;
-  };
-
-  const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo"];
-
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
     
-    // GÜNCELLENDİ: Sadece "Teslim Performansı" değil, herhangi bir metrik doluysa ayı seçer
     const unitRecords = allData.filter(d => {
       if (d.unit !== selectedUnit) return false;
       return metricsList.some(m => d[m] !== null && d[m] !== undefined && d[m] !== "");
@@ -67,6 +86,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       setSelectedYear(latestRecord.year);
       setSelectedMonth(latestRecord.month);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allData, selectedUnit]); 
 
   const currentData = useMemo(() => {
@@ -107,30 +127,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isAdresAlimBasarisiz = displayData && parseMetric(displayData.adresAlimOrani) < TARGETS.adresAlimOrani;
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   
-  // GÜNCELLENDİ: Herhangi bir veri varsa sayfayı aç
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
-
-  const getBase64 = (blob) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-
-  const loadZipLibraries = () => new Promise((resolve, reject) => {
-    if (window.JSZip) return resolve(window.JSZip);
-    const script = document.createElement('script');
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
-    script.onload = () => {
-      const fsScript = document.createElement('script');
-      fsScript.src = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js";
-      fsScript.onload = () => resolve(window.JSZip);
-      fsScript.onerror = reject;
-      document.head.appendChild(fsScript);
-    };
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
 
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
@@ -358,7 +355,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.text(`Birim: ${targetUnit} | Dönem: ${donemText}`, 14, 30);
 
       const personnelRows = targetData.personnel
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
         .map(p => [
           p.name,
           `%${formatDisplayMetric(p.rotaOrani)}`,
@@ -411,6 +408,96 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     } finally {
       setIsGeneratingPdf(false); 
       setShowPdfModal(false); 
+    }
+  };
+
+  const generatePersonnelPDF = async (person) => {
+    setIsGeneratingPdf(true);
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+        const blob = await response.blob();
+        const base64Font = await getBase64(blob);
+        doc.addFileToVFS("Roboto.ttf", base64Font);
+        doc.addFont("Roboto.ttf", "Roboto", "normal");
+        doc.setFont("Roboto");
+      } catch (e) {
+        console.warn("Font indirilemedi.");
+      }
+
+      const r = parseMetric(person.rotaOrani);
+      const t = parseMetric(person.tvsOrani);
+      const c = parseMetric(person.checkInOrani);
+      const s = parseMetric(person.smsOrani);
+
+      doc.setFontSize(18);
+      doc.setTextColor(220, 38, 38);
+      doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Personel: ${person.name}`, 14, 30);
+      doc.text(`Birim: ${selectedUnit}`, 14, 35);
+      doc.text(`Dönem: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 40);
+      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
+
+      const tableRows = [
+        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
+      ];
+
+      doc.autoTable({
+        startY: 50,
+        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
+        body: tableRows,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 10 },
+        headStyles: { fillColor: [220, 38, 38], halign: 'center', font: 'Roboto' },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
+        didParseCell: function(data) {
+          if (data.section === 'body') {
+            const metricName = data.row.raw[0];
+            let isFail = false;
+            
+            if (metricName === "Rota Oranı" && r !== null && r < TARGETS.rotaOrani) isFail = true;
+            if (metricName === "TVS Oranı" && t !== null && t < TARGETS.tvsOrani) isFail = true;
+            if (metricName === "Check-in Oranı" && c !== null && c < TARGETS.checkInOrani) isFail = true;
+            if (metricName === "SMS Oranı" && s !== null && s < TARGETS.smsOrani) isFail = true;
+
+            if (isFail) { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [185, 28, 28]; data.cell.styles.fontStyle = 'bold'; }
+          }
+        }
+      });
+
+      let finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setTextColor(40);
+      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartlar üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
+      const splitText = doc.splitTextToSize(defenseText, 180);
+      doc.text(splitText, 14, finalY);
+      finalY += splitText.length * 5 + 10;
+
+      doc.setFontSize(11);
+      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
+      doc.setDrawColor(200);
+      for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
+
+      finalY += 75;
+      doc.setFontSize(10);
+      doc.text("Personel Ad / Soyad:", 14, finalY);
+      doc.text("İmza:", 140, finalY);
+
+      doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma.pdf`);
+
+    } catch (error) {
+      console.error("PDF oluşturulurken hata:", error);
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -682,7 +769,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         )}
       </div>
 
-      {/* TÜM PERSONEL MODALI - TEBRİK VE SAVUNMA GÜNCELLEMESİ */}
+      {/* TÜM PERSONEL MODALI */}
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -709,7 +796,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                   {displayData.personnel
-                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
                     .map((person, idx) => {
                       const r = parseMetric(person.rotaOrani);
                       const t = parseMetric(person.tvsOrani);
@@ -729,17 +816,17 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                           <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                             {person.name}
                           </td>
-                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {person.rotaOrani !== null && person.rotaOrani !== "" ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
+                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {r !== null ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {person.tvsOrani !== null && person.tvsOrani !== "" ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
+                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {t !== null ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {person.checkInOrani !== null && person.checkInOrani !== "" ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
+                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${c !== null && c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {c !== null ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
                           </td>
-                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {person.smsOrani !== null && person.smsOrani !== "" ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
+                          <td className={`p-1.5 sm:p-3 text-center font-semibold text-[10px] sm:text-sm ${s !== null && s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {s !== null ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
                           </td>
                           <td className="p-1 sm:p-3 text-center">
                             {isTebrik ? (
