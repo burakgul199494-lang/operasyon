@@ -9,7 +9,6 @@ const KPICard = ({
   comparisonValue,
   target,
 }) => {
-  // Modern, aydınlık ve karanlık mod uyumlu varsayılan tasarım
   let bgClass = "bg-white dark:bg-slate-800 border-white dark:border-slate-700 shadow-[0_4px_20px_rgb(0,0,0,0.03)] dark:shadow-none hover:shadow-[0_4px_20px_rgb(0,0,0,0.06)]";
   let textClass = "text-slate-700 dark:text-white";
   let titleClass = "text-slate-400 dark:text-slate-400";
@@ -17,7 +16,6 @@ const KPICard = ({
   let footerClass = "bg-slate-50/80 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700/50";
   let targetClass = "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300";
 
-  // Başarısız (Kırmızı) Durum İçin Gradient
   if (color === "red") {
     bgClass = "bg-gradient-to-br from-rose-500 to-red-600 dark:from-red-600 dark:to-red-800 border-transparent shadow-lg shadow-red-500/20 dark:shadow-none";
     textClass = "text-white drop-shadow-sm";
@@ -25,9 +23,7 @@ const KPICard = ({
     iconClass = "text-white/30";
     footerClass = "bg-black/10 dark:bg-black/20 text-white/90 border-t border-white/10";
     targetClass = "bg-white/20 text-white shadow-sm backdrop-blur-md";
-  } 
-  // Başarılı (Yeşil) Durum İçin Gradient
-  else if (color === "green" || color === "emerald") {
+  } else if (color === "green" || color === "emerald") {
     bgClass = "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 border-transparent shadow-lg shadow-emerald-500/20 dark:shadow-none";
     textClass = "text-white drop-shadow-sm";
     titleClass = "text-emerald-50/90";
@@ -36,23 +32,15 @@ const KPICard = ({
     targetClass = "bg-white/20 text-white shadow-sm backdrop-blur-md";
   }
 
-  // VİRGÜLLÜ SAYILARI KORUYAN GÜVENLİ FORMATLAYICI
+  // DEĞER FORMATLAYICI: 70 -> 70,00
   const renderValue = (val) => {
     if (val === undefined || val === null || val === "") return "-";
-    
-    // Eğer veri zaten "76,93" gibi virgül içeriyorsa bozmadan direkt göster
-    const strVal = String(val);
-    if (strVal.includes(',')) {
-      return strVal;
-    }
-
-    // Eğer düz sayı (noktalı veya tam sayı) ise Türkçe formata çevir
-    const num = parseFloat(strVal);
+    let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
+    let num = parseFloat(strVal);
     if (!isNaN(num)) {
-      return num.toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+      return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    
-    return strVal;
+    return val;
   };
 
   return (
@@ -74,7 +62,8 @@ const KPICard = ({
         
         {target !== undefined && (
           <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full tracking-wide ${targetClass}`}>
-            Hedef: {target === 0 ? "0" : `%${target}`}
+            {/* ÖLÇÜM TARTIM İÇİN % İŞARETİ KALDIRILDI */}
+            {title === "Ölçüm Tartım" ? `Hedef: ${target}` : `Hedef: %${target}`}
           </span>
         )}
       </div>
