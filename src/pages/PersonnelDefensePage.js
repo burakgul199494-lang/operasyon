@@ -10,10 +10,10 @@ const PersonnelDefensePage = ({ allData, onBack }) => {
         <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400 transition-colors">
           <ArrowLeft size={22} />
         </button>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Personel Savunma Yönetimi</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Personel Savunma ve Tebrik Yönetimi</h1>
       </div>
       
-      {/* İçerik (Daha önce yaptığımız bileşen) */}
+      {/* İçerik */}
       <div className="p-4">
         <PersonnelDefensePanel allData={allData} />
       </div>
