@@ -14,14 +14,14 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
   const [fleetGrid, setFleetGrid] = useState({});
   const [fleetListGrid, setFleetListGrid] = useState([]);
   const [personnelGrid, setPersonnelGrid] = useState([]); 
-  const [kmsGrid, setKmsGrid] = useState([]); // YENİ: KM Veri Grid'i
+  const [kmsGrid, setKmsGrid] = useState([]); 
 
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
 
   const MONTH_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const FLEET_COLUMNS = ["ozmal", "ozMasHar", "kiralik", "destek", "motor", "parcaBasi"];
-  const KMS_COLUMNS = ["plate", "km"]; // YENİ
+  const KMS_COLUMNS = ["plate", "km"]; 
   
   const FLEET_LIST_COLUMNS = [
     { key: "unit", label: "Birim Adı", width: "w-32" },
@@ -57,7 +57,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
       newGrid[unit] = {};
       MONTH_INDICES.forEach((month) => {
         const record = allData.find((d) => d.unit === unit && d.year === parseInt(selectedYear) && d.month === month);
-        newGrid[unit][month] = record ? record[selectedMetric] ?? "" : "";
+        newGrid[unit][month] = record && record[selectedMetric] !== null && record[selectedMetric] !== undefined ? record[selectedMetric] : "";
       });
     });
     setGridData(newGrid);
@@ -70,8 +70,12 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
     UNITS.forEach((unit) => {
       const info = unitInfo[unit] || {};
       newFleetGrid[unit] = {
-        ozmal: info.ozmal || "", ozMasHar: info.ozMasHar || "", kiralik: info.kiralik || "",
-        destek: info.destek || "", motor: info.motor || "", parcaBasi: info.parcaBasi || ""
+        ozmal: info.ozmal !== undefined && info.ozmal !== null ? info.ozmal : "", 
+        ozMasHar: info.ozMasHar !== undefined && info.ozMasHar !== null ? info.ozMasHar : "", 
+        kiralik: info.kiralik !== undefined && info.kiralik !== null ? info.kiralik : "",
+        destek: info.destek !== undefined && info.destek !== null ? info.destek : "", 
+        motor: info.motor !== undefined && info.motor !== null ? info.motor : "", 
+        parcaBasi: info.parcaBasi !== undefined && info.parcaBasi !== null ? info.parcaBasi : ""
       };
     });
     setFleetGrid(newFleetGrid);
@@ -116,7 +120,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
     setPendingChanges(false);
   }, [allData, activeTab, selectedYear, selectedMonth]);
 
-  // YENİ: KM Sekmesi Yükleme
   useEffect(() => {
     if (activeTab !== "kms") return;
     let loadedData = Object.entries(fleetKms || {}).map(([plate, km]) => ({ plate, km }));
@@ -330,7 +333,9 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
         UNITS.forEach((unit) => {
           const unitRow = gridData[unit] || {};
           MONTH_INDICES.forEach((month) => {
-            const cleanStr = String(unitRow[month] || "").trim().replace(",", ".");
+            // SIFIRLARIN SİLİNMESİNİ ENGELLEYEN KISIM
+            const rawVal = unitRow[month];
+            const cleanStr = rawVal !== undefined && rawVal !== null ? String(rawVal).trim().replace(",", ".") : "";
             const origRec = allData.find((d) => d.unit === unit && d.year === parseInt(selectedYear) && d.month === month);
             const origVal = origRec ? origRec[selectedMetric] : null;
             let finalVal = null;
@@ -352,7 +357,15 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
             UNITS.forEach(unit => {
                 const row = fleetGrid[unit]; const original = unitInfo[unit] || {};
                 if (row && (row.ozmal != original.ozmal || row.ozMasHar != original.ozMasHar || row.kiralik != original.kiralik || row.destek != original.destek || row.motor != original.motor || row.parcaBasi != original.parcaBasi)) {
-                    batch.set(doc(db, "artifacts", appId, "public", "data", "unit_info", unit), { ozmal: row.ozmal || "", ozMasHar: row.ozMasHar || "", kiralik: row.kiralik || "", destek: row.destek || "", motor: row.motor || "", parcaBasi: row.parcaBasi || "" }, { merge: true }); changeCount++;
+                    batch.set(doc(db, "artifacts", appId, "public", "data", "unit_info", unit), { 
+                        ozmal: row.ozmal !== null && row.ozmal !== undefined ? row.ozmal : "", 
+                        ozMasHar: row.ozMasHar !== null && row.ozMasHar !== undefined ? row.ozMasHar : "", 
+                        kiralik: row.kiralik !== null && row.kiralik !== undefined ? row.kiralik : "", 
+                        destek: row.destek !== null && row.destek !== undefined ? row.destek : "", 
+                        motor: row.motor !== null && row.motor !== undefined ? row.motor : "", 
+                        parcaBasi: row.parcaBasi !== null && row.parcaBasi !== undefined ? row.parcaBasi : "" 
+                    }, { merge: true }); 
+                    changeCount++;
                 }
             });
             if (changeCount === 0) return alert("Değişiklik yapmadınız.");
@@ -376,12 +389,13 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
             const unitName = r.unit.trim().toUpperCase(); 
             if (!groupedByUnit[unitName]) groupedByUnit[unitName] = [];
             
+            // SIFIRLARIN SİLİNMESİNİ ENGELLEYEN KISIM
             groupedByUnit[unitName].push({
                 name: r.name.trim(),
-                rotaOrani: r.rotaOrani ? parseFloat(String(r.rotaOrani).replace(",", ".")) : null,
-                tvsOrani: r.tvsOrani ? parseFloat(String(r.tvsOrani).replace(",", ".")) : null,
-                checkInOrani: r.checkInOrani ? parseFloat(String(r.checkInOrani).replace(",", ".")) : null,
-                smsOrani: r.smsOrani ? parseFloat(String(r.smsOrani).replace(",", ".")) : null,
+                rotaOrani: r.rotaOrani !== "" && r.rotaOrani !== null && r.rotaOrani !== undefined ? parseFloat(String(r.rotaOrani).replace(",", ".")) : null,
+                tvsOrani: r.tvsOrani !== "" && r.tvsOrani !== null && r.tvsOrani !== undefined ? parseFloat(String(r.tvsOrani).replace(",", ".")) : null,
+                checkInOrani: r.checkInOrani !== "" && r.checkInOrani !== null && r.checkInOrani !== undefined ? parseFloat(String(r.checkInOrani).replace(",", ".")) : null,
+                smsOrani: r.smsOrani !== "" && r.smsOrani !== null && r.smsOrani !== undefined ? parseFloat(String(r.smsOrani).replace(",", ".")) : null,
             });
         });
 
@@ -409,7 +423,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
         }
 
     } else if (activeTab === "kms") {
-        // YENİ: KM Kaydetme
         const validRows = kmsGrid.filter(r => r.plate && r.plate.trim() !== "");
         if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok.");
         if(!window.confirm(`${validRows.length} adet plakanın KM verisi güncellenecek. Onaylıyor musunuz?`)) return;
@@ -558,14 +571,14 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
                   {activeTab === "performance" ? (
                       MONTH_INDICES.map((month, colIndex) => {
                         const isSelected = isCellSelected(unitIndex, colIndex);
-                        const val = gridData[unit]?.[month] ?? "";
+                        const val = gridData[unit]?.[month] !== undefined && gridData[unit]?.[month] !== null ? gridData[unit]?.[month] : "";
                         return (<td key={month} className="p-0 border-r border-slate-100 relative"><input id={`cell-performance-${unitIndex}-${month}`} type="text" className={`w-full h-full p-2 text-center outline-none focus:z-10 relative transition-all text-slate-700 font-mono cursor-default ${isSelected ? "bg-blue-200 ring-1 ring-blue-400" : "bg-transparent focus:ring-2 focus:ring-blue-500 focus:bg-white"}`} placeholder="-" value={val} onChange={(e) => handleInputChange(unit, month, e.target.value)} onPaste={(e) => handlePerformancePaste(e, unitIndex, colIndex)} onKeyDown={(e) => handleKeyDown(e, unitIndex, colIndex)} onFocus={(e) => handleFocus(e, unitIndex, colIndex)} onMouseDown={() => handleMouseDown(unitIndex, colIndex)} onMouseEnter={() => handleMouseEnter(unitIndex, colIndex)} autoComplete="off" /></td>);
                       })
                   ) : (
                       FLEET_COLUMNS.map((colKey, colIndex) => {
                           const isSelected = isCellSelected(unitIndex, colIndex);
-                          const val = fleetGrid[unit]?.[colKey] ?? "";
-                          return (<td key={colKey} className="p-0 border-r border-slate-100 relative"><input id={`cell-fleet-${unitIndex}-${colKey}`} type="text" className={`w-full h-full p-2 text-center outline-none focus:z-10 relative transition-all text-slate-700 font-mono cursor-default ${isSelected ? "bg-orange-200 ring-1 ring-orange-400" : "bg-transparent focus:ring-2 focus:ring-orange-500 focus:bg-white"}`} placeholder="0" value={val} onChange={(e) => handleFleetChange(unit, colKey, e.target.value)} onPaste={(e) => handleFleetPaste(e, unitIndex, colIndex)} onKeyDown={(e) => handleKeyDown(e, unitIndex, colIndex)} onFocus={(e) => handleFocus(e, unitIndex, colIndex)} onMouseDown={() => handleMouseDown(unitIndex, colIndex)} onMouseEnter={() => handleMouseEnter(unitIndex, colIndex)} autoComplete="off" /></td>);
+                          const val = fleetGrid[unit]?.[colKey] !== undefined && fleetGrid[unit]?.[colKey] !== null ? fleetGrid[unit]?.[colKey] : "";
+                          return (<td key={colKey} className="p-0 border-r border-slate-100 relative"><input id={`cell-fleet-${unitIndex}-${colKey}`} type="text" className={`w-full h-full p-2 text-center outline-none focus:z-10 relative transition-all text-slate-700 font-mono cursor-default ${isSelected ? "bg-orange-200 ring-1 ring-orange-400" : "bg-transparent focus:ring-2 focus:ring-orange-500 focus:bg-white"}`} placeholder="-" value={val} onChange={(e) => handleFleetChange(unit, colKey, e.target.value)} onPaste={(e) => handleFleetPaste(e, unitIndex, colIndex)} onKeyDown={(e) => handleKeyDown(e, unitIndex, colIndex)} onFocus={(e) => handleFocus(e, unitIndex, colIndex)} onMouseDown={() => handleMouseDown(unitIndex, colIndex)} onMouseEnter={() => handleMouseEnter(unitIndex, colIndex)} autoComplete="off" /></td>);
                       })
                   )}
                   {activeTab === "fleet" && <td></td>}
@@ -592,7 +605,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
                 <tr key={rIndex} className="border-b border-slate-200 hover:bg-purple-50 transition-colors">
                     {PERSONNEL_COLUMNS.map((col, cIndex) => {
                         const isSelected = isCellSelected(rIndex, cIndex);
-                        const val = row[col.key] || "";
+                        const val = row[col.key] !== undefined && row[col.key] !== null ? row[col.key] : "";
                         return (
                             <td key={col.key} className="p-0 border-r border-slate-100 relative">
                                 <input
@@ -621,7 +634,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
                 <tr key={rIndex} className="border-b border-slate-200 hover:bg-red-50 transition-colors">
                     {KMS_COLUMNS.map((colKey, cIndex) => {
                         const isSelected = isCellSelected(rIndex, cIndex);
-                        const val = row[colKey] || "";
+                        const val = row[colKey] !== undefined && row[colKey] !== null ? row[colKey] : "";
                         return (
                             <td key={colKey} className="p-0 border-r border-slate-100 relative">
                                 <input
