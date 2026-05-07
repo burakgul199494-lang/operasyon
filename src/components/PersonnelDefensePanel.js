@@ -54,7 +54,7 @@ const PersonnelDefensePanel = ({ allData }) => {
           const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
           const isDefense = isAnyFail;
 
-          list.push({ ...person, unit: record.unit, month: record.month, year: record.year, unitRecord: record, parsedData: { r, t, c, s }, isTebrik, isDefense });
+          list.push({ ...person, unit: record.unit, month: record.month, year: record.year, parsedData: { r, t, c, s }, isTebrik, isDefense });
         });
       }
     });
@@ -162,7 +162,8 @@ const PersonnelDefensePanel = ({ allData }) => {
       doc.text("Personel Ad / Soyad:", 14, finalY);
       doc.text("İmza:", 140, finalY);
 
-      doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma_${person.month}_${person.year}.pdf`);
+      const safeName = person.name.replace(/[^a-zA-Z0-9 ğüşöçİĞÜŞÖÇ]/g, "").trim();
+      doc.save(`${person.unit}_${safeName}_Savunma.pdf`);
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
@@ -220,7 +221,8 @@ const PersonnelDefensePanel = ({ allData }) => {
       const splitText = doc.splitTextToSize(tebrikText, 180);
       doc.text(splitText, 14, finalY);
 
-      doc.save(`${person.unit}_${person.name.replace(/\s+/g, '_')}_Tebrik.pdf`);
+      const safeName = person.name.replace(/[^a-zA-Z0-9 ğüşöçİĞÜŞÖÇ]/g, "").trim();
+      doc.save(`${person.unit}_${safeName}_Tebrik.pdf`);
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
@@ -229,6 +231,14 @@ const PersonnelDefensePanel = ({ allData }) => {
   };
 
   const generateBulkTebrikZIP = async () => {
+    // Sadece tabloda listelenen ve tebrik alan personelleri buluyoruz
+    const tebrikList = filteredPersonnel.filter(p => p.isTebrik);
+
+    if (tebrikList.length === 0) {
+      alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemi için tebrik almayı hak eden personel bulunmamaktadır.`);
+      return;
+    }
+
     setIsGeneratingPdf(true);
     try {
       const JSZipLib = await loadZipLibraries();
@@ -241,85 +251,57 @@ const PersonnelDefensePanel = ({ allData }) => {
         base64Font = await getBase64(blob);
       } catch(e) { console.warn("Font indirilemedi."); }
 
-      let tebrikCount = 0;
+      for (const person of tebrikList) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
 
-      allData.forEach(record => {
-        if (record.year !== parseInt(selectedYear) || record.month !== parseInt(selectedMonth)) return;
-
-        if (record.personnel && Array.isArray(record.personnel)) {
-          record.personnel.forEach(person => {
-            const r = parseMetric(person.rotaOrani);
-            const t = parseMetric(person.tvsOrani);
-            const c = parseMetric(person.checkInOrani);
-            const s = parseMetric(person.smsOrani);
-
-            const isAnyFail = 
-              (r !== null && r < TARGETS.rotaOrani) ||
-              (t !== null && t < TARGETS.tvsOrani) ||
-              (c !== null && c < TARGETS.checkInOrani) ||
-              (s !== null && s < TARGETS.smsOrani);
-
-            const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
-
-            if (isTebrik) {
-              tebrikCount++;
-              const { jsPDF } = window.jspdf;
-              const doc = new jsPDF();
-
-              if (base64Font) {
-                doc.addFileToVFS("Roboto.ttf", base64Font);
-                doc.addFont("Roboto.ttf", "Roboto", "normal");
-                doc.setFont("Roboto");
-              }
-
-              doc.setFontSize(18);
-              doc.setTextColor(22, 163, 74); 
-              doc.text("PERSONEL PERFORMANS TEBRİK BELGESİ", 14, 22);
-              
-              doc.setFontSize(10);
-              doc.setTextColor(100);
-              doc.text(`Personel: ${person.name}`, 14, 30);
-              doc.text(`Birim: ${record.unit}`, 14, 35);
-              doc.text(`Dönem: ${record.year} - ${MONTH_NAMES[record.month]}`, 14, 40);
-              doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
-
-              const tableRows = [
-                ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
-                ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
-                ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
-                ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
-              ];
-
-              doc.autoTable({
-                startY: 50,
-                head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
-                body: tableRows,
-                theme: 'grid',
-                styles: { font: 'Roboto', fontSize: 10 },
-                headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
-                columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }
-              });
-
-              let finalY = doc.lastAutoTable.finalY + 10;
-              doc.setFontSize(10);
-              doc.setTextColor(40);
-              const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
-              const splitText = doc.splitTextToSize(tebrikText, 180);
-              doc.text(splitText, 14, finalY);
-
-              const safeName = person.name.replace(/[^a-zA-Z0-9 ğüşöçİĞÜŞÖÇ]/g, "").trim();
-              const fileName = `${record.unit}_${safeName}.pdf`;
-              
-              const pdfBlob = doc.output('blob');
-              zip.file(fileName, pdfBlob); 
-            }
-          });
+        if (base64Font) {
+          doc.addFileToVFS("Roboto.ttf", base64Font);
+          doc.addFont("Roboto.ttf", "Roboto", "normal");
+          doc.setFont("Roboto");
         }
-      });
 
-      if (tebrikCount === 0) {
-        alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemi için tebrik almayı hak eden personel bulunmamaktadır.`);
-        return;
+        doc.setFontSize(18);
+        doc.setTextColor(22, 163, 74); 
+        doc.text("PERSONEL PERFORMANS TEBRİK BELGESİ", 14, 22);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Personel: ${person.name}`, 14, 30);
+        doc.text(`Birim: ${person.unit}`, 14, 35);
+        doc.text(`Dönem: ${person.year} - ${MONTH_NAMES[person.month]}`, 14, 40);
+        doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
+
+        const tableRows = [
+          ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+          ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+          ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+          ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
+        ];
+
+        doc.autoTable({
+          startY: 50,
+          head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
+          body: tableRows,
+          theme: 'grid',
+          styles: { font: 'Roboto', fontSize: 10 },
+          headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
+          columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }
+        });
+
+        let finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(10);
+        doc.setTextColor(40);
+        const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
+        const splitText = doc.splitTextToSize(tebrikText, 180);
+        doc.text(splitText, 14, finalY);
+
+        // İstenilen İsim Formatı: ADASAN_BURAK GÜL.pdf
+        const safeName = person.name.replace(/[^a-zA-Z0-9 ğüşöçİĞÜŞÖÇ]/g, "").trim();
+        const fileName = `${person.unit}_${safeName}.pdf`;
+        
+        const pdfBlob = doc.output('blob');
+        zip.file(fileName, pdfBlob); 
       }
 
       const zipContent = await zip.generateAsync({ type: "blob" });
