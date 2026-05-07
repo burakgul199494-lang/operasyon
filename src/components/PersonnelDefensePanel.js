@@ -8,7 +8,9 @@ const PersonnelDefensePanel = ({ allData }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  const availableYears = [2024, 2025, 2026];
+  // YENİ: Otomatik Yıl Hesaplayıcı
+  const currentYear = new Date().getFullYear();
+  const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
   
   const TARGETS = { rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70 };
 
@@ -226,7 +228,6 @@ const PersonnelDefensePanel = ({ allData }) => {
     }
   };
 
-  // --- YENİ: TOPLU TEBRİK İNDİRME FONKSİYONU ---
   const generateBulkTebrikZIP = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -242,7 +243,6 @@ const PersonnelDefensePanel = ({ allData }) => {
 
       let tebrikCount = 0;
 
-      // Seçili ay ve yıldaki TÜM birimlerin personellerini tara
       allData.forEach(record => {
         if (record.year !== parseInt(selectedYear) || record.month !== parseInt(selectedMonth)) return;
 
@@ -261,7 +261,6 @@ const PersonnelDefensePanel = ({ allData }) => {
 
             const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
 
-            // Sadece tebrik hakkedenlere PDF oluştur
             if (isTebrik) {
               tebrikCount++;
               const { jsPDF } = window.jspdf;
@@ -308,7 +307,6 @@ const PersonnelDefensePanel = ({ allData }) => {
               const splitText = doc.splitTextToSize(tebrikText, 180);
               doc.text(splitText, 14, finalY);
 
-              // İstenilen İsim Formatı: BIRIM_ADSOYAD.pdf (Örn: ADASAN_BURAK GÜL.pdf)
               const safeName = person.name.replace(/[^a-zA-Z0-9 ğüşöçİĞÜŞÖÇ]/g, "").trim();
               const fileName = `${record.unit}_${safeName}.pdf`;
               
@@ -341,6 +339,7 @@ const PersonnelDefensePanel = ({ allData }) => {
         <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
             <Award className="text-emerald-500" size={20} />
+            <AlertCircle className="text-rose-500" size={18} />
             Personel Savunma ve Tebrik Yönetimi
           </h2>
           <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Tüm personelinizi listeleyin; hedefleri tutturanları tebrik edin, sapanlar için savunma oluşturun.</p>
@@ -358,7 +357,6 @@ const PersonnelDefensePanel = ({ allData }) => {
             {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
           
-          {/* YENİ TOPLU İNDİR BUTONU */}
           <button 
             onClick={generateBulkTebrikZIP}
             disabled={isGeneratingPdf}
@@ -428,7 +426,8 @@ const PersonnelDefensePanel = ({ allData }) => {
                     )}
                   </td>
                 </tr>
-              ))
+              );
+            })
             ) : (
               <tr>
                 <td colSpan="6" className="p-6 sm:p-8 text-center text-xs sm:text-sm text-slate-400">Bu döneme ait personel verisi bulunmamaktadır.</td>
