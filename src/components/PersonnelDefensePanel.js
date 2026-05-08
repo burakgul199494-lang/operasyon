@@ -1,6 +1,48 @@
 import React, { useState, useMemo } from "react";
-import { FileDown, Loader2, AlertCircle, Award, Archive } from "lucide-react";
+import { FileDown, Loader2, AlertCircle, Award, Archive, Users } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
+
+const TARGETS = { rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70 };
+const currentYear = new Date().getFullYear();
+const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
+
+const parseMetric = (val) => {
+  if (val === undefined || val === null || val === "") return null;
+  const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
+  const num = parseFloat(cleanStr);
+  return isNaN(num) ? null : num;
+};
+
+const formatDisplayMetric = (val) => {
+  if (val === undefined || val === null || val === "") return "-";
+  let str = String(val).replace(/%/g, '').replace(/\s/g, '').trim();
+  if (str.includes('.') && !str.includes(',')) {
+    str = str.replace('.', ',');
+  }
+  return str;
+};
+
+const getBase64 = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onloadend = () => resolve(reader.result.split(',')[1]);
+  reader.onerror = reject;
+  reader.readAsDataURL(blob);
+});
+
+const loadZipLibraries = () => new Promise((resolve, reject) => {
+  if (window.JSZip) return resolve(window.JSZip);
+  const script = document.createElement('script');
+  script.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+  script.onload = () => {
+    const fsScript = document.createElement('script');
+    fsScript.src = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js";
+    fsScript.onload = () => resolve(window.JSZip);
+    fsScript.onerror = reject;
+    document.head.appendChild(fsScript);
+  };
+  script.onerror = reject;
+  document.head.appendChild(script);
+});
 
 const PersonnelDefensePanel = ({ allData }) => {
   const [selectedUnit, setSelectedUnit] = useState("TÜMÜ");
@@ -8,94 +50,108 @@ const PersonnelDefensePanel = ({ allData }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Otomatik Yıl Hesaplayıcı
-  const currentYear = new Date().getFullYear();
-  const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
-  
-  // Güncel Kesin Hedefler
-  const TARGETS = { rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70 };
-
-  const parseMetric = (val) => {
-    if (val === undefined || val === null || val === "") return null;
-    const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
-    const num = parseFloat(cleanStr);
-    return isNaN(num) ? null : num;
-  };
-
-  const formatDisplayMetric = (val) => {
-    if (val === undefined || val === null || val === "") return "-";
-    let str = String(val).replace(/%/g, '').replace(/\s/g, '').trim();
-    if (str.includes('.') && !str.includes(',')) {
-      str = str.replace('.', ',');
+  // SON 3 AYIN HESAPLANMASI
+  const targetMonths = useMemo(() => {
+    const months = [];
+    for (let i = 0; i < 3; i++) {
+      let m = selectedMonth - i;
+      let y = selectedYear;
+      if (m <= 0) {
+        m += 12;
+        y -= 1;
+      }
+      months.push({ year: y, month: m });
     }
-    return str;
-  };
+    return months;
+  }, [selectedYear, selectedMonth]);
 
-  // Tüm personeli analiz eden orijinal mantık (Tebrik ve Savunma dahil)
+  const periodStringForPdf = useMemo(() => {
+    if (targetMonths.length === 3) {
+        const oldest = targetMonths[2];
+        const newest = targetMonths[0];
+        return `Son 3 Ay Ort. (${MONTH_NAMES[oldest.month]} ${oldest.year} - ${MONTH_NAMES[newest.month]} ${newest.year})`;
+    }
+    return "";
+  }, [targetMonths]);
+
+  // PERSONEL VERİLERİNİ 3 AYA GÖRE SÜZME VE ORTALAMA ALMA
   const filteredPersonnel = useMemo(() => {
     let list = [];
     if (!allData) return list;
 
+    const personMap = {};
+
     allData.forEach(record => {
-      if (record.year !== parseInt(selectedYear) || record.month !== parseInt(selectedMonth)) return;
+      const isTargetMonth = targetMonths.some(tm => tm.year === record.year && tm.month === record.month);
+      if (!isTargetMonth) return;
+
       if (selectedUnit !== "TÜMÜ" && record.unit !== selectedUnit) return;
       
       if (record.personnel && Array.isArray(record.personnel)) {
         record.personnel.forEach(person => {
-          const r = parseMetric(person.rotaOrani);
-          const t = parseMetric(person.tvsOrani);
-          const c = parseMetric(person.checkInOrani);
-          const s = parseMetric(person.smsOrani);
-
-          // Herhangi biri başarısızsa (Savunma Şartı)
-          const isAnyFail = 
-            (r !== null && r < TARGETS.rotaOrani) ||
-            (t !== null && t < TARGETS.tvsOrani) ||
-            (c !== null && c < TARGETS.checkInOrani) ||
-            (s !== null && s < TARGETS.smsOrani);
-
-          // Hepsi başarılıysa (Tebrik Şartı)
-          const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
-
-          list.push({ 
-            ...person, 
-            unit: record.unit, 
-            month: record.month, 
-            year: record.year, 
-            parsedData: { r, t, c, s }, 
-            isTebrik, 
-            isDefense: isAnyFail 
-          });
+          const key = `${record.unit}|${person.name}`;
+          if (!personMap[key]) {
+            personMap[key] = {
+              name: person.name,
+              unit: record.unit,
+              monthsData: {}
+            };
+          }
+          personMap[key].monthsData[`${record.year}-${record.month}`] = {
+            r: parseMetric(person.rotaOrani),
+            t: parseMetric(person.tvsOrani),
+            c: parseMetric(person.checkInOrani),
+            s: parseMetric(person.smsOrani)
+          };
         });
       }
     });
 
+    Object.values(personMap).forEach(personData => {
+      // Sadece 3 ay boyunca kesintisiz verisi olan personelleri filtrele
+      const monthsPresent = Object.keys(personData.monthsData).length;
+      if (monthsPresent === 3) {
+         let sumR = 0, sumT = 0, sumC = 0, sumS = 0;
+         let countR = 0, countT = 0, countC = 0, countS = 0;
+
+         Object.values(personData.monthsData).forEach(data => {
+            if (data.r !== null) { sumR += data.r; countR++; }
+            if (data.t !== null) { sumT += data.t; countT++; }
+            if (data.c !== null) { sumC += data.c; countC++; }
+            if (data.s !== null) { sumS += data.s; countS++; }
+         });
+
+         const avgR = countR > 0 ? (sumR / countR) : null;
+         const avgT = countT > 0 ? (sumT / countT) : null;
+         const avgC = countC > 0 ? (sumC / countC) : null;
+         const avgS = countS > 0 ? (sumS / countS) : null;
+
+         const isAnyFail = 
+            (avgR !== null && avgR < TARGETS.rotaOrani) ||
+            (avgT !== null && avgT < TARGETS.tvsOrani) ||
+            (avgC !== null && avgC < TARGETS.checkInOrani) ||
+            (avgS !== null && avgS < TARGETS.smsOrani);
+
+         const isTebrik = !isAnyFail && (avgR !== null || avgT !== null || avgC !== null || avgS !== null);
+
+         list.push({ 
+           name: personData.name,
+           unit: personData.unit, 
+           parsedData: { r: avgR, t: avgT, c: avgC, s: avgS }, 
+           rotaOrani: avgR,
+           tvsOrani: avgT,
+           checkInOrani: avgC,
+           smsOrani: avgS,
+           isTebrik, 
+           isDefense: isAnyFail,
+           periodString: periodStringForPdf
+         });
+      }
+    });
+
     return list.sort((a, b) => a.unit.localeCompare(b.unit) || a.name.localeCompare(b.name));
-  }, [allData, selectedUnit, selectedYear, selectedMonth]);
+  }, [allData, selectedUnit, targetMonths, periodStringForPdf]);
 
-  const getBase64 = (blob) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-
-  const loadZipLibraries = () => new Promise((resolve, reject) => {
-    if (window.JSZip) return resolve(window.JSZip);
-    const script = document.createElement('script');
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
-    script.onload = () => {
-      const fsScript = document.createElement('script');
-      fsScript.src = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js";
-      fsScript.onload = () => resolve(window.JSZip);
-      fsScript.onerror = reject;
-      document.head.appendChild(fsScript);
-    };
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-
-  // SAVUNMA PDF OLUŞTURUCU
   const generatePersonnelPDF = async (person) => {
     setIsGeneratingPdf(true);
     try {
@@ -121,19 +177,19 @@ const PersonnelDefensePanel = ({ allData }) => {
       doc.setTextColor(100);
       doc.text(`Personel: ${person.name}`, 14, 30);
       doc.text(`Birim: ${person.unit}`, 14, 35);
-      doc.text(`Dönem: ${person.year} - ${MONTH_NAMES[person.month]}`, 14, 40);
+      doc.text(`Dönem: ${person.periodString}`, 14, 40);
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
       const tableRows = [
-        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
+        ["Rota Oranı (Ort)", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı (Ort)", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı (Ort)", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı (Ort)", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
       ];
 
       doc.autoTable({
         startY: 50,
-        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
+        head: [['KPI Metriği', '3 Aylık Ortalama Değeri', 'Hedef']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 10 },
@@ -144,10 +200,10 @@ const PersonnelDefensePanel = ({ allData }) => {
             const metricName = data.row.raw[0];
             let isFail = false;
 
-            if (metricName === "Rota Oranı" && person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani) isFail = true;
-            if (metricName === "TVS Oranı" && person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani) isFail = true;
-            if (metricName === "Check-in Oranı" && person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani) isFail = true;
-            if (metricName === "SMS Oranı" && person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani) isFail = true;
+            if (metricName.includes("Rota") && person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani) isFail = true;
+            if (metricName.includes("TVS") && person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani) isFail = true;
+            if (metricName.includes("Check-in") && person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani) isFail = true;
+            if (metricName.includes("SMS") && person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani) isFail = true;
 
             if (isFail) {
               data.cell.styles.fillColor = [254, 226, 226]; 
@@ -161,7 +217,7 @@ const PersonnelDefensePanel = ({ allData }) => {
       let finalY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(10);
       doc.setTextColor(40);
-      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
+      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin son 3 ay ortalamasında altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
       const splitText = doc.splitTextToSize(defenseText, 180);
       doc.text(splitText, 14, finalY);
       finalY += splitText.length * 5 + 10;
@@ -183,7 +239,6 @@ const PersonnelDefensePanel = ({ allData }) => {
     }
   };
 
-  // TEBRİK PDF OLUŞTURUCU
   const generateTebrikPDF = async (person) => {
     setIsGeneratingPdf(true);
     try {
@@ -207,19 +262,19 @@ const PersonnelDefensePanel = ({ allData }) => {
       doc.setTextColor(100);
       doc.text(`Personel: ${person.name}`, 14, 30);
       doc.text(`Birim: ${person.unit}`, 14, 35);
-      doc.text(`Dönem: ${person.year} - ${MONTH_NAMES[person.month]}`, 14, 40);
+      doc.text(`Dönem: ${person.periodString}`, 14, 40);
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
       const tableRows = [
-        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
+        ["Rota Oranı (Ort)", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı (Ort)", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı (Ort)", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı (Ort)", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
       ];
 
       doc.autoTable({
         startY: 50,
-        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
+        head: [['KPI Metriği', '3 Aylık Ortalama Değeri', 'Hedef']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 10 },
@@ -230,7 +285,7 @@ const PersonnelDefensePanel = ({ allData }) => {
       let finalY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(10);
       doc.setTextColor(40);
-      const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
+      const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak son 3 ay boyunca sergilediğiniz istikrarlı ve üstün başarıdan dolayı sizi tebrik eder, özverili çalışmalarınızın devamını dileriz.`;
       const splitText = doc.splitTextToSize(tebrikText, 180);
       doc.text(splitText, 14, finalY);
 
@@ -243,12 +298,11 @@ const PersonnelDefensePanel = ({ allData }) => {
     }
   };
 
-  // TOPLU TEBRİK İNDİRİCİ
   const generateBulkTebrikZIP = async () => {
     const tebrikList = filteredPersonnel.filter(p => p.isTebrik);
 
     if (tebrikList.length === 0) {
-      alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemi için tebrik almayı hak eden personel bulunmamaktadır.`);
+      alert(`Seçili dönem (Son 3 Ay Ortalaması) için tebrik almayı hak eden personel bulunmamaktadır.`);
       return;
     }
 
@@ -282,19 +336,19 @@ const PersonnelDefensePanel = ({ allData }) => {
         doc.setTextColor(100);
         doc.text(`Personel: ${person.name}`, 14, 30);
         doc.text(`Birim: ${person.unit}`, 14, 35);
-        doc.text(`Dönem: ${person.year} - ${MONTH_NAMES[person.month]}`, 14, 40);
+        doc.text(`Dönem: ${person.periodString}`, 14, 40);
         doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
         const tableRows = [
-          ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
-          ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
-          ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
-          ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
+          ["Rota Oranı (Ort)", `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
+          ["TVS Oranı (Ort)", `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
+          ["Check-in Oranı (Ort)", `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
+          ["SMS Oranı (Ort)", `%${formatDisplayMetric(person.smsOrani)}`, `%${TARGETS.smsOrani}`]
         ];
 
         doc.autoTable({
           startY: 50,
-          head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
+          head: [['KPI Metriği', '3 Aylık Ortalama Değeri', 'Hedef']],
           body: tableRows,
           theme: 'grid',
           styles: { font: 'Roboto', fontSize: 10 },
@@ -305,7 +359,7 @@ const PersonnelDefensePanel = ({ allData }) => {
         let finalY = doc.lastAutoTable.finalY + 10;
         doc.setFontSize(10);
         doc.setTextColor(40);
-        const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
+        const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak son 3 ay boyunca sergilediğiniz istikrarlı ve üstün başarıdan dolayı sizi tebrik eder, özverili çalışmalarınızın devamını dileriz.`;
         const splitText = doc.splitTextToSize(tebrikText, 180);
         doc.text(splitText, 14, finalY);
 
@@ -317,7 +371,7 @@ const PersonnelDefensePanel = ({ allData }) => {
       }
 
       const zipContent = await zip.generateAsync({ type: "blob" });
-      window.saveAs(zipContent, `Tebrik_Belgeleri_${MONTH_NAMES[selectedMonth]}_${selectedYear}.zip`);
+      window.saveAs(zipContent, `Tebrik_Belgeleri_Son3AyOrtalamasi.zip`);
 
     } catch (error) {
       console.error("Toplu Tebrik ZIP oluşturulurken hata:", error);
@@ -328,17 +382,18 @@ const PersonnelDefensePanel = ({ allData }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mt-4">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mt-4 sm:mt-6">
       
-      {/* ORİJİNAL GENİŞ HEADER TASARIMI */}
       <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
             <Award className="text-emerald-500" size={20} />
             <AlertCircle className="text-rose-500" size={20} />
-            Personel Savunma ve Tebrik Yönetimi
+            Personel İstikrar ve Savunma Yönetimi
           </h2>
-          <p className="text-sm text-slate-500 mt-1">Tüm personelinizi listeleyin; hedefleri tutturanları tebrik edin, sapanlar için savunma oluşturun.</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Seçili ay ve önceki 2 ayın (<strong>Son 3 Ay</strong>) ortalaması alınır. Sadece 3 ay boyunca kesintisiz verisi olanlar listelenir.
+          </p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -357,25 +412,24 @@ const PersonnelDefensePanel = ({ allData }) => {
             onClick={generateBulkTebrikZIP}
             disabled={isGeneratingPdf}
             className="w-full md:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md disabled:opacity-50 outline-none"
-            title="Seçili ay ve yıldaki tüm tebrik alan personelleri ZIP olarak indir"
+            title="Sadece son 3 ay istikrarlı başarı gösteren tüm tebrik alan personelleri ZIP olarak indir"
           >
             {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
-            Toplu Tebrik İndir
+            Toplu İstikrar Tebriği İndir
           </button>
         </div>
       </div>
 
-      {/* ORİJİNAL GENİŞ TABLO TASARIMI (Birim Sütunu Geri Geldi) */}
       <div className="overflow-x-auto">
         <table className="w-full text-left whitespace-nowrap">
           <thead className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
             <tr>
               <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Birim</th>
               <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ad Soyad</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Rota</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">TVS</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Check-in</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">SMS</th>
+              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Rota Ort.</th>
+              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">TVS Ort.</th>
+              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Check-in Ort.</th>
+              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">SMS Ort.</th>
               <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">İşlem Durumu</th>
             </tr>
           </thead>
@@ -387,16 +441,16 @@ const PersonnelDefensePanel = ({ allData }) => {
                   <td className="p-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{person.name}</td>
                   
                   <td className={`p-4 text-center font-bold text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {person.rotaOrani !== null && person.rotaOrani !== "" ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
+                    {person.rotaOrani !== null ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
                   </td>
                   <td className={`p-4 text-center font-bold text-sm ${person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {person.tvsOrani !== null && person.tvsOrani !== "" ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
+                    {person.tvsOrani !== null ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
                   </td>
                   <td className={`p-4 text-center font-bold text-sm ${person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {person.checkInOrani !== null && person.checkInOrani !== "" ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
+                    {person.checkInOrani !== null ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
                   </td>
                   <td className={`p-4 text-center font-bold text-sm ${person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {person.smsOrani !== null && person.smsOrani !== "" ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
+                    {person.smsOrani !== null ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
                   </td>
                   
                   <td className="p-4 text-center">
@@ -426,7 +480,7 @@ const PersonnelDefensePanel = ({ allData }) => {
               ))
             ) : (
               <tr>
-                <td colSpan="7" className="p-8 text-center text-slate-500">Bu döneme ait personel verisi bulunmamaktadır.</td>
+                <td colSpan="7" className="p-8 text-center text-slate-500">Seçilen dönem ve önceki 2 aya ait kesintisiz verisi olan personel bulunamadı.</td>
               </tr>
             )}
           </tbody>
