@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, ChevronDown, Calendar, Truck, Box, Zap, Key, FileDown, Loader2, Search, ChevronRight, Home, X } from "lucide-react";
+// GÜNCELLENDİ: Eksik olan "Package" ikonu tekrar eklendi. Beyaz ekran sorunu çözüldü!
+import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, Search, ChevronRight, Home, X } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -13,7 +14,7 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
-// İsim temizleme kuralı
+// İsim temizleme kuralı (Çift boşlukları ve harf hatalarını düzeltir)
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -63,7 +64,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         return quantitiesData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
     }, [quantitiesData, selectedUnit, selectedYear, selectedMonth]);
 
-    // GÜNCELLENDİ: dailyTotals (Günlük Alt Toplamlar) hesaplaması eklendi
+    // Günlük Alt Toplamlar (dailyTotals)
     const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
         const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -74,7 +75,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         let tParca = 0;
         let dTotals = {};
         
-        // Günlük toplamları sıfırla
         daysArr.forEach(d => dTotals[d] = 0);
 
         if (unitQuantities && unitQuantities.records) {
@@ -87,7 +87,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 const countVal = r.count || 0;
                 map[safeName].days[r.day] += countVal;
                 
-                // Günlük genel toplama ekle
                 if (dTotals[r.day] !== undefined) {
                     dTotals[r.day] += countVal;
                 }
@@ -166,7 +165,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 tableBody.push(rowData);
             });
 
-            // GÜNCELLENDİ: PDF Alt Toplam Satırı
             const totalRow = ["GÜNLÜK ALT TOPLAM", "", totalCount];
             daysArray.forEach(d => totalRow.push(dailyTotals[d] || "-"));
             tableBody.push(totalRow);
@@ -218,6 +216,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         [searchQuery]
     );
 
+    // BİREBİR DASHBOARD TASARIMI İLE KARŞILAMA EKRANI
     if (!selectedUnit) {
         return (
             <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
@@ -266,6 +265,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         );
     }
 
+    // BİRİM SEÇİLDİYSE DETAY EKRANI
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 shadow-sm border-b border-slate-200 dark:border-slate-800">
@@ -371,7 +371,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </div>
                 </div>
 
-                {/* GÜNCELLENDİ: 4'LÜ KART YAPISI (GENEL TOPLAM EKLENDİ) */}
                 <div className="mb-4">
                     <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Personel & Parçabaşı Dağıtım Analizi</h3>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -454,7 +453,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                         );
                                     })}
                                     
-                                    {/* GÜNCELLENDİ: GÜNLÜK ALT TOPLAM SATIRI (EN ALTTA) */}
                                     <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
                                         <td colSpan={2} className="p-3 text-right font-black sticky left-0 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                             GÜNLÜK ALT TOPLAM
