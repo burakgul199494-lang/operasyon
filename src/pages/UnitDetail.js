@@ -1,21 +1,13 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award } from "lucide-react";
-import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck } from "lucide-react";
+import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
 const TARGETS = { 
-  teslimPerformansi: 96,
-  adresAlimOrani: 90,
-  musteriSikayet: 0,
-  rotaOrani: 85, 
-  tvsOrani: 95, 
-  checkInOrani: 90, 
-  smsOrani: 70,
-  eAtfOrani: 95,
-  htfOrani: 90,
-  kontrolSende: 90,
-  olcumTartim: 20
+  teslimPerformansi: 96, adresAlimOrani: 90, musteriSikayet: 0,
+  rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70,
+  eAtfOrani: 95, htfOrani: 90, kontrolSende: 90, olcumTartim: 20
 };
 
 const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"];
@@ -29,16 +21,12 @@ const parseMetric = (val) => {
   return isNaN(num) ? null : num;
 };
 
-// YENİ: isPercent ile Oran ve Adet ayrımı yapıldı
 const formatDisplayMetric = (val, isPercent = true) => {
   if (val === undefined || val === null || val === "") return "-";
   let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
   let num = parseFloat(strVal);
   if (!isNaN(num)) {
-    return num.toLocaleString('tr-TR', { 
-      minimumFractionDigits: isPercent ? 2 : 0, 
-      maximumFractionDigits: isPercent ? 2 : 0 
-    });
+    return num.toLocaleString('tr-TR', { minimumFractionDigits: isPercent ? 2 : 0, maximumFractionDigits: isPercent ? 2 : 0 });
   }
   return val;
 };
@@ -65,7 +53,8 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
+// GÜNCELLENDİ: quantitiesData prop olarak eklendi
+const UnitDetail = ({ allData, unitInfo, quantitiesData, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
   const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
@@ -89,7 +78,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       setSelectedYear(latestRecord.year);
       setSelectedMonth(latestRecord.month);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allData, selectedUnit]); 
 
   const currentData = useMemo(() => {
@@ -127,6 +115,27 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isAdresAlimBasarisiz = displayData && parseMetric(displayData.adresAlimOrani) < TARGETS.adresAlimOrani;
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
+
+  // YENİ: Seçili Ay veya Yıllık Ortalama için Personel Adetlerini Hesaplama
+  const personnelTotals = useMemo(() => {
+    const totals = {};
+    if (!quantitiesData || quantitiesData.length === 0) return totals;
+
+    const relevantQuantities = showYearAvg 
+        ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
+        : quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+
+    relevantQuantities.forEach(uq => {
+        if (uq.records && Array.isArray(uq.records)) {
+            uq.records.forEach(r => {
+                const name = r.name ? r.name.trim() : "";
+                if (!totals[name]) totals[name] = 0;
+                totals[name] += (r.count || 0);
+            });
+        }
+    });
+    return totals;
+  }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
 
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
@@ -218,7 +227,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.addFont("Roboto.ttf", "Roboto", "bold");
       doc.setFont("Roboto");
     }
+
     const donemText = isYearAvg ? `${year} Yılı Ortalaması` : `${year} - ${MONTH_NAMES[month]}`;
+    
     doc.setFontSize(18);
     doc.setTextColor(40);
     const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON BİRİM KARNESİ";
@@ -236,7 +247,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       const splitIntro = doc.splitTextToSize(introText, 182);
       doc.text(splitIntro, 14, 50);
 
-      // YENİ: KIRMIZI KALIN UYARI METNİ EKLENDİ
       const warningText = "Teslim Performansı Oranında hesaplanmamış kargolar söz konusu olabilmektedir, bu nedenle nihai oranlar ay sonu Genel Müdürlük Muhasebe tarafından paylaşılan oranlar kabul edilmektedir.";
       doc.setFont("Roboto", "bold");
       doc.setTextColor(220, 38, 38); 
@@ -248,7 +258,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.setFont("Roboto", "normal"); 
     }
     
-    // YENİ: Tabloda Adet/Yüzde ayrımı yapıldı (Müşteri Şikayet, Ölçüm Tartım, Gelen/Giden 'false' yapıldı)
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, `%${TARGETS.adresAlimOrani}`],
@@ -326,6 +335,8 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.text("Birim Yöneticisi Ad / Soyad:", 14, finalY);
       doc.text("İmza:", 140, finalY);
     }
+    
+    // GÜNCELLENDİ: PDF'teki Personel Tablosuna 'Adet' Eklendi
     if (type === 'report' && targetData.personnel && targetData.personnel.length > 0) {
       doc.addPage();
       doc.setFontSize(16);
@@ -334,32 +345,39 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.setFontSize(10);
       doc.setTextColor(100);
       doc.text(`Birim: ${targetUnit} | Dönem: ${donemText}`, 14, 30);
+      
       const personnelRows = targetData.personnel
         .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-        .map(p => [
-          p.name,
-          `%${formatDisplayMetric(p.rotaOrani, true)}`,
-          `%${formatDisplayMetric(p.tvsOrani, true)}`,
-          `%${formatDisplayMetric(p.checkInOrani, true)}`,
-          `%${formatDisplayMetric(p.smsOrani, true)}`
-        ]);
+        .map(p => {
+          const totalAdet = personnelTotals[p.name.trim()] ? personnelTotals[p.name.trim()].toLocaleString('tr-TR') : "-";
+          return [
+            p.name,
+            totalAdet, // ADET SÜTUNU
+            `%${formatDisplayMetric(p.rotaOrani, true)}`,
+            `%${formatDisplayMetric(p.tvsOrani, true)}`,
+            `%${formatDisplayMetric(p.checkInOrani, true)}`,
+            `%${formatDisplayMetric(p.smsOrani, true)}`
+          ];
+        });
+        
       doc.autoTable({
         startY: 35,
-        head: [['Personel Ad Soyad', 'Rota %', 'TVS %', 'Check-in %', 'SMS %']],
+        head: [['Personel Ad Soyad', 'Top. Adet', 'Rota %', 'TVS %', 'Check-in %', 'SMS %']],
         body: personnelRows,
         theme: 'striped',
         styles: { font: 'Roboto', fontSize: 9 },
         headStyles: { fillColor: [100, 116, 139], halign: 'center' },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+        columnStyles: { 1: { halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229] }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' } },
         didParseCell: function(data) {
           if (data.section === 'body') {
             const colIndex = data.column.index;
             const cellVal = parseMetric(data.cell.raw);
             let isFail = false;
-            if (colIndex === 1 && cellVal !== null && cellVal < TARGETS.rotaOrani) isFail = true;
-            if (colIndex === 2 && cellVal !== null && cellVal < TARGETS.tvsOrani) isFail = true;
-            if (colIndex === 3 && cellVal !== null && cellVal < TARGETS.checkInOrani) isFail = true;
-            if (colIndex === 4 && cellVal !== null && cellVal < TARGETS.smsOrani) isFail = true;
+            // Adet sütunu araya girdiği için indexler 1 kaydı (Rota artık 2)
+            if (colIndex === 2 && cellVal !== null && cellVal < TARGETS.rotaOrani) isFail = true;
+            if (colIndex === 3 && cellVal !== null && cellVal < TARGETS.tvsOrani) isFail = true;
+            if (colIndex === 4 && cellVal !== null && cellVal < TARGETS.checkInOrani) isFail = true;
+            if (colIndex === 5 && cellVal !== null && cellVal < TARGETS.smsOrani) isFail = true;
             if (isFail) {
               data.cell.styles.textColor = [185, 28, 28];
               data.cell.styles.fontStyle = 'bold';
@@ -680,7 +698,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
-          <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 shrink-0">
               <h3 className="font-bold text-sm sm:text-base text-slate-800 dark:text-white flex items-center gap-2"><Users className="text-purple-600" size={18} /> Personel Performans Yönetimi</h3>
               <button onClick={() => setShowAllPersonnelModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><X size={20} /></button>
@@ -690,6 +708,10 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                 <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                   <tr>
                     <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Ad Soyad</th>
+                    
+                    {/* GÜNCELLENDİ: ADET SÜTUNU EKLENDİ */}
+                    <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-indigo-600 dark:text-indigo-400 text-center">Adet</th>
+                    
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Check-in</th>
@@ -705,9 +727,16 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
                       const s = parseMetric(person.smsOrani);
                       const isAnyFail = (r !== null && r < TARGETS.rotaOrani) || (t !== null && t < TARGETS.tvsOrani) || (c !== null && c < TARGETS.checkInOrani) || (s !== null && s < TARGETS.smsOrani);
                       const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
+                      
+                      const totalAdet = personnelTotals[person.name.trim()] ? personnelTotals[person.name.trim()].toLocaleString('tr-TR') : "-";
+
                       return (
                         <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
                           <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{person.name}</td>
+                          
+                          {/* YENİ: PERSONEL ADET VERİSİ */}
+                          <td className="p-1.5 sm:p-3 text-center font-black text-[11px] sm:text-sm text-indigo-600 dark:text-indigo-400">{totalAdet}</td>
+                          
                           <td className={`p-1.5 sm:p-3 text-center font-bold text-[10px] sm:text-sm ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>{r !== null ? `%${formatDisplayMetric(person.rotaOrani, true)}` : "-"}</td>
                           <td className={`p-1.5 sm:p-3 text-center font-bold text-[10px] sm:text-sm ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>{t !== null ? `%${formatDisplayMetric(person.tvsOrani, true)}` : "-"}</td>
                           <td className={`p-1.5 sm:p-3 text-center font-bold text-[10px] sm:text-sm ${c !== null && c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>{c !== null ? `%${formatDisplayMetric(person.checkInOrani, true)}` : "-"}</td>
