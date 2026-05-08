@@ -1,8 +1,18 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck } from "lucide-react";
 import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
 import KPICard from "../components/KPICard";
+
+// EXCEL ŞABLONUNDAKİ TETKİK SORULARI
+// Not: Buraya Excel'deki diğer soruları aynı mantıkla alt alta ekleyebilirsin.
+const INSPECTION_QUESTIONS = [
+  { id: 1, category: "KARGO OPERASYONLARI", question: "Devir Kargo İşlemleri zamanında ve standartlara uygun yapılıyor mu?", criteria: "GM-PRO-04" },
+  { id: 2, category: "KARGO OPERASYONLARI", question: "Yönlendirme Posterleri birimde uygun yerlere asılıyor mu?", criteria: "7.1.4 / GM-PR-07" },
+  { id: 3, category: "İNSAN KAYNAKLARI", question: "Personel kılık kıyafet ve yaka kartı kurallarına uyuyor mu?", criteria: "İK-PR-01" },
+  { id: 4, category: "SATIŞ PAZARLAMA", question: "Müşteri şikayetleri zamanında çözümlenip sisteme giriliyor mu?", criteria: "ISO 10002" },
+  { id: 5, category: "İŞ SAĞLIĞI", question: "Çalışma ortamında İSG kurallarına ve temizliğe uyuluyor mu?", criteria: "ISO 45001" }
+];
 
 const TARGETS = { 
   teslimPerformansi: 96,
@@ -29,7 +39,6 @@ const parseMetric = (val) => {
   return isNaN(num) ? null : num;
 };
 
-// YENİ: isPercent ile Oran ve Adet ayrımı yapıldı
 const formatDisplayMetric = (val, isPercent = true) => {
   if (val === undefined || val === null || val === "") return "-";
   let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
@@ -76,6 +85,12 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
+
+  // YENİ: TETKİK RAPORU STATELERİ
+  const [showInspectionModal, setShowInspectionModal] = useState(false);
+  const [auditorName, setAuditorName] = useState("");
+  const [inspectionNote, setInspectionNote] = useState("");
+  const [inspectionAnswers, setInspectionAnswers] = useState({});
 
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
@@ -127,6 +142,14 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isAdresAlimBasarisiz = displayData && parseMetric(displayData.adresAlimOrani) < TARGETS.adresAlimOrani;
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
+
+  const handleInspectionAnswer = (qId, status) => {
+    setInspectionAnswers(prev => ({ ...prev, [qId]: { ...prev[qId], status } }));
+  };
+
+  const handleInspectionBulgu = (qId, bulgu) => {
+    setInspectionAnswers(prev => ({ ...prev, [qId]: { ...prev[qId], bulgu } }));
+  };
 
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
@@ -218,7 +241,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.addFont("Roboto.ttf", "Roboto", "bold");
       doc.setFont("Roboto");
     }
+
     const donemText = isYearAvg ? `${year} Yılı Ortalaması` : `${year} - ${MONTH_NAMES[month]}`;
+    
     doc.setFontSize(18);
     doc.setTextColor(40);
     const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON BİRİM KARNESİ";
@@ -228,7 +253,9 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     doc.text(`Birim: ${targetUnit}`, 14, 30);
     doc.text(`Dönem: ${donemText}`, 14, 35);
     doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
+    
     let startY = 45;
+    
     if (type === 'report') {
       doc.setFontSize(9); 
       doc.setTextColor(60);
@@ -236,7 +263,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       const splitIntro = doc.splitTextToSize(introText, 182);
       doc.text(splitIntro, 14, 50);
 
-      // YENİ: KIRMIZI KALIN UYARI METNİ EKLENDİ
       const warningText = "Teslim Performansı Oranında hesaplanmamış kargolar söz konusu olabilmektedir, bu nedenle nihai oranlar ay sonu Genel Müdürlük Muhasebe tarafından paylaşılan oranlar kabul edilmektedir.";
       doc.setFont("Roboto", "bold");
       doc.setTextColor(220, 38, 38); 
@@ -248,7 +274,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
       doc.setFont("Roboto", "normal"); 
     }
     
-    // YENİ: Tabloda Adet/Yüzde ayrımı yapıldı (Müşteri Şikayet, Ölçüm Tartım, Gelen/Giden 'false' yapıldı)
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, `%${TARGETS.adresAlimOrani}`],
@@ -309,6 +334,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         }
       }
     });
+    
     let finalY = doc.lastAutoTable.finalY + 10;
     if (type === 'defense') {
       doc.setFontSize(10);
@@ -386,11 +412,13 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     }
   };
 
-  const generatePersonnelPDF = async (person) => {
+  // YENİ: TETKİK RAPORU OLUŞTURMA FONKSİYONU
+  const generateInspectionPDF = async () => {
     setIsGeneratingPdf(true);
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
+
       try {
         const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
         const blob = await response.blob();
@@ -400,109 +428,106 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         doc.addFont("Roboto.ttf", "Roboto", "bold");
         doc.setFont("Roboto");
       } catch (e) { console.warn("Font indirilemedi."); }
-      const r = parseMetric(person.rotaOrani);
-      const t = parseMetric(person.tvsOrani);
-      const c = parseMetric(person.checkInOrani);
-      const s = parseMetric(person.smsOrani);
-      doc.setFontSize(18);
-      doc.setTextColor(220, 38, 38);
-      doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Personel: ${person.name}`, 14, 30);
-      doc.text(`Birim: ${selectedUnit}`, 14, 35);
-      doc.text(`Dönem: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 40);
-      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
-      const tableRows = [
-        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani, true)}`, `%${TARGETS.smsOrani}`]
-      ];
-      doc.autoTable({
-        startY: 50,
-        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
-        body: tableRows,
-        theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 10 },
-        headStyles: { fillColor: [220, 38, 38], halign: 'center', font: 'Roboto' },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
-        didParseCell: function(data) {
-          if (data.section === 'body') {
-            const metricName = data.row.raw[0];
-            let isFail = false;
-            if (metricName === "Rota Oranı" && r !== null && r < TARGETS.rotaOrani) isFail = true;
-            if (metricName === "TVS Oranı" && t !== null && t < TARGETS.tvsOrani) isFail = true;
-            if (metricName === "Check-in Oranı" && c !== null && c < TARGETS.checkInOrani) isFail = true;
-            if (metricName === "SMS Oranı" && s !== null && s < TARGETS.smsOrani) isFail = true;
-            if (isFail) { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [185, 28, 28]; data.cell.styles.fontStyle = 'bold'; }
-          }
-        }
-      });
-      let finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(10);
-      doc.setTextColor(40);
-      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartlar üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
-      const splitText = doc.splitTextToSize(defenseText, 180);
-      doc.text(splitText, 14, finalY);
-      finalY += splitText.length * 5 + 10;
-      doc.setFontSize(11);
-      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
-      doc.setDrawColor(200);
-      for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
-      finalY += 75;
-      doc.setFontSize(10);
-      doc.text("Personel Ad / Soyad:", 14, finalY);
-      doc.text("İmza:", 140, finalY);
-      doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma.pdf`);
-    } catch (error) { console.error("PDF oluşturulurken hata:", error); } finally { setIsGeneratingPdf(false); }
-  };
 
-  const generateTebrikPDF = async (person) => {
-    setIsGeneratingPdf(true);
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      try {
-        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
-        const blob = await response.blob();
-        const base64Font = await getBase64(blob);
-        doc.addFileToVFS("Roboto.ttf", base64Font);
-        doc.addFont("Roboto.ttf", "Roboto", "normal");
-        doc.setFont("Roboto");
-      } catch (e) { console.warn("Font indirilemedi."); }
-      doc.setFontSize(18);
-      doc.setTextColor(22, 163, 74); 
-      doc.text("PERSONEL PERFORMANS TEBRİK BELGESİ", 14, 22);
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Personel: ${person.name}`, 14, 30);
-      doc.text(`Birim: ${selectedUnit}`, 14, 35);
-      doc.text(`Dönem: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 40);
-      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
-      const tableRows = [
-        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani, true)}`, `%${TARGETS.smsOrani}`]
+      // 1. BAŞLIK BÖLÜMÜ
+      doc.setFontSize(16);
+      doc.setTextColor(30, 58, 138); // Koyu Lacivert
+      doc.setFont("Roboto", "bold");
+      doc.text("ŞUBE - ACENTE İÇ TETKİK SORU FORMU / RAPORU", 14, 22);
+      
+      doc.setFontSize(9);
+      doc.setFont("Roboto", "normal");
+      doc.setTextColor(80);
+      doc.text("Referans Standartlar: ISO 9001, ISO 10002, ISO 14001, ISO 22301, ISO 27001, ISO 45001", 14, 30);
+      doc.text(`Birim: ${selectedUnit}`, 14, 38);
+      doc.text(`Tetkik Dönemi: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 43);
+      doc.text(`Tetkik Tarihi: ${new Date().toLocaleDateString('tr-TR')}`, 14, 48);
+      doc.text(`Denetçi: ${auditorName || "Belirtilmedi"}`, 14, 53);
+
+      // 2. OTOMATİK SİSTEM PERFORMANS TABLOSU
+      doc.setFontSize(11);
+      doc.setFont("Roboto", "bold");
+      doc.setTextColor(50);
+      doc.text("1. SİSTEM PERFORMANS VERİLERİ (Otomatik)", 14, 65);
+
+      const targetData = displayData || {};
+      const kpiRows = [
+        ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, "Rota Oranı", `%${formatDisplayMetric(targetData.rotaOrani, true)}`],
+        ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, "TVS Oranı", `%${formatDisplayMetric(targetData.tvsOrani, true)}`],
+        ["Müşteri Şikayeti", formatDisplayMetric(targetData.musteriSikayet, false), "Check-in Oranı", `%${formatDisplayMetric(targetData.checkInOrani, true)}`],
+        ["Ölçüm Tartım", formatDisplayMetric(targetData.olcumTartim, false), "SMS Oranı", `%${formatDisplayMetric(targetData.smsOrani, true)}`]
       ];
+
       doc.autoTable({
-        startY: 50,
-        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
-        body: tableRows,
+        startY: 68,
+        body: kpiRows,
         theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 10 },
-        headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }
+        styles: { font: 'Roboto', fontSize: 9 },
+        headStyles: { fillColor: [240, 240, 240], textColor: [50, 50, 50] },
+        columnStyles: { 0: { fontStyle: 'bold' }, 2: { fontStyle: 'bold' } }
       });
-      let finalY = doc.lastAutoTable.finalY + 10;
+
+      let finalY = doc.lastAutoTable.finalY + 12;
+
+      // 3. TETKİK SORULARI TABLOSU
+      doc.setFontSize(11);
+      doc.setFont("Roboto", "bold");
+      doc.setTextColor(50);
+      doc.text("2. TETKİK SORULARI VE BULGULAR", 14, finalY);
+
+      const qRows = INSPECTION_QUESTIONS.map((q, i) => {
+          const ans = inspectionAnswers[q.id] || {};
+          return [
+              i + 1,
+              q.question,
+              q.criteria,
+              ans.status || "Seçilmedi",
+              ans.bulgu || "-"
+          ];
+      });
+
+      doc.autoTable({
+        startY: finalY + 3,
+        head: [['No', 'Soru', 'Kriter (Std)', 'Durum', 'Bulgu / Açıklama']],
+        body: qRows,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 8 },
+        headStyles: { fillColor: [30, 58, 138], textColor: [255, 255, 255], halign: 'center' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 75 }, 2: { cellWidth: 25, halign: 'center' }, 3: { cellWidth: 25, halign: 'center' } }
+      });
+
+      finalY = doc.lastAutoTable.finalY + 12;
+
+      // 4. DENETİMDE TESPİT EDİLEN KONULAR VE SONUÇ
+      doc.setFontSize(11);
+      doc.setFont("Roboto", "bold");
+      doc.text("DENETİMDE TESPİT EDİLEN KONULAR VE SONUÇ:", 14, finalY);
+      
       doc.setFontSize(10);
-      doc.setTextColor(40);
-      const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
-      const splitText = doc.splitTextToSize(tebrikText, 180);
-      doc.text(splitText, 14, finalY);
-      doc.save(`${selectedUnit}_${person.name.replace(/\s+/g, '_')}_Tebrik.pdf`);
-    } catch (error) { console.error("PDF oluşturulurken hata:", error); } finally { setIsGeneratingPdf(false); }
+      doc.setFont("Roboto", "normal");
+      const splitNote = doc.splitTextToSize(inspectionNote || "Bu alan boş bırakılmıştır.", 182);
+      doc.text(splitNote, 14, finalY + 6);
+
+      finalY += (splitNote.length * 5) + 20;
+
+      // İMZALAR
+      doc.setFont("Roboto", "bold");
+      doc.text("Tetkik Eden (Denetçi):", 14, finalY);
+      doc.text("Birim Yöneticisi:", 130, finalY);
+      
+      doc.setFont("Roboto", "normal");
+      doc.text(auditorName || "....................................", 14, finalY + 8);
+      doc.text("....................................", 130, finalY + 8);
+      doc.text("İmza:", 14, finalY + 16);
+      doc.text("İmza:", 130, finalY + 16);
+
+      doc.save(`${selectedUnit}_İç_Tetkik_Raporu.pdf`);
+      setShowInspectionModal(false);
+    } catch (err) {
+      console.error("Tetkik raporu hatası:", err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const generateBulkZIP = async () => {
@@ -554,6 +579,13 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             <TrendingUp size={14} className="mb-0.5" />
             {showYearAvg ? "Aylara Dön" : "Yıl Ort."}
           </button>
+          
+          {/* YENİ: TETKİK RAPORU BUTONU */}
+          <button onClick={() => setShowInspectionModal(true)} className="flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border bg-indigo-600 text-white border-transparent shadow-md hover:bg-indigo-700 transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ml-1">
+            <ClipboardCheck size={14} className="mb-0.5" />
+            Tetkik Raporu
+          </button>
+
           <button onClick={() => setShowPdfModal(true)} className="flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border bg-emerald-600 text-white border-transparent shadow-md hover:bg-emerald-700 transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ml-1">
             <FileDown size={14} className="mb-0.5" />
             Belge Al
@@ -677,6 +709,84 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
           </div>
         )}
       </div>
+
+      {/* YENİ: TETKİK RAPORU MODALI */}
+      {showInspectionModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowInspectionModal(false)}>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl relative flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
+            
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900 shrink-0">
+              <div>
+                <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                  <ClipboardCheck className="text-indigo-600" /> Şube İç Tetkik Soru Formu / Raporu
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">Dönem: {selectedYear} - {MONTH_NAMES[selectedMonth]} | Birim: {selectedUnit}</p>
+              </div>
+              <button onClick={() => setShowInspectionModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Denetçi (Tetkik Eden) Ad Soyad</label>
+                  <input type="text" placeholder="Denetçi adını giriniz..." className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none dark:bg-slate-700 dark:text-white" value={auditorName} onChange={e => setAuditorName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Denetimde Tespit Edilen Konular ve Sonuç</label>
+                  <textarea placeholder="Raporun en alt kısmında yer alacak genel denetim özetini buraya yazabilirsiniz..." className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-h-[100px] resize-none dark:bg-slate-700 dark:text-white" value={inspectionNote} onChange={e => setInspectionNote(e.target.value)}></textarea>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-4 border-b border-slate-200 dark:border-slate-700 pb-2 text-lg">Denetim Soruları</h4>
+                <div className="space-y-4">
+                  {INSPECTION_QUESTIONS.map((q, idx) => (
+                    <div key={q.id} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <div className="mb-3">
+                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full uppercase tracking-wider">{q.category}</span>
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 ml-2">KRİTER: {q.criteria}</span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3">{idx + 1}. {q.question}</p>
+                      
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <select 
+                          className="border border-slate-300 dark:border-slate-600 p-2.5 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white font-medium outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-48 shrink-0" 
+                          value={inspectionAnswers[q.id]?.status || ""} 
+                          onChange={e => handleInspectionAnswer(q.id, e.target.value)}
+                        >
+                          <option value="">Değerlendirme Seç...</option>
+                          <option value="Uygun">Uygun</option>
+                          <option value="Uygun Değil">Uygun Değil</option>
+                          <option value="Gözlem">Gözlem</option>
+                          <option value="Uygulanamaz">Uygulanamaz</option>
+                        </select>
+                        <input 
+                          type="text" 
+                          placeholder="İsteğe bağlı bulgu, kanıt veya açıklama yazın..." 
+                          className="flex-1 border border-slate-300 dark:border-slate-600 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-700 dark:text-white" 
+                          value={inspectionAnswers[q.id]?.bulgu || ""} 
+                          onChange={e => handleInspectionBulgu(q.id, e.target.value)} 
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 shrink-0">
+              <button onClick={() => setShowInspectionModal(false)} className="px-5 py-2 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors">İptal</button>
+              <button onClick={generateInspectionPDF} disabled={isGeneratingPdf} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-bold shadow-md flex items-center gap-2 transition-all disabled:opacity-50">
+                {isGeneratingPdf ? <Loader2 size={18} className="animate-spin" /> : <FileDown size={18} />}
+                Raporu Oluştur (PDF)
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
