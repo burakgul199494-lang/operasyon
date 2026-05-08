@@ -23,7 +23,7 @@ const formatDisplayMetric = (val) => {
   return val;
 };
 
-// İsim temizleme (Adetlerin hatasız eşleşmesi için)
+// KUSURSUZ EŞLEŞME: Tüm çift boşlukları ve büyük/küçük harfleri temizleyip standartlaştırır
 const normalizeName = (name) => {
   if (!name) return "";
   return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -73,14 +73,14 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
 
   const targetMonths = useMemo(() => {
     if (!isThreeMonthView) {
-      return [{ year: selectedYear, month: selectedMonth }];
+      return [{ year: parseInt(selectedYear), month: parseInt(selectedMonth) }];
     }
     
     const uniqueMonths = [];
     (allData || []).forEach(d => {
       if (d.personnel && d.personnel.length > 0) {
-        const exists = uniqueMonths.find(m => m.year === d.year && m.month === d.month);
-        if (!exists) { uniqueMonths.push({ year: d.year, month: d.month }); }
+        const exists = uniqueMonths.find(m => m.year === parseInt(d.year) && m.month === parseInt(d.month));
+        if (!exists) { uniqueMonths.push({ year: parseInt(d.year), month: parseInt(d.month) }); }
       }
     });
 
@@ -92,22 +92,26 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
     return uniqueMonths.slice(0, 3);
   }, [selectedYear, selectedMonth, isThreeMonthView, allData]);
 
-  // Seçili döneme (1 ay veya 3 ay) göre Toplam Adetleri Hesaplama
+  // ADET HESAPLAMA (KUSURSUZ İSİM EŞLEŞTİRME İLE)
   const personnelAdetTotals = useMemo(() => {
     const totals = {};
     if (!quantitiesData || quantitiesData.length === 0 || targetMonths.length === 0) return totals;
 
     const relevantQuantities = quantitiesData.filter(d => 
-        targetMonths.some(tm => tm.year === d.year && tm.month === d.month)
+        targetMonths.some(tm => parseInt(tm.year) === parseInt(d.year) && parseInt(tm.month) === parseInt(d.month))
     );
 
     relevantQuantities.forEach(uq => {
         if (uq.records && Array.isArray(uq.records)) {
+            const unitName = (uq.unit || "").trim().toUpperCase();
             uq.records.forEach(r => {
                 const safeName = normalizeName(r.name);
-                const key = `${uq.unit}|${safeName}`;
+                const key = `${unitName}|${safeName}`;
                 if (!totals[key]) totals[key] = 0;
-                totals[key] += (r.count || 0);
+                
+                // Sayıyı güvenli formata çevir
+                const countVal = parseInt(String(r.count).replace(/\D/g, ''), 10) || 0;
+                totals[key] += countVal;
             });
         }
     });
@@ -120,7 +124,7 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
 
     if (!isThreeMonthView) {
       allData.forEach(record => {
-        if (record.year !== parseInt(selectedYear) || record.month !== parseInt(selectedMonth)) return;
+        if (parseInt(record.year) !== parseInt(selectedYear) || parseInt(record.month) !== parseInt(selectedMonth)) return;
         if (selectedUnit !== "TÜMÜ" && record.unit !== selectedUnit) return;
         
         if (record.personnel && Array.isArray(record.personnel)) {
@@ -133,9 +137,10 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
             const isAnyFail = (r !== null && r < TARGETS.rotaOrani) || (t !== null && t < TARGETS.tvsOrani) || (c !== null && c < TARGETS.checkInOrani) || (s !== null && s < TARGETS.smsOrani);
             const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
 
-            // Adeti Eşleştirme
+            // Adet Eşleştirme (Normalize)
+            const unitName = (record.unit || "").trim().toUpperCase();
             const safeName = normalizeName(person.name);
-            const key = `${record.unit}|${safeName}`;
+            const key = `${unitName}|${safeName}`;
             const totalAdet = personnelAdetTotals[key] || 0;
 
             list.push({ 
@@ -155,17 +160,18 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
     } else {
       const personMap = {};
       allData.forEach(record => {
-        const isTargetMonth = targetMonths.some(tm => tm.year === record.year && tm.month === record.month);
+        const isTargetMonth = targetMonths.some(tm => parseInt(tm.year) === parseInt(record.year) && parseInt(tm.month) === parseInt(record.month));
         if (!isTargetMonth) return;
         if (selectedUnit !== "TÜMÜ" && record.unit !== selectedUnit) return;
         
         if (record.personnel && Array.isArray(record.personnel)) {
           record.personnel.forEach(person => {
+            const unitName = (record.unit || "").trim().toUpperCase();
             const safeName = normalizeName(person.name);
-            const key = `${record.unit}|${safeName}`;
+            const key = `${unitName}|${safeName}`;
             
             if (!personMap[key]) {
-              personMap[key] = { name: person.name, unit: record.unit, safeName: safeName, monthsData: {} };
+              personMap[key] = { name: person.name, unit: record.unit, safeName: safeName, unitName: unitName, monthsData: {} };
             }
             personMap[key].monthsData[`${record.year}-${record.month}`] = {
               r: parseMetric(person.rotaOrani),
@@ -204,8 +210,8 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
            const isAnyFail = (avgR !== null && avgR < TARGETS.rotaOrani) || (avgT !== null && avgT < TARGETS.tvsOrani) || (avgC !== null && avgC < TARGETS.checkInOrani) || (avgS !== null && avgS < TARGETS.smsOrani);
            const isTebrik = !isAnyFail && (avgR !== null || avgT !== null || avgC !== null || avgS !== null);
            
-           // Adeti Eşleştirme (3 Aylık Toplam)
-           const key = `${personData.unit}|${personData.safeName}`;
+           // Adet Eşleştirme (3 Aylık Toplam)
+           const key = `${personData.unitName}|${personData.safeName}`;
            const totalAdet = personnelAdetTotals[key] || 0;
 
            list.push({ 
@@ -480,16 +486,22 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
   };
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-900 min-h-screen p-4 sm:p-6 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto">
-        
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mt-4 sm:mt-6">
+    <div className="bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+      {/* GENİŞ YAPI KORUNDU VE GERİ DÖN BUTONU EKLENDİ */}
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800 px-4 py-4 shadow-sm flex items-center gap-3">
+          <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+              <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
+          </button>
+          <div>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Personel Savunma & Tebrik</h1>
+          </div>
+      </div>
+
+      <div className="p-4 sm:p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             
             <div className="flex items-center gap-3">
-              <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full flex-shrink-0 transition-colors">
-                <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
-              </button>
               <div>
                 <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                   <Award className="text-emerald-500" size={20} />
