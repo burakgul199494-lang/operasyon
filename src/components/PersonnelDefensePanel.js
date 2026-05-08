@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { FileDown, Loader2, AlertCircle, Award, Archive, Users, TrendingUp } from "lucide-react";
+import { FileDown, Loader2, AlertCircle, Award, Archive, TrendingUp, ArrowLeft } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const TARGETS = { rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70 };
@@ -21,6 +21,12 @@ const formatDisplayMetric = (val) => {
     return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   return val;
+};
+
+// İsim temizleme (Adetlerin hatasız eşleşmesi için)
+const normalizeName = (name) => {
+  if (!name) return "";
+  return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
 };
 
 const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -45,7 +51,8 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const PersonnelDefensePanel = ({ allData }) => {
+// GÜNCELLENDİ: quantitiesData ve onBack prop olarak eklendi
+const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
   const [selectedUnit, setSelectedUnit] = useState("TÜMÜ");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -53,7 +60,6 @@ const PersonnelDefensePanel = ({ allData }) => {
   const [isThreeMonthView, setIsThreeMonthView] = useState(false);
   const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-  // YENİ: Sayfa açıldığında personel verisi olan EN GÜNCEL ayı bulup otomatik seçer
   useEffect(() => {
     if (allData && allData.length > 0 && !isInitialLoaded) {
       const validRecords = allData.filter(d => d.personnel && d.personnel.length > 0);
@@ -66,7 +72,6 @@ const PersonnelDefensePanel = ({ allData }) => {
     }
   }, [allData, isInitialLoaded]);
 
-  // YENİ: Sistemdeki personel verisi olan en güncel 3 ayı bulur
   const targetMonths = useMemo(() => {
     if (!isThreeMonthView) {
       return [{ year: selectedYear, month: selectedMonth }];
@@ -74,22 +79,41 @@ const PersonnelDefensePanel = ({ allData }) => {
     
     const uniqueMonths = [];
     (allData || []).forEach(d => {
-      // Sadece gerçekten personel verisi girilmiş ayları listeye al
       if (d.personnel && d.personnel.length > 0) {
         const exists = uniqueMonths.find(m => m.year === d.year && m.month === d.month);
         if (!exists) { uniqueMonths.push({ year: d.year, month: d.month }); }
       }
     });
 
-    // En yeniden en eskiye sırala
     uniqueMonths.sort((a, b) => {
       if (a.year !== b.year) return b.year - a.year;
       return b.month - a.month;
     });
 
-    // En güncel 3 ayı al
     return uniqueMonths.slice(0, 3);
   }, [selectedYear, selectedMonth, isThreeMonthView, allData]);
+
+  // YENİ: Seçili döneme (1 ay veya 3 ay) göre Toplam Adetleri Hesaplama
+  const personnelAdetTotals = useMemo(() => {
+    const totals = {};
+    if (!quantitiesData || quantitiesData.length === 0 || targetMonths.length === 0) return totals;
+
+    const relevantQuantities = quantitiesData.filter(d => 
+        targetMonths.some(tm => tm.year === d.year && tm.month === d.month)
+    );
+
+    relevantQuantities.forEach(uq => {
+        if (uq.records && Array.isArray(uq.records)) {
+            uq.records.forEach(r => {
+                const safeName = normalizeName(r.name);
+                const key = `${uq.unit}|${safeName}`;
+                if (!totals[key]) totals[key] = 0;
+                totals[key] += (r.count || 0);
+            });
+        }
+    });
+    return totals;
+  }, [quantitiesData, targetMonths]);
 
   const filteredPersonnel = useMemo(() => {
     let list = [];
@@ -110,6 +134,11 @@ const PersonnelDefensePanel = ({ allData }) => {
             const isAnyFail = (r !== null && r < TARGETS.rotaOrani) || (t !== null && t < TARGETS.tvsOrani) || (c !== null && c < TARGETS.checkInOrani) || (s !== null && s < TARGETS.smsOrani);
             const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
 
+            // Adeti Eşleştirme
+            const safeName = normalizeName(person.name);
+            const key = `${record.unit}|${safeName}`;
+            const totalAdet = personnelAdetTotals[key] || 0;
+
             list.push({ 
               ...person, 
               unit: record.unit, 
@@ -118,6 +147,7 @@ const PersonnelDefensePanel = ({ allData }) => {
               parsedData: { r, t, c, s }, 
               isTebrik, 
               isDefense: isAnyFail,
+              totalAdetDisplay: totalAdet > 0 ? totalAdet.toLocaleString('tr-TR') : "-", // Adet Gösterimi
               periodString: `${MONTH_NAMES[record.month]} ${record.year}`
             });
           });
@@ -132,9 +162,11 @@ const PersonnelDefensePanel = ({ allData }) => {
         
         if (record.personnel && Array.isArray(record.personnel)) {
           record.personnel.forEach(person => {
-            const key = `${record.unit}|${person.name}`;
+            const safeName = normalizeName(person.name);
+            const key = `${record.unit}|${safeName}`;
+            
             if (!personMap[key]) {
-              personMap[key] = { name: person.name, unit: record.unit, monthsData: {} };
+              personMap[key] = { name: person.name, unit: record.unit, safeName: safeName, monthsData: {} };
             }
             personMap[key].monthsData[`${record.year}-${record.month}`] = {
               r: parseMetric(person.rotaOrani),
@@ -154,7 +186,6 @@ const PersonnelDefensePanel = ({ allData }) => {
 
       Object.values(personMap).forEach(personData => {
         const monthsPresent = Object.keys(personData.monthsData).length;
-        // İlgili tüm aylarda kesintisiz verisi olanlar hesaba katılır
         if (monthsPresent === targetMonths.length && targetMonths.length > 0) {
            let sumR = 0, sumT = 0, sumC = 0, sumS = 0;
            let countR = 0, countT = 0, countC = 0, countS = 0;
@@ -174,6 +205,10 @@ const PersonnelDefensePanel = ({ allData }) => {
            const isAnyFail = (avgR !== null && avgR < TARGETS.rotaOrani) || (avgT !== null && avgT < TARGETS.tvsOrani) || (avgC !== null && avgC < TARGETS.checkInOrani) || (avgS !== null && avgS < TARGETS.smsOrani);
            const isTebrik = !isAnyFail && (avgR !== null || avgT !== null || avgC !== null || avgS !== null);
            
+           // Adeti Eşleştirme (3 Aylık Toplam)
+           const key = `${personData.unit}|${personData.safeName}`;
+           const totalAdet = personnelAdetTotals[key] || 0;
+
            list.push({ 
              name: personData.name,
              unit: personData.unit, 
@@ -184,6 +219,7 @@ const PersonnelDefensePanel = ({ allData }) => {
              smsOrani: avgS,
              isTebrik, 
              isDefense: isAnyFail,
+             totalAdetDisplay: totalAdet > 0 ? totalAdet.toLocaleString('tr-TR') : "-", // 3 Aylık Toplam Adet
              periodString: pString
            });
         }
@@ -191,7 +227,7 @@ const PersonnelDefensePanel = ({ allData }) => {
     }
 
     return list.sort((a, b) => a.unit.localeCompare(b.unit) || a.name.localeCompare(b.name));
-  }, [allData, selectedUnit, targetMonths, isThreeMonthView, selectedYear, selectedMonth]);
+  }, [allData, selectedUnit, targetMonths, isThreeMonthView, selectedYear, selectedMonth, personnelAdetTotals]);
 
   const generatePersonnelPDF = async (person) => {
     setIsGeneratingPdf(true);
@@ -222,7 +258,10 @@ const PersonnelDefensePanel = ({ allData }) => {
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
       const isAvg = isThreeMonthView && targetMonths.length > 1;
+      
+      // YENİ: Dönem Toplam Teslim Adeti satırı eklendi
       const tableRows = [
+        [`Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
         [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
         [`TVS Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
         [`Check-in Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
@@ -231,7 +270,7 @@ const PersonnelDefensePanel = ({ allData }) => {
 
       doc.autoTable({
         startY: 50,
-        head: [['KPI Metriği', isAvg ? 'Ortalama Değer' : 'Personel Değeri', 'Hedef']],
+        head: [['Performans Kriteri', isAvg ? 'Ortalama / Toplam Değer' : 'Personel Değeri', 'Şirket Hedefi']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 10 },
@@ -308,7 +347,10 @@ const PersonnelDefensePanel = ({ allData }) => {
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
       const isAvg = isThreeMonthView && targetMonths.length > 1;
+      
+      // YENİ: Dönem Toplam Teslim Adeti satırı eklendi
       const tableRows = [
+        [`Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
         [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
         [`TVS Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
         [`Check-in Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
@@ -317,12 +359,19 @@ const PersonnelDefensePanel = ({ allData }) => {
 
       doc.autoTable({
         startY: 50,
-        head: [['KPI Metriği', isAvg ? 'Ortalama Değer' : 'Personel Değeri', 'Hedef']],
+        head: [['Performans Kriteri', isAvg ? 'Ortalama / Toplam Değer' : 'Personel Değeri', 'Şirket Hedefi']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 10 },
         headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
+        didParseCell: function(data) {
+          // Adet Satırını farklı renklendirebiliriz
+          if (data.section === 'body' && data.row.raw[0].includes("Adeti")) {
+             data.cell.styles.textColor = [30, 58, 138]; // Mavi ton
+             data.cell.styles.fontStyle = 'bold';
+          }
+        }
       });
 
       let finalY = doc.lastAutoTable.finalY + 10;
@@ -383,7 +432,9 @@ const PersonnelDefensePanel = ({ allData }) => {
         doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
         const isAvg = isThreeMonthView && targetMonths.length > 1;
+        
         const tableRows = [
+          [`Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
           [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
           [`TVS Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
           [`Check-in Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
@@ -392,12 +443,18 @@ const PersonnelDefensePanel = ({ allData }) => {
 
         doc.autoTable({
           startY: 50,
-          head: [['KPI Metriği', isAvg ? 'Ortalama Değer' : 'Personel Değeri', 'Hedef']],
+          head: [['Performans Kriteri', isAvg ? 'Ortalama / Toplam Değer' : 'Personel Değeri', 'Hedef']],
           body: tableRows,
           theme: 'grid',
           styles: { font: 'Roboto', fontSize: 10 },
           headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
-          columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }
+          columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
+          didParseCell: function(data) {
+             if (data.section === 'body' && data.row.raw[0].includes("Adeti")) {
+                data.cell.styles.textColor = [30, 58, 138]; 
+                data.cell.styles.fontStyle = 'bold';
+             }
+          }
         });
 
         let finalY = doc.lastAutoTable.finalY + 10;
@@ -427,127 +484,144 @@ const PersonnelDefensePanel = ({ allData }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mt-4 sm:mt-6">
-      
-      <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <Award className="text-emerald-500" size={20} />
-            <AlertCircle className="text-rose-500" size={20} />
-            Personel {isThreeMonthView ? "İstikrar" : "Performans"} Yönetimi
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            {isThreeMonthView 
-              ? "Sistemdeki en güncel (son 3) ayın ortalaması alınır. Kesintisiz verisi olanlar listelenir." 
-              : "Seçili aydaki personelinizi listeleyin; hedefleri tutturanları tebrik edin, sapanlar için savunma oluşturun."}
-          </p>
-        </div>
+    <div className="bg-slate-50 dark:bg-slate-900 min-h-screen p-4 sm:p-6 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto">
         
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {/* 3 AYLIK GÖRÜNÜM AÇ/KAPA BUTONU */}
-          <button 
-            onClick={() => setIsThreeMonthView(!isThreeMonthView)} 
-            className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-xs font-bold h-10 ${isThreeMonthView ? "bg-purple-600 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
-          >
-            <div className="flex items-center gap-1.5"><TrendingUp size={14} /> {isThreeMonthView ? "Tek Aya Dön" : "Sistemdeki Son 3 Ayı Al"}</div>
-          </button>
-
-          <select disabled={isThreeMonthView} value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <select disabled={isThreeMonthView} value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-            {MONTH_NAMES.map((m, i) => i !== 0 && <option key={i} value={i}>{m}</option>)}
-          </select>
-
-          <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="w-full md:w-auto bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-            <option value="TÜMÜ">Tüm Birimler</option>
-            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-          </select>
-          
-          <button 
-            onClick={generateBulkTebrikZIP}
-            disabled={isGeneratingPdf}
-            className="w-full md:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md disabled:opacity-50 outline-none"
-            title="Ekranda tebrik alan personelleri ZIP olarak indir"
-          >
-            {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
-            Toplu Tebrik İndir
-          </button>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-left whitespace-nowrap">
-          <thead className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-            <tr>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Birim</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ad Soyad</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "Rota Ort." : "Rota"}</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "TVS Ort." : "TVS"}</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "Check-in Ort." : "Check-in"}</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "SMS Ort." : "SMS"}</th>
-              <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">İşlem Durumu</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-            {filteredPersonnel.length > 0 ? (
-              filteredPersonnel.map((person, idx) => (
-                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <td className="p-4 text-sm font-bold text-slate-800 dark:text-white">{person.unit}</td>
-                  <td className="p-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{person.name}</td>
-                  
-                  <td className={`p-4 text-center font-bold text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {person.rotaOrani !== null ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
-                  </td>
-                  <td className={`p-4 text-center font-bold text-sm ${person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {person.tvsOrani !== null ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
-                  </td>
-                  <td className={`p-4 text-center font-bold text-sm ${person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {person.checkInOrani !== null ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
-                  </td>
-                  <td className={`p-4 text-center font-bold text-sm ${person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {person.smsOrani !== null ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
-                  </td>
-                  
-                  <td className="p-4 text-center">
-                    {person.isTebrik ? (
-                      <button 
-                        onClick={() => generateTebrikPDF(person)}
-                        disabled={isGeneratingPdf}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:hover:bg-emerald-800 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
-                      >
-                        {isGeneratingPdf ? <Loader2 size={14} className="animate-spin" /> : <Award size={14} />}
-                        Tebrik Belgesi
-                      </button>
-                    ) : person.isDefense ? (
-                      <button 
-                        onClick={() => generatePersonnelPDF(person)}
-                        disabled={isGeneratingPdf}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-800 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
-                      >
-                        {isGeneratingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
-                        Savunma İste
-                      </button>
-                    ) : (
-                      <span className="text-xs text-slate-400 dark:text-slate-500 font-medium px-2">İşlem Gerekmiyor</span>
-                    )}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="7" className="p-8 text-center text-slate-500">
+        {/* ÜST HEADER VE GERİ DÖN BUTONU */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mt-4 sm:mt-6">
+          <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            
+            <div className="flex items-center gap-3">
+              <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full flex-shrink-0 transition-colors">
+                <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
+              </button>
+              <div>
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Award className="text-emerald-500" size={20} />
+                  <AlertCircle className="text-rose-500" size={20} />
+                  Personel {isThreeMonthView ? "İstikrar" : "Performans"} Yönetimi
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">
                   {isThreeMonthView 
-                    ? "Sistemdeki son 3 aya ait kesintisiz verisi olan personel bulunamadı." 
-                    : "Bu döneme ait personel verisi bulunmamaktadır."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                    ? "Sistemdeki en güncel (son 3) ayın ortalaması alınır. Kesintisiz verisi olanlar listelenir." 
+                    : "Seçili aydaki personelinizi listeleyin; hedefleri tutturanları tebrik edin, sapanlar için savunma oluşturun."}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              <button 
+                onClick={() => setIsThreeMonthView(!isThreeMonthView)} 
+                className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-xs font-bold h-10 ${isThreeMonthView ? "bg-purple-600 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
+              >
+                <div className="flex items-center gap-1.5"><TrendingUp size={14} /> {isThreeMonthView ? "Tek Aya Dön" : "Sistemdeki Son 3 Ayı Al"}</div>
+              </button>
+
+              <select disabled={isThreeMonthView} value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <select disabled={isThreeMonthView} value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                {MONTH_NAMES.map((m, i) => i !== 0 && <option key={i} value={i}>{m}</option>)}
+              </select>
+
+              <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="w-full md:w-auto bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                <option value="TÜMÜ">Tüm Birimler</option>
+                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+              
+              <button 
+                onClick={generateBulkTebrikZIP}
+                disabled={isGeneratingPdf}
+                className="w-full md:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold text-sm px-4 h-10 rounded-lg flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md disabled:opacity-50 outline-none"
+                title="Ekranda tebrik alan personelleri ZIP olarak indir"
+              >
+                {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
+                Toplu Tebrik İndir
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left whitespace-nowrap">
+              <thead className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Birim</th>
+                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ad Soyad</th>
+                  {/* YENİ ADET SÜTUNU */}
+                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Adet</th>
+                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "Rota Ort." : "Rota"}</th>
+                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "TVS Ort." : "TVS"}</th>
+                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "Check-in Ort." : "Check-in"}</th>
+                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "SMS Ort." : "SMS"}</th>
+                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">İşlem Durumu</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                {filteredPersonnel.length > 0 ? (
+                  filteredPersonnel.map((person, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="p-4 text-sm font-bold text-slate-800 dark:text-white">{person.unit}</td>
+                      <td className="p-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{person.name}</td>
+                      
+                      {/* YENİ: PERSONEL ADET GÖSTERİMİ */}
+                      <td className="p-4 text-center font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                        {person.totalAdetDisplay}
+                      </td>
+                      
+                      <td className={`p-4 text-center font-bold text-sm ${person.parsedData.r !== null && person.parsedData.r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
+                        {person.rotaOrani !== null ? `%${formatDisplayMetric(person.rotaOrani)}` : "-"}
+                      </td>
+                      <td className={`p-4 text-center font-bold text-sm ${person.parsedData.t !== null && person.parsedData.t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
+                        {person.tvsOrani !== null ? `%${formatDisplayMetric(person.tvsOrani)}` : "-"}
+                      </td>
+                      <td className={`p-4 text-center font-bold text-sm ${person.parsedData.c !== null && person.parsedData.c < TARGETS.checkInOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
+                        {person.checkInOrani !== null ? `%${formatDisplayMetric(person.checkInOrani)}` : "-"}
+                      </td>
+                      <td className={`p-4 text-center font-bold text-sm ${person.parsedData.s !== null && person.parsedData.s < TARGETS.smsOrani ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-600 dark:text-slate-300'}`}>
+                        {person.smsOrani !== null ? `%${formatDisplayMetric(person.smsOrani)}` : "-"}
+                      </td>
+                      
+                      <td className="p-4 text-center">
+                        {person.isTebrik ? (
+                          <button 
+                            onClick={() => generateTebrikPDF(person)}
+                            disabled={isGeneratingPdf}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:hover:bg-emerald-800 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                          >
+                            {isGeneratingPdf ? <Loader2 size={14} className="animate-spin" /> : <Award size={14} />}
+                            Tebrik Belgesi
+                          </button>
+                        ) : person.isDefense ? (
+                          <button 
+                            onClick={() => generatePersonnelPDF(person)}
+                            disabled={isGeneratingPdf}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-800 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                          >
+                            {isGeneratingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
+                            Savunma İste
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-medium px-2">İşlem Gerekmiyor</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="8" className="p-8 text-center text-slate-500">
+                      {isThreeMonthView 
+                        ? "Sistemdeki son 3 aya ait kesintisiz verisi olan personel bulunamadı." 
+                        : "Bu döneme ait personel verisi bulunmamaktadır."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-export default PersonnelDefensePanel;
+export default PersonnelDefensePage;
