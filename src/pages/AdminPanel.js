@@ -135,12 +135,47 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
     setPendingChanges(false);
   }, [fleetKms, activeTab]);
 
+  // GÜNCELLENDİ: Personel Adet Gridine veritabanındaki eski verileri doldurma
   useEffect(() => {
-    if (activeTab === "quantities") {
-        setQuantitiesGrid(Array(100).fill({ tarih: "", name: "", type: "", birim: "", count: "" }));
-        setPendingChanges(false);
+    if (activeTab !== "quantities") return;
+    
+    let loadedQuantities = [];
+    
+    if (quantitiesData && quantitiesData.length > 0) {
+        quantitiesData.forEach(doc => {
+            if (doc.year === parseInt(selectedYear) && doc.month === parseInt(selectedMonth) && doc.records) {
+                doc.records.forEach(r => {
+                    loadedQuantities.push({
+                        tarih: r.date || "",
+                        name: r.name || "",
+                        type: r.type || "",
+                        birim: doc.unit || "",
+                        count: r.count !== undefined && r.count !== null ? String(r.count) : ""
+                    });
+                });
+            }
+        });
     }
-  }, [activeTab, selectedYear, selectedMonth]);
+    
+    // Düzenli görünmesi için Birim ve Tarih'e göre sıralayalım
+    loadedQuantities.sort((a, b) => {
+        if (a.birim !== b.birim) return a.birim.localeCompare(b.birim);
+        if (a.tarih !== b.tarih) return a.tarih.localeCompare(b.tarih);
+        return a.name.localeCompare(b.name);
+    });
+
+    const emptyRow = { tarih: "", name: "", type: "", birim: "", count: "" };
+    const fillCount = 100 - loadedQuantities.length;
+    
+    if (fillCount > 0) {
+        loadedQuantities = [...loadedQuantities, ...Array(fillCount).fill({ ...emptyRow })];
+    } else {
+        loadedQuantities = [...loadedQuantities, ...Array(20).fill({ ...emptyRow })]; // Ekstra boş satır
+    }
+
+    setQuantitiesGrid(loadedQuantities);
+    setPendingChanges(false);
+  }, [quantitiesData, activeTab, selectedYear, selectedMonth]);
 
   const handleInputChange = (unit, month, value) => { setGridData((prev) => ({ ...prev, [unit]: { ...prev[unit], [month]: value } })); setPendingChanges(true); };
   const handleFleetChange = (unit, colKey, value) => { setFleetGrid((prev) => ({ ...prev, [unit]: { ...prev[unit], [colKey]: value } })); setPendingChanges(true); };
@@ -461,7 +496,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
             alert("KM verileri başarıyla güncellendi.");
         } catch(e) { alert("Hata: " + e.message); }
     
-    // GÜNCELLENDİ: Personel Adetlerini Seçili Ay/Yıla Göre Kaydetme
     } else if (activeTab === "quantities") {
         const validRows = quantitiesGrid.filter(r => r.tarih && r.birim && r.name && r.count !== "");
         if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok. Lütfen Tarih, Personel Adı, Birim ve Adet alanlarını doldurun.");
@@ -473,7 +507,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
                 const day = parseInt(parts[0], 10);
                 const unit = r.birim.trim().toUpperCase();
                 
-                // PANELDEKİ SEÇİLİ YIL VE AYA GÖRE KAYDEDİLİR
                 const docId = `${unit}-${selectedYear}-${selectedMonth}`;
                 if(!grouped[docId]) grouped[docId] = { unit, year: selectedYear, month: selectedMonth, records: {} };
                 
@@ -526,7 +559,9 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
         <div className="flex overflow-x-auto no-scrollbar">
             <button onClick={() => setActiveTab("performance")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "performance" ? "bg-white text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:bg-slate-200"}`}><Layers size={16} /> Yük Performans</button>
             <button onClick={() => setActiveTab("personnel")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "personnel" ? "bg-white text-purple-600 border-b-2 border-purple-600" : "text-slate-500 hover:bg-slate-200"}`}><Users size={16} /> Personel Performans </button>
+            
             <button onClick={() => setActiveTab("quantities")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "quantities" ? "bg-white text-pink-600 border-b-2 border-pink-600" : "text-slate-500 hover:bg-slate-200"}`}><BarChart2 size={16} /> Personel Adet Girişi </button>
+            
             <button onClick={() => setActiveTab("fleet")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleet" ? "bg-white text-orange-600 border-b-2 border-orange-600" : "text-slate-500 hover:bg-slate-200"}`}><Truck size={16} /> Filo Bilgileri (Sabit)</button>
             <button onClick={() => setActiveTab("fleetList")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleetList" ? "bg-white text-emerald-600 border-b-2 border-emerald-600" : "text-slate-500 hover:bg-slate-200"}`}><ClipboardList size={16} /> Araç Listesi (Excel)</button>
             <button onClick={() => setActiveTab("kms")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "kms" ? "bg-white text-red-600 border-b-2 border-red-600" : "text-slate-500 hover:bg-slate-200"}`}><Gauge size={16} /> Araç KM Girişi</button>
@@ -565,7 +600,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
             </div>
         )}
 
-        {/* GÜNCELLENDİ: ADET ALT MENÜ YIL VE AY SEÇİMİ */}
         {activeTab === "quantities" && (
             <div className="p-3 bg-pink-50 border-b border-pink-100 flex items-center gap-4 flex-wrap">
                 <div className="flex items-center gap-2">
