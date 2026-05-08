@@ -135,12 +135,10 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
     setPendingChanges(false);
   }, [fleetKms, activeTab]);
 
-  // GÜNCELLENDİ: Personel Adet Gridine veritabanındaki eski verileri doldurma
   useEffect(() => {
     if (activeTab !== "quantities") return;
     
     let loadedQuantities = [];
-    
     if (quantitiesData && quantitiesData.length > 0) {
         quantitiesData.forEach(doc => {
             if (doc.year === parseInt(selectedYear) && doc.month === parseInt(selectedMonth) && doc.records) {
@@ -157,7 +155,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
         });
     }
     
-    // Düzenli görünmesi için Birim ve Tarih'e göre sıralayalım
     loadedQuantities.sort((a, b) => {
         if (a.birim !== b.birim) return a.birim.localeCompare(b.birim);
         if (a.tarih !== b.tarih) return a.tarih.localeCompare(b.tarih);
@@ -170,7 +167,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
     if (fillCount > 0) {
         loadedQuantities = [...loadedQuantities, ...Array(fillCount).fill({ ...emptyRow })];
     } else {
-        loadedQuantities = [...loadedQuantities, ...Array(20).fill({ ...emptyRow })]; // Ekstra boş satır
+        loadedQuantities = [...loadedQuantities, ...Array(20).fill({ ...emptyRow })];
     }
 
     setQuantitiesGrid(loadedQuantities);
@@ -496,10 +493,10 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
             alert("KM verileri başarıyla güncellendi.");
         } catch(e) { alert("Hata: " + e.message); }
     
+    // GÜNCELLENDİ: "Eski verilerin üzerine yazma (Override)" mantığı eklendi
     } else if (activeTab === "quantities") {
         const validRows = quantitiesGrid.filter(r => r.tarih && r.birim && r.name && r.count !== "");
-        if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok. Lütfen Tarih, Personel Adı, Birim ve Adet alanlarını doldurun.");
-
+        
         const grouped = {};
         validRows.forEach(r => {
             const parts = r.tarih.split(/[./-]/);
@@ -508,34 +505,36 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
                 const unit = r.birim.trim().toUpperCase();
                 
                 const docId = `${unit}-${selectedYear}-${selectedMonth}`;
-                if(!grouped[docId]) grouped[docId] = { unit, year: selectedYear, month: selectedMonth, records: {} };
+                if(!grouped[docId]) grouped[docId] = { unit, year: selectedYear, month: selectedMonth, records: [] };
                 
-                const recKey = `${r.name.trim()}_${(r.type||"").trim()}_${day}`;
-                grouped[docId].records[recKey] = {
+                grouped[docId].records.push({
                     date: r.tarih, day, name: r.name.trim(), type: (r.type||"").trim(), count: parseInt(String(r.count).replace(/\D/g,''), 10) || 0
-                };
+                });
             }
         });
 
         const recordsToUpdate = [];
-        Object.keys(grouped).forEach(docId => {
-            const group = grouped[docId];
-            const existingDoc = quantitiesData.find(d => d.id === docId);
-            const mergedRecords = existingDoc && existingDoc.records ? [...existingDoc.records] : [];
-
-            Object.values(group.records).forEach(newRec => {
-                const existingIdx = mergedRecords.findIndex(x => x.name === newRec.name && x.type === newRec.type && x.day === newRec.day);
-                if(existingIdx >= 0) mergedRecords[existingIdx] = newRec;
-                else mergedRecords.push(newRec);
-            });
-
-            recordsToUpdate.push({ id: docId, unit: group.unit, year: group.year, month: group.month, records: mergedRecords });
+        
+        // Bu ay için önceden veritabanında kaydı olan tüm birimler bulunur
+        const existingDocsForMonth = quantitiesData.filter(d => d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+        
+        UNITS.forEach(unit => {
+            const docId = `${unit}-${selectedYear}-${selectedMonth}`;
+            const newRecords = grouped[docId] ? grouped[docId].records : [];
+            const existingDoc = existingDocsForMonth.find(d => d.unit === unit);
+            
+            // Eğer ekranda yeni veri varsa veya önceden veritabanında eski veri varsa, veriyi sıfırla ya da güncelle
+            if (newRecords.length > 0 || (existingDoc && existingDoc.records && existingDoc.records.length > 0)) {
+                recordsToUpdate.push({ id: docId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), records: newRecords });
+            }
         });
+
+        if (recordsToUpdate.length === 0) return alert("Kaydedilecek geçerli veri yok veya silinecek bir değişiklik yapılmadı.");
 
         try {
             await onSaveQuantities(recordsToUpdate);
             setPendingChanges(false);
-            alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemi için Personel Adetleri başarıyla kaydedildi.`);
+            alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemi için Personel Adetleri başarıyla güncellendi.`);
         } catch(e) { alert("Hata: " + e.message); }
     }
   };
