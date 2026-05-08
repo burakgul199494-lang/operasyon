@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Package, Zap, Key, ClipboardList, Trash2, AlertTriangle, Users, Gauge } from "lucide-react";
+import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Package, Zap, Key, ClipboardList, Trash2, AlertTriangle, Users, Gauge, BarChart2 } from "lucide-react";
 import { UNITS, METRIC_TYPES, MONTH_NAMES } from "../utils/helpers";
 import { doc, writeBatch, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
 
-const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
+const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, onSaveBatch, onSaveQuantities, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
   const [activeTab, setActiveTab] = useState("performance"); 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); 
@@ -15,6 +15,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
   const [fleetListGrid, setFleetListGrid] = useState([]);
   const [personnelGrid, setPersonnelGrid] = useState([]); 
   const [kmsGrid, setKmsGrid] = useState([]); 
+  const [quantitiesGrid, setQuantitiesGrid] = useState([]); // YENİ: Personel Adet Grid
 
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
@@ -42,6 +43,15 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
     { key: "tvsOrani", label: "TVS (%)", width: "w-24" },
     { key: "checkInOrani", label: "Check-in (%)", width: "w-24" },
     { key: "smsOrani", label: "SMS (%)", width: "w-24" }
+  ];
+
+  // YENİ: Adet Kolonları
+  const QUANTITIES_COLUMNS = [
+    { key: "tarih", label: "Tarih (GG.AA.YYYY)", width: "w-32" },
+    { key: "name", label: "Personel Adı", width: "w-48" },
+    { key: "type", label: "Türü (Personel/Parçabaşı)", width: "w-40" },
+    { key: "birim", label: "Birim", width: "w-32" },
+    { key: "count", label: "Adet", width: "w-24" }
   ];
 
   const handleAddYear = () => {
@@ -86,10 +96,8 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
     if (activeTab !== "fleetList") return;
     let loadedData = (fleetData || []).map(item => ({ ...item }));
     const emptyRow = { unit: "", status: "", plate: "", supplier: "", vehicleType: "", brandModel: "", year: "", operationType: "", expenseStatus: "" };
-    
     if (loadedData.length < 40) { loadedData = [...loadedData, ...Array(50 - loadedData.length).fill(emptyRow)]; } 
     else { loadedData = [...loadedData, ...Array(10).fill(emptyRow)]; }
-    
     setFleetListGrid(loadedData);
   }, [fleetData, activeTab]);
 
@@ -110,12 +118,10 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
       }
     });
     loadedPersonnel.sort((a, b) => a.unit.localeCompare(b.unit));
-    
     const emptyRow = { unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" };
     const fillCount = 50 - loadedPersonnel.length; 
     if (fillCount > 0) { loadedPersonnel = [...loadedPersonnel, ...Array(fillCount).fill({ ...emptyRow })]; } 
     else { loadedPersonnel = [...loadedPersonnel, ...Array(10).fill({ ...emptyRow })]; }
-    
     setPersonnelGrid(loadedPersonnel);
     setPendingChanges(false);
   }, [allData, activeTab, selectedYear, selectedMonth]);
@@ -124,19 +130,26 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
     if (activeTab !== "kms") return;
     let loadedData = Object.entries(fleetKms || {}).map(([plate, km]) => ({ plate, km }));
     const emptyRow = { plate: "", km: "" };
-
     if (loadedData.length < 40) { loadedData = [...loadedData, ...Array(50 - loadedData.length).fill(emptyRow)]; } 
     else { loadedData = [...loadedData, ...Array(10).fill(emptyRow)]; }
-
     setKmsGrid(loadedData);
     setPendingChanges(false);
   }, [fleetKms, activeTab]);
+
+  // YENİ: Adet Grid Efekti
+  useEffect(() => {
+    if (activeTab !== "quantities") return;
+    // Formu her açtığımızda tertemiz 100 satır açılır
+    setQuantitiesGrid(Array(100).fill({ tarih: "", name: "", type: "", birim: "", count: "" }));
+    setPendingChanges(false);
+  }, [activeTab]);
 
   const handleInputChange = (unit, month, value) => { setGridData((prev) => ({ ...prev, [unit]: { ...prev[unit], [month]: value } })); setPendingChanges(true); };
   const handleFleetChange = (unit, colKey, value) => { setFleetGrid((prev) => ({ ...prev, [unit]: { ...prev[unit], [colKey]: value } })); setPendingChanges(true); };
   const handleFleetListChange = (rowIndex, colKey, value) => { setFleetListGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
   const handlePersonnelChange = (rowIndex, colKey, value) => { setPersonnelGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
   const handleKmsChange = (rowIndex, colKey, value) => { setKmsGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
+  const handleQuantitiesChange = (rowIndex, colKey, value) => { setQuantitiesGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
 
   const handleMouseDown = (r, c) => { setSelection({ start: { r, c }, end: { r, c }, isDragging: true }); };
   const handleMouseEnter = (r, c) => { if (selection.isDragging) setSelection((prev) => ({ ...prev, end: { r, c } })); };
@@ -251,6 +264,25 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
     setPendingChanges(true);
   };
 
+  // YENİ: Adet Tablosu Paste
+  const handleQuantitiesPaste = (e, startRowIndex, startColIndex) => {
+    e.preventDefault();
+    const rows = e.clipboardData.getData("text").split(/\r\n|\n|\r/).filter((row) => row.trim() !== "");
+    setQuantitiesGrid(prev => {
+        const newData = [...prev];
+        rows.forEach((row, rIndex) => {
+            const targetRowIndex = startRowIndex + rIndex;
+            while (!newData[targetRowIndex]) newData.push({ tarih: "", name: "", type: "", birim: "", count: "" });
+            row.split("\t").forEach((cellValue, cIndex) => {
+                const targetColIndex = startColIndex + cIndex;
+                if (targetColIndex < QUANTITIES_COLUMNS.length) newData[targetRowIndex] = { ...newData[targetRowIndex], [QUANTITIES_COLUMNS[targetColIndex].key]: cellValue.trim() };
+            });
+        });
+        return newData;
+    });
+    setPendingChanges(true);
+  };
+
   const handleKeyDown = (e, rIndex, cIndex) => {
     if (e.key === "Delete") {
       e.preventDefault();
@@ -263,6 +295,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
         else if (activeTab === "fleetList") { setFleetListGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][FLEET_LIST_COLUMNS[c].key] = ""; } } } return d; }); }
         else if (activeTab === "personnel") { setPersonnelGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][PERSONNEL_COLUMNS[c].key] = ""; } } } return d; }); }
         else if (activeTab === "kms") { setKmsGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][KMS_COLUMNS[c]] = ""; } } } return d; }); }
+        else if (activeTab === "quantities") { setQuantitiesGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][QUANTITIES_COLUMNS[c].key] = ""; } } } return d; }); }
         
         setPendingChanges(true);
       }
@@ -273,6 +306,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
     if (activeTab === "fleetList") { maxCols = 9; maxRows = fleetListGrid.length; }
     if (activeTab === "personnel") { maxCols = 6; maxRows = personnelGrid.length; }
     if (activeTab === "kms") { maxCols = 2; maxRows = kmsGrid.length; }
+    if (activeTab === "quantities") { maxCols = 5; maxRows = quantitiesGrid.length; }
 
     let nextR = rIndex, nextC = cIndex, move = false;
     if (e.key === "ArrowRight") { move = true; if (cIndex < maxCols - 1) nextC++; }
@@ -288,6 +322,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
       else if (activeTab === "fleetList") colId = FLEET_LIST_COLUMNS[nextC].key;
       else if (activeTab === "personnel") colId = PERSONNEL_COLUMNS[nextC].key;
       else if (activeTab === "kms") colId = KMS_COLUMNS[nextC];
+      else if (activeTab === "quantities") colId = QUANTITIES_COLUMNS[nextC].key;
 
       const nextElement = document.getElementById(`cell-${activeTab}-${nextR}-${colId}`);
       if (nextElement) { nextElement.focus(); nextElement.select(); setSelection({ start: { r: nextR, c: nextC }, end: { r: nextR, c: nextC }, isDragging: false }); }
@@ -387,7 +422,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
         validRows.forEach(r => {
             const unitName = r.unit.trim().toUpperCase(); 
             if (!groupedByUnit[unitName]) groupedByUnit[unitName] = [];
-            
             groupedByUnit[unitName].push({
                 name: r.name.trim(),
                 rotaOrani: r.rotaOrani !== "" && r.rotaOrani !== null && r.rotaOrani !== undefined ? parseFloat(String(r.rotaOrani).replace(",", ".")) : null,
@@ -398,27 +432,22 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
         });
 
         const recordsToUpdate = [];
-        
         UNITS.forEach(unit => {
             const recordId = `${unit}-${selectedYear}-${selectedMonth}`;
             const personnelList = groupedByUnit[unit] || []; 
             const existingRecord = allData.find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
-            
             if (personnelList.length > 0 || (existingRecord && existingRecord.personnel && existingRecord.personnel.length > 0)) {
                 recordsToUpdate.push({ id: recordId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), personnel: personnelList });
             }
         });
 
-        if (recordsToUpdate.length === 0) return alert("Kaydedilecek geçerli personel verisi bulunamadı. Lütfen Birim ve Ad Soyad alanlarının dolu olduğundan emin olun.");
+        if (recordsToUpdate.length === 0) return alert("Kaydedilecek geçerli personel verisi bulunamadı.");
 
         try {
             await onSaveBatch(recordsToUpdate);
             setPendingChanges(false);
-            alert(`Personel verileri başarıyla kaydedildi! (${Object.keys(groupedByUnit).length} farklı birim güncellendi)`);
-        } catch(e) { 
-            console.error(e);
-            alert("Personel verileri kaydedilirken bir hata oluştu."); 
-        }
+            alert(`Personel verileri başarıyla kaydedildi!`);
+        } catch(e) { alert("Hata oluştu."); }
 
     } else if (activeTab === "kms") {
         const validRows = kmsGrid.filter(r => r.plate && r.plate.trim() !== "");
@@ -433,6 +462,52 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
             await batch.commit(); 
             setPendingChanges(false); 
             alert("KM verileri başarıyla güncellendi.");
+        } catch(e) { alert("Hata: " + e.message); }
+    
+    // YENİ: Personel Adetlerini Kaydetme
+    } else if (activeTab === "quantities") {
+        const validRows = quantitiesGrid.filter(r => r.tarih && r.birim && r.name && r.count !== "");
+        if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok. Lütfen Tarih, Personel Adı, Birim ve Adet alanlarını doldurun.");
+
+        const grouped = {};
+        validRows.forEach(r => {
+            const parts = r.tarih.split(/[./-]/);
+            if (parts.length >= 2) {
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10);
+                // Eğer yıl kopyalanmadıysa mevcut seçili yılı kabul eder
+                const year = parts.length >= 3 ? parseInt(parts[2], 10) : selectedYear;
+                const unit = r.birim.trim().toUpperCase();
+                
+                const docId = `${unit}-${year}-${month}`;
+                if(!grouped[docId]) grouped[docId] = { unit, year, month, records: {} };
+                
+                const recKey = `${r.name.trim()}_${(r.type||"").trim()}_${day}`;
+                grouped[docId].records[recKey] = {
+                    date: r.tarih, day, name: r.name.trim(), type: (r.type||"").trim(), count: parseInt(String(r.count).replace(/\D/g,''), 10) || 0
+                };
+            }
+        });
+
+        const recordsToUpdate = [];
+        Object.keys(grouped).forEach(docId => {
+            const group = grouped[docId];
+            const existingDoc = quantitiesData.find(d => d.id === docId);
+            const mergedRecords = existingDoc && existingDoc.records ? [...existingDoc.records] : [];
+
+            Object.values(group.records).forEach(newRec => {
+                const existingIdx = mergedRecords.findIndex(x => x.name === newRec.name && x.type === newRec.type && x.day === newRec.day);
+                if(existingIdx >= 0) mergedRecords[existingIdx] = newRec;
+                else mergedRecords.push(newRec);
+            });
+
+            recordsToUpdate.push({ id: docId, unit: group.unit, year: group.year, month: group.month, records: mergedRecords });
+        });
+
+        try {
+            await onSaveQuantities(recordsToUpdate);
+            setPendingChanges(false);
+            alert("Personel Adetleri veritabanına başarıyla eklendi.");
         } catch(e) { alert("Hata: " + e.message); }
     }
   };
@@ -456,12 +531,15 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
         <div className="flex overflow-x-auto no-scrollbar">
             <button onClick={() => setActiveTab("performance")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "performance" ? "bg-white text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:bg-slate-200"}`}><Layers size={16} /> Yük Performans</button>
             <button onClick={() => setActiveTab("personnel")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "personnel" ? "bg-white text-purple-600 border-b-2 border-purple-600" : "text-slate-500 hover:bg-slate-200"}`}><Users size={16} /> Personel Performans </button>
+            
+            {/* YENİ: ADET GİRİŞ SEKMESİ */}
+            <button onClick={() => setActiveTab("quantities")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "quantities" ? "bg-white text-pink-600 border-b-2 border-pink-600" : "text-slate-500 hover:bg-slate-200"}`}><BarChart2 size={16} /> Personel Adet Girişi </button>
+            
             <button onClick={() => setActiveTab("fleet")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleet" ? "bg-white text-orange-600 border-b-2 border-orange-600" : "text-slate-500 hover:bg-slate-200"}`}><Truck size={16} /> Filo Bilgileri (Sabit)</button>
             <button onClick={() => setActiveTab("fleetList")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleetList" ? "bg-white text-emerald-600 border-b-2 border-emerald-600" : "text-slate-500 hover:bg-slate-200"}`}><ClipboardList size={16} /> Araç Listesi (Excel)</button>
             <button onClick={() => setActiveTab("kms")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "kms" ? "bg-white text-red-600 border-b-2 border-red-600" : "text-slate-500 hover:bg-slate-200"}`}><Gauge size={16} /> Araç KM Girişi</button>
         </div>
         
-        {/* YILLIK PERFORMANS ALT MENÜ */}
         {activeTab === "performance" && (
             <>
                 <div className="p-3 flex gap-3 items-center justify-between border-b border-slate-200 bg-white">
@@ -474,7 +552,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
             </>
         )}
 
-        {/* PERSONEL PERFORMANS ALT MENÜ */}
         {activeTab === "personnel" && (
             <div className="p-3 bg-purple-50 border-b border-purple-100 flex items-center gap-4 flex-wrap">
                 <div className="flex items-center gap-2">
@@ -492,12 +569,15 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
                 <span className="text-xs text-purple-800 font-medium">
                     (Birim | Ad Soyad | Rota | TVS | Check-in | SMS) sütunlarını tek seferde kopyalayıp ilk hücreye yapıştırın.
                 </span>
-                <button 
-                   onClick={() => { if(window.confirm("Ekrandaki veriler silinecek. Onaylıyor musunuz?")) { setPersonnelGrid(Array(50).fill({ unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" })); setPendingChanges(true); } }} 
-                   className="ml-auto flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"
-                >
-                  <RotateCcw size={14} /> Ekranı Temizle
-                </button>
+                <button onClick={() => { if(window.confirm("Ekrandaki veriler silinecek. Onaylıyor musunuz?")) { setPersonnelGrid(Array(50).fill({ unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" })); setPendingChanges(true); } }} className="ml-auto flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Ekranı Temizle</button>
+            </div>
+        )}
+
+        {/* YENİ: ADET ALT MENÜ */}
+        {activeTab === "quantities" && (
+            <div className="p-3 bg-pink-50 border-b border-pink-100 flex items-center justify-between">
+                <span className="text-xs text-pink-800 font-medium">Excel'den şu 5 sütunu sırasıyla kopyalayıp yapıştırın: <strong>Tarih | Personel Adı | Türü | Birim | Adet</strong>. <em>Tarih GG.AA.YYYY formatında olmalıdır.</em></span>
+                <button onClick={() => { if(window.confirm("Ekrandaki form verileri silinecek (Veritabanından silinmez). Onaylıyor musunuz?")) { setQuantitiesGrid(Array(100).fill({ tarih: "", name: "", type: "", birim: "", count: "" })); setPendingChanges(true); } }} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Ekranı Temizle</button>
             </div>
         )}
 
@@ -549,6 +629,12 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
               {activeTab === "personnel" && (
                   <>
                     {PERSONNEL_COLUMNS.map((col) => <th key={col.key} className={`p-3 text-left font-bold text-slate-700 border-r border-slate-300 bg-slate-100 ${col.width}`}>{col.label}</th>)}
+                    <th className="bg-slate-50 border-none"></th>
+                  </>
+              )}
+              {activeTab === "quantities" && (
+                  <>
+                    {QUANTITIES_COLUMNS.map((col) => <th key={col.key} className={`p-3 text-left font-bold text-slate-700 border-r border-slate-300 bg-slate-100 ${col.width}`}>{col.label}</th>)}
                     <th className="bg-slate-50 border-none"></th>
                   </>
               )}
@@ -614,6 +700,35 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, onSaveBatch, onClo
                                    value={val}
                                    onChange={(e) => handlePersonnelChange(rIndex, col.key, e.target.value)}
                                    onPaste={(e) => handlePersonnelPaste(e, rIndex, cIndex)}
+                                   onKeyDown={(e) => handleKeyDown(e, rIndex, cIndex)}
+                                   onFocus={(e) => handleFocus(e, rIndex, cIndex)}
+                                   onMouseDown={() => handleMouseDown(rIndex, cIndex)}
+                                   onMouseEnter={() => handleMouseEnter(rIndex, cIndex)}
+                                   autoComplete="off"
+                                 />
+                            </td>
+                        );
+                    })}
+                    <td></td>
+                </tr>
+            ))}
+
+            {/* YENİ: ADET GRID */}
+            {activeTab === "quantities" && quantitiesGrid.map((row, rIndex) => (
+                <tr key={rIndex} className="border-b border-slate-200 hover:bg-pink-50 transition-colors">
+                    {QUANTITIES_COLUMNS.map((col, cIndex) => {
+                        const isSelected = isCellSelected(rIndex, cIndex);
+                        const val = row[col.key] !== undefined && row[col.key] !== null ? row[col.key] : "";
+                        return (
+                            <td key={col.key} className="p-0 border-r border-slate-100 relative">
+                                <input
+                                   id={`cell-quantities-${rIndex}-${col.key}`}
+                                   type="text"
+                                   className={`w-full h-full p-2 text-left outline-none focus:z-10 relative transition-all text-slate-700 font-mono text-sm cursor-default ${isSelected ? "bg-pink-200 ring-1 ring-pink-400" : "bg-transparent focus:ring-2 focus:ring-pink-500 focus:bg-white"}`}
+                                   placeholder={col.label}
+                                   value={val}
+                                   onChange={(e) => handleQuantitiesChange(rIndex, col.key, e.target.value)}
+                                   onPaste={(e) => handleQuantitiesPaste(e, rIndex, cIndex)}
                                    onKeyDown={(e) => handleKeyDown(e, rIndex, cIndex)}
                                    onFocus={(e) => handleFocus(e, rIndex, cIndex)}
                                    onMouseDown={() => handleMouseDown(rIndex, cIndex)}
