@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, Truck, Box, Zap, Key, FileDown, Loader2, Search, ChevronRight, Home, X } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -27,25 +27,23 @@ const getBase64 = (blob) => new Promise((resolve, reject) => {
 });
 
 const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) => {
-    // BAŞLANGIÇTA BİRİM SEÇİLİ DEĞİL (Karşılama ekranı açılır)
     const [selectedUnit, setSelectedUnit] = useState(null); 
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+    const [searchQuery, setSearchQuery] = useState(""); // ARAMA ÇUBUĞU İÇİN EKLENDİ
     
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-    // OTOMATİK AY BULMA: Sadece "içi dolu olan" en güncel ayı bulur ve takvimi ona sabitler
+    // OTOMATİK AY BULMA
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
             const validData = quantitiesData.filter(d => d.records && d.records.length > 0);
-            
             if (validData.length > 0) {
                 const sortedData = [...validData].sort((a, b) => {
                     if (a.year !== b.year) return b.year - a.year;
                     return b.month - a.month;
                 });
-                
                 setSelectedYear(sortedData[0].year);
                 setSelectedMonth(sortedData[0].month);
             }
@@ -105,12 +103,11 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const parcabasiRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : 0;
     const ratioStr = parcabasiRatio.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    // YATAY PDF ÇIKTISI
     const generatePDF = async () => {
         setIsGeneratingPdf(true);
         try {
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('landscape', 'mm', 'a4'); // A4 Yatay
+            const doc = new jsPDF('landscape', 'mm', 'a4'); 
 
             try {
                 const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
@@ -185,39 +182,57 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         }
     };
 
-    // YENİ VE SADELEŞTİRİLMİŞ KARŞILAMA EKRANI (Birim Seçimi)
+    // ARAMA ÇUBUĞU İÇİN BİRİMLERİ FİLTRELEME
+    const filteredUnits = useMemo(() =>
+        UNITS.filter((unit) => unit !== "BÖLGE" && unit.toLowerCase().includes(searchQuery.toLowerCase())),
+        [searchQuery]
+    );
+
+    // EĞER BİRİM SEÇİLMEDİYSE (SENİN İSTEDİĞİN BİREBİR DASHBOARD TASARIMI)
     if (!selectedUnit) {
         return (
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300 pb-24">
-                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800 px-4 py-4 shadow-sm flex items-center gap-3">
-                    <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
-                        <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
+            <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+              <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 border-b border-slate-100 dark:border-slate-800 px-4 py-3 shadow-sm">
+                <div className="flex justify-between items-center mb-3">
+                  <div className="flex items-center gap-3">
+                    <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400 transition-colors">
+                      <Home size={22} />
                     </button>
-                    <div>
-                        <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Personel Adet Analizi</h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Analiz yapmak istediğiniz birimi seçin</p>
-                    </div>
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Personel Adet Analizi</h1>
+                  </div>
                 </div>
-
-                <div className="p-4 sm:p-6 max-w-5xl mx-auto mt-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {UNITS.map(unit => {
-                            if (unit === "BÖLGE") return null;
-                            return (
-                                <button 
-                                    key={unit}
-                                    onClick={() => setSelectedUnit(unit)}
-                                    className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700 flex items-center justify-between group"
-                                >
-                                    <span className="font-bold text-slate-700 dark:text-slate-200 text-left">{unit}</span>
-                                    <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
-                                        <ChevronRight size={18} className="text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
+                <div className="relative max-w-4xl mx-auto">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Birim ara..."
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
+              </div>
+              <div className="px-4 mt-4 max-w-4xl mx-auto">
+                {filteredUnits.map((unit, index) => (
+                  <div key={index} onClick={() => setSelectedUnit(unit)} className="group flex items-center justify-between p-4 mb-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm active:scale-[0.98] transition-all cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-blue-200 dark:shadow-none shadow-md">
+                        {unit.charAt(0)}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-800 dark:text-white block">{unit}</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">Adet analizini görüntüle</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors" size={20} />
+                  </div>
+                ))}
+              </div>
             </div>
         );
     }
