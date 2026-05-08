@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-// GÜNCELLENDİ: Package ikonu tekrar eklendi! (Beyaz ekranın sorumlusu)
-import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, Search, ChevronRight, Home, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, Truck, Box, Zap, Key, FileDown, Loader2, Search, ChevronRight, Home, X } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -64,7 +63,8 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         return quantitiesData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
     }, [quantitiesData, selectedUnit, selectedYear, selectedMonth]);
 
-    const { personelList, parcabasiList, totalPersonel, totalParca, daysArray } = useMemo(() => {
+    // GÜNCELLENDİ: dailyTotals (Günlük Alt Toplamlar) hesaplaması eklendi
+    const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
         const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
@@ -72,6 +72,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         let pbList = [];
         let tPersonel = 0;
         let tParca = 0;
+        let dTotals = {};
+        
+        // Günlük toplamları sıfırla
+        daysArr.forEach(d => dTotals[d] = 0);
 
         if (unitQuantities && unitQuantities.records) {
             const map = {};
@@ -79,7 +83,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 const safeName = normalizeName(r.name);
                 if(!map[safeName]) map[safeName] = { name: safeName, type: r.type, days: {} };
                 if (!map[safeName].days[r.day]) map[safeName].days[r.day] = 0;
-                map[safeName].days[r.day] += (r.count || 0);
+                
+                const countVal = r.count || 0;
+                map[safeName].days[r.day] += countVal;
+                
+                // Günlük genel toplama ekle
+                if (dTotals[r.day] !== undefined) {
+                    dTotals[r.day] += countVal;
+                }
             });
 
             Object.values(map).forEach(p => {
@@ -97,7 +108,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             pbList.sort((a,b) => a.name.localeCompare(b.name));
         }
 
-        return { personelList: pList, parcabasiList: pbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr };
+        return { 
+            personelList: pList, 
+            parcabasiList: pbList, 
+            totalPersonel: tPersonel, 
+            totalParca: tParca, 
+            daysArray: daysArr,
+            dailyTotals: dTotals 
+        };
     }, [unitQuantities, selectedYear, selectedMonth]);
 
     const totalCount = totalPersonel + totalParca;
@@ -129,7 +147,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             doc.setTextColor(60);
             doc.text(`Birim: ${selectedUnit}`, 14, 28);
             doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 33);
-            doc.text(`Parçabaşı Teslim: ${totalParca}  |  Personel Teslim: ${totalPersonel}  |  Parçabaşı Oranı: %${ratioStr}`, 14, 38);
+            doc.text(`Genel Toplam: ${totalCount}  |  Parçabaşı: ${totalParca}  |  Personel: ${totalPersonel}  |  Parçabaşı Oranı: %${ratioStr}`, 14, 38);
 
             const tableHead = [['Personel Adı', 'Türü', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
             const tableBody = [];
@@ -148,6 +166,11 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 tableBody.push(rowData);
             });
 
+            // GÜNCELLENDİ: PDF Alt Toplam Satırı
+            const totalRow = ["GÜNLÜK ALT TOPLAM", "", totalCount];
+            daysArray.forEach(d => totalRow.push(dailyTotals[d] || "-"));
+            tableBody.push(totalRow);
+
             doc.autoTable({
                 startY: 45,
                 head: tableHead,
@@ -162,7 +185,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 },
                 didParseCell: function(data) {
                     if (data.section === 'body') {
-                        if (data.row.index < personelList.length) {
+                        const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
+                        
+                        if (isTotalRow) {
+                            data.cell.styles.fillColor = [226, 232, 240]; 
+                            data.cell.styles.textColor = [15, 23, 42];
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                        else if (data.row.index < personelList.length) {
                             data.cell.styles.fillColor = [240, 248, 255]; 
                             data.cell.styles.textColor = [30, 58, 138];
                         } 
@@ -188,7 +218,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         [searchQuery]
     );
 
-    // BİREBİR DASHBOARD TASARIMI İLE KARŞILAMA EKRANI
     if (!selectedUnit) {
         return (
             <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
@@ -237,7 +266,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         );
     }
 
-    // BİRİM SEÇİLDİYSE DETAY EKRANI (Ana Ekran)
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 shadow-sm border-b border-slate-200 dark:border-slate-800">
@@ -343,20 +371,25 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </div>
                 </div>
 
+                {/* GÜNCELLENDİ: 4'LÜ KART YAPISI (GENEL TOPLAM EKLENDİ) */}
                 <div className="mb-4">
                     <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Personel & Parçabaşı Dağıtım Analizi</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <div className="bg-gradient-to-br from-rose-500 to-red-600 dark:from-red-600 dark:to-red-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-100/90 mb-1.5">Parçabaşı Teslim Adet Toplamı</span>
-                            <span className="text-3xl font-black drop-shadow-sm">{totalParca.toLocaleString('tr-TR')}</span>
+                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-100/90 mb-1.5">Parçabaşı Toplam</span>
+                            <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalParca.toLocaleString('tr-TR')}</span>
                         </div>
                         <div className="bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-100/90 mb-1.5">Personel Teslim Adet Toplamı</span>
-                            <span className="text-3xl font-black drop-shadow-sm">{totalPersonel.toLocaleString('tr-TR')}</span>
+                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-100/90 mb-1.5">Personel Toplam</span>
+                            <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalPersonel.toLocaleString('tr-TR')}</span>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-500 to-fuchsia-600 dark:from-purple-600 dark:to-fuchsia-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
+                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-100/90 mb-1.5">Genel Toplam</span>
+                            <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalCount.toLocaleString('tr-TR')}</span>
                         </div>
                         <div className="bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-50/90 mb-1.5">Parçabaşı Teslim Oranı</span>
-                            <span className="text-3xl font-black drop-shadow-sm">%{ratioStr}</span>
+                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-50/90 mb-1.5">Parçabaşı Oranı</span>
+                            <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">%{ratioStr}</span>
                         </div>
                     </div>
                 </div>
@@ -420,6 +453,21 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                             </tr>
                                         );
                                     })}
+                                    
+                                    {/* GÜNCELLENDİ: GÜNLÜK ALT TOPLAM SATIRI (EN ALTTA) */}
+                                    <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
+                                        <td colSpan={2} className="p-3 text-right font-black sticky left-0 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                            GÜNLÜK ALT TOPLAM
+                                        </td>
+                                        <td className="p-3 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
+                                            {totalCount}
+                                        </td>
+                                        {daysArray.map(d => (
+                                            <td key={d} className="p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600">
+                                                {dailyTotals[d] || "-"}
+                                            </td>
+                                        ))}
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
