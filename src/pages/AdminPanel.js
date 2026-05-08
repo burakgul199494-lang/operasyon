@@ -15,7 +15,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
   const [fleetListGrid, setFleetListGrid] = useState([]);
   const [personnelGrid, setPersonnelGrid] = useState([]); 
   const [kmsGrid, setKmsGrid] = useState([]); 
-  const [quantitiesGrid, setQuantitiesGrid] = useState([]); // YENİ: Personel Adet Grid
+  const [quantitiesGrid, setQuantitiesGrid] = useState([]); 
 
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
@@ -45,7 +45,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
     { key: "smsOrani", label: "SMS (%)", width: "w-24" }
   ];
 
-  // YENİ: Adet Kolonları
   const QUANTITIES_COLUMNS = [
     { key: "tarih", label: "Tarih (GG.AA.YYYY)", width: "w-32" },
     { key: "name", label: "Personel Adı", width: "w-48" },
@@ -136,13 +135,12 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
     setPendingChanges(false);
   }, [fleetKms, activeTab]);
 
-  // YENİ: Adet Grid Efekti
   useEffect(() => {
-    if (activeTab !== "quantities") return;
-    // Formu her açtığımızda tertemiz 100 satır açılır
-    setQuantitiesGrid(Array(100).fill({ tarih: "", name: "", type: "", birim: "", count: "" }));
-    setPendingChanges(false);
-  }, [activeTab]);
+    if (activeTab === "quantities") {
+        setQuantitiesGrid(Array(100).fill({ tarih: "", name: "", type: "", birim: "", count: "" }));
+        setPendingChanges(false);
+    }
+  }, [activeTab, selectedYear, selectedMonth]);
 
   const handleInputChange = (unit, month, value) => { setGridData((prev) => ({ ...prev, [unit]: { ...prev[unit], [month]: value } })); setPendingChanges(true); };
   const handleFleetChange = (unit, colKey, value) => { setFleetGrid((prev) => ({ ...prev, [unit]: { ...prev[unit], [colKey]: value } })); setPendingChanges(true); };
@@ -264,7 +262,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
     setPendingChanges(true);
   };
 
-  // YENİ: Adet Tablosu Paste
   const handleQuantitiesPaste = (e, startRowIndex, startColIndex) => {
     e.preventDefault();
     const rows = e.clipboardData.getData("text").split(/\r\n|\n|\r/).filter((row) => row.trim() !== "");
@@ -464,7 +461,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
             alert("KM verileri başarıyla güncellendi.");
         } catch(e) { alert("Hata: " + e.message); }
     
-    // YENİ: Personel Adetlerini Kaydetme
+    // GÜNCELLENDİ: Personel Adetlerini Seçili Ay/Yıla Göre Kaydetme
     } else if (activeTab === "quantities") {
         const validRows = quantitiesGrid.filter(r => r.tarih && r.birim && r.name && r.count !== "");
         if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok. Lütfen Tarih, Personel Adı, Birim ve Adet alanlarını doldurun.");
@@ -472,15 +469,13 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
         const grouped = {};
         validRows.forEach(r => {
             const parts = r.tarih.split(/[./-]/);
-            if (parts.length >= 2) {
+            if (parts.length > 0) {
                 const day = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10);
-                // Eğer yıl kopyalanmadıysa mevcut seçili yılı kabul eder
-                const year = parts.length >= 3 ? parseInt(parts[2], 10) : selectedYear;
                 const unit = r.birim.trim().toUpperCase();
                 
-                const docId = `${unit}-${year}-${month}`;
-                if(!grouped[docId]) grouped[docId] = { unit, year, month, records: {} };
+                // PANELDEKİ SEÇİLİ YIL VE AYA GÖRE KAYDEDİLİR
+                const docId = `${unit}-${selectedYear}-${selectedMonth}`;
+                if(!grouped[docId]) grouped[docId] = { unit, year: selectedYear, month: selectedMonth, records: {} };
                 
                 const recKey = `${r.name.trim()}_${(r.type||"").trim()}_${day}`;
                 grouped[docId].records[recKey] = {
@@ -507,7 +502,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
         try {
             await onSaveQuantities(recordsToUpdate);
             setPendingChanges(false);
-            alert("Personel Adetleri veritabanına başarıyla eklendi.");
+            alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemi için Personel Adetleri başarıyla kaydedildi.`);
         } catch(e) { alert("Hata: " + e.message); }
     }
   };
@@ -531,10 +526,7 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
         <div className="flex overflow-x-auto no-scrollbar">
             <button onClick={() => setActiveTab("performance")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "performance" ? "bg-white text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:bg-slate-200"}`}><Layers size={16} /> Yük Performans</button>
             <button onClick={() => setActiveTab("personnel")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "personnel" ? "bg-white text-purple-600 border-b-2 border-purple-600" : "text-slate-500 hover:bg-slate-200"}`}><Users size={16} /> Personel Performans </button>
-            
-            {/* YENİ: ADET GİRİŞ SEKMESİ */}
             <button onClick={() => setActiveTab("quantities")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "quantities" ? "bg-white text-pink-600 border-b-2 border-pink-600" : "text-slate-500 hover:bg-slate-200"}`}><BarChart2 size={16} /> Personel Adet Girişi </button>
-            
             <button onClick={() => setActiveTab("fleet")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleet" ? "bg-white text-orange-600 border-b-2 border-orange-600" : "text-slate-500 hover:bg-slate-200"}`}><Truck size={16} /> Filo Bilgileri (Sabit)</button>
             <button onClick={() => setActiveTab("fleetList")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleetList" ? "bg-white text-emerald-600 border-b-2 border-emerald-600" : "text-slate-500 hover:bg-slate-200"}`}><ClipboardList size={16} /> Araç Listesi (Excel)</button>
             <button onClick={() => setActiveTab("kms")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "kms" ? "bg-white text-red-600 border-b-2 border-red-600" : "text-slate-500 hover:bg-slate-200"}`}><Gauge size={16} /> Araç KM Girişi</button>
@@ -573,11 +565,25 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
             </div>
         )}
 
-        {/* YENİ: ADET ALT MENÜ */}
+        {/* GÜNCELLENDİ: ADET ALT MENÜ YIL VE AY SEÇİMİ */}
         {activeTab === "quantities" && (
-            <div className="p-3 bg-pink-50 border-b border-pink-100 flex items-center justify-between">
-                <span className="text-xs text-pink-800 font-medium">Excel'den şu 5 sütunu sırasıyla kopyalayıp yapıştırın: <strong>Tarih | Personel Adı | Türü | Birim | Adet</strong>. <em>Tarih GG.AA.YYYY formatında olmalıdır.</em></span>
-                <button onClick={() => { if(window.confirm("Ekrandaki form verileri silinecek (Veritabanından silinmez). Onaylıyor musunuz?")) { setQuantitiesGrid(Array(100).fill({ tarih: "", name: "", type: "", birim: "", count: "" })); setPendingChanges(true); } }} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Ekranı Temizle</button>
+            <div className="p-3 bg-pink-50 border-b border-pink-100 flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">YIL:</span>
+                    <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-white border border-slate-300 rounded px-2 py-1 text-sm font-bold outline-none">
+                        {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">AY:</span>
+                    <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-white border border-slate-300 rounded px-2 py-1 text-sm font-bold outline-none">
+                        {MONTH_NAMES.map((m, i) => i !== 0 && <option key={i} value={i}>{m}</option>)}
+                    </select>
+                </div>
+                <span className="text-xs text-pink-800 font-medium">
+                    (Tarih | Personel Adı | Türü | Birim | Adet) sütunlarını yapıştırın. Sadece seçili AY ve YIL'a kaydedilir.
+                </span>
+                <button onClick={() => { if(window.confirm("Ekran temizlenecek. Onaylıyor musunuz?")) { setQuantitiesGrid(Array(100).fill({ tarih: "", name: "", type: "", birim: "", count: "" })); setPendingChanges(true); } }} className="ml-auto flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold hover:bg-orange-50"><RotateCcw size={14} /> Ekranı Temizle</button>
             </div>
         )}
 
@@ -713,7 +719,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
                 </tr>
             ))}
 
-            {/* YENİ: ADET GRID */}
             {activeTab === "quantities" && quantitiesGrid.map((row, rIndex) => (
                 <tr key={rIndex} className="border-b border-slate-200 hover:bg-pink-50 transition-colors">
                     {QUANTITIES_COLUMNS.map((col, cIndex) => {
