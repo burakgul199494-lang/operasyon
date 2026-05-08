@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, BarChart2 } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -13,7 +13,7 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
-// YENİ: İsim temizleme kuralı (Buraya da eklendi ki pivot tabloda aynı kişi için 2 satır açılmasın)
+// İsim temizleme kuralı (Çift boşlukları ve harf hatalarını düzeltir)
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -27,27 +27,34 @@ const getBase64 = (blob) => new Promise((resolve, reject) => {
 });
 
 const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) => {
-    const [selectedUnit, setSelectedUnit] = useState(UNITS[0]);
+    // YENİ: Başlangıçta hiçbir birim seçili değil (null). Bu sayede karşılama ekranı açılacak.
+    const [selectedUnit, setSelectedUnit] = useState(null); 
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
+    // GÜNCELLENDİ: Sadece İÇİ DOLU olan (silinmemiş) en güncel ayı bulur
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
-            const sortedData = [...quantitiesData].sort((a, b) => {
-                if (a.year !== b.year) return b.year - a.year;
-                return b.month - a.month;
-            });
+            // Sadece records dizisi dolu olan verileri süz
+            const validData = quantitiesData.filter(d => d.records && d.records.length > 0);
             
-            setSelectedYear(sortedData[0].year);
-            setSelectedMonth(sortedData[0].month);
+            if (validData.length > 0) {
+                const sortedData = [...validData].sort((a, b) => {
+                    if (a.year !== b.year) return b.year - a.year;
+                    return b.month - a.month;
+                });
+                
+                setSelectedYear(sortedData[0].year);
+                setSelectedMonth(sortedData[0].month);
+            }
             setIsInitialLoaded(true);
         }
     }, [quantitiesData, isInitialLoaded]);
 
-    const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
+    const currentVehicles = selectedUnit && unitInfo ? unitInfo[selectedUnit] : null;
 
     const currentData = useMemo(() => {
         if (!selectedUnit || !allData) return null;
@@ -55,7 +62,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     }, [allData, selectedUnit, selectedYear, selectedMonth]);
 
     const unitQuantities = useMemo(() => {
-        if (!quantitiesData) return null;
+        if (!quantitiesData || !selectedUnit) return null;
         return quantitiesData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
     }, [quantitiesData, selectedUnit, selectedYear, selectedMonth]);
 
@@ -71,9 +78,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         if (unitQuantities && unitQuantities.records) {
             const map = {};
             unitQuantities.records.forEach(r => {
-                // GÜNCELLENDİ: İsmi normalize ederek gruplama yapıyoruz
                 const safeName = normalizeName(r.name);
-                
                 if(!map[safeName]) map[safeName] = { name: safeName, type: r.type, days: {} };
                 if (!map[safeName].days[r.day]) map[safeName].days[r.day] = 0;
                 map[safeName].days[r.day] += (r.count || 0);
@@ -180,12 +185,50 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         }
     };
 
+    // YENİ: KARŞILAMA EKRANI (Birim seçilmemişse gösterilecek ekran)
+    if (!selectedUnit) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300 pb-24">
+                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800 px-4 py-4 shadow-sm flex items-center gap-3">
+                    <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                        <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
+                    </button>
+                    <div>
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Personel Adet Analizi</h1>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Analiz yapmak istediğiniz birimi seçin</p>
+                    </div>
+                </div>
+
+                <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                        {UNITS.map(unit => {
+                            if (unit === "BÖLGE") return null;
+                            return (
+                                <button 
+                                    key={unit}
+                                    onClick={() => setSelectedUnit(unit)}
+                                    className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-3 group"
+                                >
+                                    <div className="w-14 h-14 rounded-2xl bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <BarChart2 size={28} />
+                                    </div>
+                                    <span className="font-bold text-slate-700 dark:text-slate-200 text-center">{unit}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // BİRİM SEÇİLDİYSE DETAY EKRANI (Ana Ekran)
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 shadow-sm border-b border-slate-200 dark:border-slate-800">
                 <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                        <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
+                        <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
                             <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
                         </button>
                         <div className="flex-1 min-w-0">
