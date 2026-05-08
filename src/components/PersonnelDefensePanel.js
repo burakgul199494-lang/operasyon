@@ -51,8 +51,7 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-// GÜNCELLENDİ: quantitiesData ve onBack prop olarak eklendi
-const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
+const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
   const [selectedUnit, setSelectedUnit] = useState("TÜMÜ");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -93,7 +92,7 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
     return uniqueMonths.slice(0, 3);
   }, [selectedYear, selectedMonth, isThreeMonthView, allData]);
 
-  // YENİ: Seçili döneme (1 ay veya 3 ay) göre Toplam Adetleri Hesaplama
+  // Seçili döneme (1 ay veya 3 ay) göre Toplam Adetleri Hesaplama
   const personnelAdetTotals = useMemo(() => {
     const totals = {};
     if (!quantitiesData || quantitiesData.length === 0 || targetMonths.length === 0) return totals;
@@ -147,7 +146,7 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
               parsedData: { r, t, c, s }, 
               isTebrik, 
               isDefense: isAnyFail,
-              totalAdetDisplay: totalAdet > 0 ? totalAdet.toLocaleString('tr-TR') : "-", // Adet Gösterimi
+              totalAdetDisplay: totalAdet > 0 ? totalAdet.toLocaleString('tr-TR') : "-", 
               periodString: `${MONTH_NAMES[record.month]} ${record.year}`
             });
           });
@@ -219,7 +218,7 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
              smsOrani: avgS,
              isTebrik, 
              isDefense: isAnyFail,
-             totalAdetDisplay: totalAdet > 0 ? totalAdet.toLocaleString('tr-TR') : "-", // 3 Aylık Toplam Adet
+             totalAdetDisplay: totalAdet > 0 ? totalAdet.toLocaleString('tr-TR') : "-", 
              periodString: pString
            });
         }
@@ -259,7 +258,6 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
 
       const isAvg = isThreeMonthView && targetMonths.length > 1;
       
-      // YENİ: Dönem Toplam Teslim Adeti satırı eklendi
       const tableRows = [
         [`Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
         [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
@@ -348,7 +346,6 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
 
       const isAvg = isThreeMonthView && targetMonths.length > 1;
       
-      // YENİ: Dönem Toplam Teslim Adeti satırı eklendi
       const tableRows = [
         [`Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
         [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
@@ -366,9 +363,8 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
         headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
         columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
         didParseCell: function(data) {
-          // Adet Satırını farklı renklendirebiliriz
           if (data.section === 'body' && data.row.raw[0].includes("Adeti")) {
-             data.cell.styles.textColor = [30, 58, 138]; // Mavi ton
+             data.cell.styles.textColor = [30, 58, 138]; 
              data.cell.styles.fontStyle = 'bold';
           }
         }
@@ -487,7 +483,6 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
     <div className="bg-slate-50 dark:bg-slate-900 min-h-screen p-4 sm:p-6 transition-colors duration-300">
       <div className="max-w-7xl mx-auto">
         
-        {/* ÜST HEADER VE GERİ DÖN BUTONU */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mt-4 sm:mt-6">
           <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             
@@ -547,7 +542,6 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
                 <tr>
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Birim</th>
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ad Soyad</th>
-                  {/* YENİ ADET SÜTUNU */}
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Adet</th>
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "Rota Ort." : "Rota"}</th>
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "TVS Ort." : "TVS"}</th>
@@ -563,7 +557,6 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
                       <td className="p-4 text-sm font-bold text-slate-800 dark:text-white">{person.unit}</td>
                       <td className="p-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{person.name}</td>
                       
-                      {/* YENİ: PERSONEL ADET GÖSTERİMİ */}
                       <td className="p-4 text-center font-black text-indigo-600 dark:text-indigo-400 text-sm">
                         {person.totalAdetDisplay}
                       </td>
@@ -624,4 +617,4 @@ const PersonnelDefensePage = ({ allData, quantitiesData, onBack }) => {
   );
 };
 
-export default PersonnelDefensePage;
+export default PersonnelDefensePanel;
