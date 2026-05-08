@@ -13,6 +13,12 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
+// YENİ: İsim temizleme kuralı (Buraya da eklendi ki pivot tabloda aynı kişi için 2 satır açılmasın)
+const normalizeName = (name) => {
+    if (!name) return "";
+    return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
+};
+
 const getBase64 = (blob) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result.split(',')[1]);
@@ -28,10 +34,8 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-    // YENİ: Sayfa ilk açıldığında quantitiesData içindeki en son (en güncel) ayı bulur
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
-            // En güncel yılı ve ayı bulmak için sıralama
             const sortedData = [...quantitiesData].sort((a, b) => {
                 if (a.year !== b.year) return b.year - a.year;
                 return b.month - a.month;
@@ -67,9 +71,12 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         if (unitQuantities && unitQuantities.records) {
             const map = {};
             unitQuantities.records.forEach(r => {
-                if(!map[r.name]) map[r.name] = { name: r.name, type: r.type, days: {} };
-                if (!map[r.name].days[r.day]) map[r.name].days[r.day] = 0;
-                map[r.name].days[r.day] += (r.count || 0);
+                // GÜNCELLENDİ: İsmi normalize ederek gruplama yapıyoruz
+                const safeName = normalizeName(r.name);
+                
+                if(!map[safeName]) map[safeName] = { name: safeName, type: r.type, days: {} };
+                if (!map[safeName].days[r.day]) map[safeName].days[r.day] = 0;
+                map[safeName].days[r.day] += (r.count || 0);
             });
 
             Object.values(map).forEach(p => {
@@ -94,12 +101,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const parcabasiRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : 0;
     const ratioStr = parcabasiRatio.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    // YENİ: YATAY PDF DIŞA AKTARMA FONKSİYONU
     const generatePDF = async () => {
         setIsGeneratingPdf(true);
         try {
             const { jsPDF } = window.jspdf;
-            // 31 günlük geniş bir tablo olduğu için A4, Yatay (landscape) kullanıyoruz
             const doc = new jsPDF('landscape', 'mm', 'a4');
 
             try {
@@ -126,7 +131,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             const tableHead = [['Personel Adı', 'Türü', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
             const tableBody = [];
 
-            // Personel Listesi (Mavi tonlarda olacak)
             personelList.forEach(p => {
                 const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                 const rowData = [p.name, p.type, rowTotal];
@@ -134,7 +138,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 tableBody.push(rowData);
             });
 
-            // Parçabaşı Listesi (Kırmızı tonlarda olacak)
             parcabasiList.forEach(p => {
                 const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                 const rowData = [p.name, p.type, rowTotal];
@@ -156,12 +159,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 },
                 didParseCell: function(data) {
                     if (data.section === 'body') {
-                        // Eğer bu satır "Personeller"in içindeyse satırı hafif mavi yap
                         if (data.row.index < personelList.length) {
                             data.cell.styles.fillColor = [240, 248, 255]; 
                             data.cell.styles.textColor = [30, 58, 138];
                         } 
-                        // Eğer bu satır "Parçabaşı" ise satırı hafif kırmızı yap
                         else {
                             data.cell.styles.fillColor = [255, 241, 242]; 
                             data.cell.styles.textColor = [159, 18, 57];
@@ -201,7 +202,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                         </div>
                     </div>
 
-                    {/* YENİ: PDF İNDİRME BUTONU */}
                     <button 
                         onClick={generatePDF} 
                         disabled={isGeneratingPdf || (personelList.length === 0 && parcabasiList.length === 0)}
