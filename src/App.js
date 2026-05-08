@@ -4,7 +4,6 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebas
 import { collection, onSnapshot, doc, writeBatch } from "firebase/firestore";
 import { auth, db, appId } from "./config/firebase";
 
-// Sayfa Importları
 import LoginScreen from "./pages/LoginScreen";
 import LandingMenu from "./pages/LandingMenu";
 import Dashboard from "./pages/Dashboard";
@@ -13,6 +12,7 @@ import AdminPanel from "./pages/AdminPanel";
 import NotesPage from "./pages/NotesPage";
 import FleetPage from "./pages/FleetPage";
 import PersonnelDefensePage from "./pages/PersonnelDefensePage";
+import PersonnelQuantitiesPage from "./pages/PersonnelQuantitiesPage"; // YENİ SAYFA IMPORTU
 import UserProfileModal from "./components/UserProfileModal";
 import { Lock } from "lucide-react";
 
@@ -22,6 +22,7 @@ export default function App() {
   const [unitInfo, setUnitInfo] = useState({});
   const [fleetData, setFleetData] = useState([]);
   const [fleetKms, setFleetKms] = useState({});
+  const [quantitiesData, setQuantitiesData] = useState([]); // YENİ: Personel Adet Verisi
 
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -29,10 +30,8 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState("");
   const [isProfileOpen, setProfileOpen] = useState(false);
 
-  // YENİ: Otomatik Yıl Hesaplayıcı
   const [availableYears, setAvailableYears] = useState(() => {
     const currentYear = new Date().getFullYear();
-    // 2024'ten başlayıp bulunduğumuz yıl + 1 kadarını otomatik oluşturur
     return Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
   });
 
@@ -42,71 +41,60 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    if (isDarkMode) { document.documentElement.classList.add("dark"); } 
+    else { document.documentElement.classList.remove("dark"); }
     localStorage.setItem("darkMode", isDarkMode);
   }, [isDarkMode]);
 
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
   useEffect(() => {
-    const meta = document.querySelector('meta[name="viewport"]');
-    if (meta) { meta.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"; }
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); });
     return () => unsubscribe();
   }, []);
 
-  // Performans Kayıtları
   useEffect(() => {
     if (!user) { setAllData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "performance_records");
     const unsubscribe = onSnapshot(colRef, (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setAllData(list);
+      setAllData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsubscribe();
   }, [user]);
 
-  // Birim Filo Bilgileri
   useEffect(() => {
     if (!user) return;
     const colRef = collection(db, "artifacts", appId, "public", "data", "unit_info");
     const unsubscribe = onSnapshot(colRef, (snap) => {
-      const infoMap = {};
-      snap.docs.forEach((d) => { infoMap[d.id] = d.data(); });
-      setUnitInfo(infoMap);
+      const infoMap = {}; snap.docs.forEach((d) => { infoMap[d.id] = d.data(); }); setUnitInfo(infoMap);
     });
     return () => unsubscribe();
   }, [user]);
 
-  // Araç Listesi
   useEffect(() => {
     if (!user) { setFleetData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_list");
     const unsubscribe = onSnapshot(colRef, (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setFleetData(list);
+      setFleetData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsubscribe();
   }, [user]);
 
-  // Araç KM Listesi
   useEffect(() => {
     if (!user) { setFleetKms({}); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_kms");
     const unsubscribe = onSnapshot(colRef, (snap) => {
-      const kmsMap = {};
-      snap.docs.forEach((d) => { kmsMap[d.id] = d.data().km; });
-      setFleetKms(kmsMap);
+      const kmsMap = {}; snap.docs.forEach((d) => { kmsMap[d.id] = d.data().km; }); setFleetKms(kmsMap);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  // YENİ: Personel Adet Verilerini Çekme
+  useEffect(() => {
+    if (!user) { setQuantitiesData([]); return; }
+    const colRef = collection(db, "artifacts", appId, "public", "data", "personnel_quantities");
+    const unsubscribe = onSnapshot(colRef, (snap) => {
+      setQuantitiesData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsubscribe();
   }, [user]);
@@ -126,14 +114,12 @@ export default function App() {
     else if (target === "notes") navigate("/notes");
     else if (target === "fleet") navigate("/fleet"); 
     else if (target === "personnelDefense") navigate("/personnel-defense"); 
+    else if (target === "quantities") navigate("/personnel-quantities"); // YENİ YÖNLENDİRME
   };
 
   const handleAdminLogin = () => {
-    if (adminPassword === "Marvel3535") {
-      setShowLoginModal(false);
-      setAdminPassword("");
-      navigate("/admin"); 
-    } else { alert("Hatalı şifre!"); }
+    if (adminPassword === "Marvel3535") { setShowLoginModal(false); setAdminPassword(""); navigate("/admin"); } 
+    else { alert("Hatalı şifre!"); }
   };
 
   const handleSaveBatch = async (records) => {
@@ -144,6 +130,22 @@ export default function App() {
             const batch = writeBatch(db);
             chunk.forEach(r => {
                 const ref = doc(db, "artifacts", appId, "public", "data", "performance_records", r.id);
+                batch.set(ref, { ...r }, { merge: true });
+            });
+            await batch.commit();
+        }
+    } catch(e) { console.error(e); throw e; } 
+  };
+
+  // YENİ: Adet verilerini kaydetme fonksiyonu
+  const handleSaveQuantities = async (records) => {
+    try {
+        const chunkSize = 400;
+        for (let i = 0; i < records.length; i += chunkSize) {
+            const chunk = records.slice(i, i + chunkSize);
+            const batch = writeBatch(db);
+            chunk.forEach(r => {
+                const ref = doc(db, "artifacts", appId, "public", "data", "personnel_quantities", r.id);
                 batch.set(ref, { ...r }, { merge: true });
             });
             await batch.commit();
@@ -163,13 +165,16 @@ export default function App() {
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
         <Route path="/fleet" element={<FleetPage fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/")} />} />
         <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} onBack={() => navigate("/")} />} />
+        <Route path="/personnel-quantities" element={<PersonnelQuantitiesPage allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
         <Route path="/admin" element={
           <AdminPanel
             allData={allData}
             unitInfo={unitInfo}
             fleetData={fleetData}
             fleetKms={fleetKms} 
+            quantitiesData={quantitiesData}
             onSaveBatch={handleSaveBatch}
+            onSaveQuantities={handleSaveQuantities}
             onClose={() => navigate("/")}
             availableYears={availableYears}
             setAvailableYears={setAvailableYears}
@@ -178,9 +183,7 @@ export default function App() {
           />
         } />
       </Routes>
-      
       {isProfileOpen && <UserProfileModal user={user} onClose={() => setProfileOpen(false)} />}
-      
       {showLoginModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4">
            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700">
