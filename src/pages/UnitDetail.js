@@ -1,31 +1,13 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck } from "lucide-react";
-import { UNITS, MONTH_NAMES, formatNumber } from "../utils/helpers";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, ClipboardCheck } from "lucide-react";
+import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
-// EXCEL ŞABLONUNDAKİ TETKİK SORULARI
-// Not: Buraya Excel'deki diğer soruları aynı mantıkla alt alta ekleyebilirsin.
-const INSPECTION_QUESTIONS = [
-  { id: 1, category: "KARGO OPERASYONLARI", question: "Devir Kargo İşlemleri zamanında ve standartlara uygun yapılıyor mu?", criteria: "GM-PRO-04" },
-  { id: 2, category: "KARGO OPERASYONLARI", question: "Yönlendirme Posterleri birimde uygun yerlere asılıyor mu?", criteria: "7.1.4 / GM-PR-07" },
-  { id: 3, category: "İNSAN KAYNAKLARI", question: "Personel kılık kıyafet ve yaka kartı kurallarına uyuyor mu?", criteria: "İK-PR-01" },
-  { id: 4, category: "SATIŞ PAZARLAMA", question: "Müşteri şikayetleri zamanında çözümlenip sisteme giriliyor mu?", criteria: "ISO 10002" },
-  { id: 5, category: "İŞ SAĞLIĞI", question: "Çalışma ortamında İSG kurallarına ve temizliğe uyuluyor mu?", criteria: "ISO 45001" }
-];
-
 const TARGETS = { 
-  teslimPerformansi: 96,
-  adresAlimOrani: 90,
-  musteriSikayet: 0,
-  rotaOrani: 85, 
-  tvsOrani: 95, 
-  checkInOrani: 90, 
-  smsOrani: 70,
-  eAtfOrani: 95,
-  htfOrani: 90,
-  kontrolSende: 90,
-  olcumTartim: 20
+  teslimPerformansi: 96, adresAlimOrani: 90, musteriSikayet: 0,
+  rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70,
+  eAtfOrani: 95, htfOrani: 90, kontrolSende: 90, olcumTartim: 20
 };
 
 const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"];
@@ -44,10 +26,7 @@ const formatDisplayMetric = (val, isPercent = true) => {
   let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
   let num = parseFloat(strVal);
   if (!isNaN(num)) {
-    return num.toLocaleString('tr-TR', { 
-      minimumFractionDigits: isPercent ? 2 : 0, 
-      maximumFractionDigits: isPercent ? 2 : 0 
-    });
+    return num.toLocaleString('tr-TR', { minimumFractionDigits: isPercent ? 2 : 0, maximumFractionDigits: isPercent ? 2 : 0 });
   }
   return val;
 };
@@ -59,20 +38,138 @@ const getBase64 = (blob) => new Promise((resolve, reject) => {
   reader.readAsDataURL(blob);
 });
 
-const loadZipLibraries = () => new Promise((resolve, reject) => {
-  if (window.JSZip) return resolve(window.JSZip);
-  const script = document.createElement('script');
-  script.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
-  script.onload = () => {
-    const fsScript = document.createElement('script');
-    fsScript.src = "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js";
-    fsScript.onload = () => resolve(window.JSZip);
-    fsScript.onerror = reject;
-    document.head.appendChild(fsScript);
-  };
-  script.onerror = reject;
-  document.head.appendChild(script);
-});
+// TETKİK FORMU EXCEL VERİTABANI
+const INSPECTION_DATA = [
+  {
+    main: "KARGO OPERASYONLARI", sub: "Devir Kargo İşlemleri",
+    q: [
+      { no: "1.1", desc: "Devir kargolar el terminali ile devre alınıyor mu? Tahsilatlı gönderiler ile alıcı ödemeli kargoların devir işlemleri kontrol ediliyor mu? Devir gerekçeleri doğru belirleniyor mu? Tedarikçi teslimatları kontrol ediliyor mu?", kr: "8.5.1 / KO-TAL-03", ynt: "BRN0068 / BRN1080" },
+      { no: "1.2", desc: "İade süreci zamanında işletiliyor mu? VIP kargoların teslimatları zamanında yapılıyor mu? Müşteriye teslim edilmediği halde sistemden teslim düşülmüş kargo mevcut mu?", kr: "8.5.1-8.5.2 / KO-TAL-03", ynt: "BRN0199 / BRN0068" },
+      { no: "1.3", desc: "Faturası düzenlenen kargoların aynı gün çıkışları yapılıyor mu? Transferde gecikme var mı?", kr: "8.5 - 8.5.3 / KO-TAL-03", ynt: "Gözlem / KOPS" },
+      { no: "1.4", desc: "Adresinde bulunamayan müşterilerin kargoları için ihbar notu / elektronik ihbar kullanılıyor mu? Telefon ihbarlı gönderiler için IVN tarafından otomatik olarak aranmayan kayıtlar müşteriler aranıyor mu?", kr: "8.5 - 8.5.2 / KO-TAL-03", ynt: "BRN0068 / BRN5050 / BRN0061" },
+      { no: "1.5", desc: "Havada kalan belgelerin (havada kalan alıcı ödemeli ve tahsilatlı kargolar dahil) kontrolü yapılıyor mu?", kr: "8.5 - 8.5.2 / KO-TAL-03", ynt: "GEN1650 Girişi Yapılmayan Fatura" }
+    ]
+  },
+  {
+    main: "KARGO OPERASYONLARI", sub: "Gelen Kargo İşlemleri",
+    q: [
+      { no: "2.1", desc: "Şube / Acente zamanında açılıyor mu? Sabah şube araçları zamanında dağıtıma çıkıyor mu?", kr: "8.5.1 / KO-TAL-03", ynt: "GEN0460 / Gözlem" },
+      { no: "2.2", desc: "Şube / Acenteye gelen araçların kilit-mühür kontrol işlemleri yapılıyor mu?", kr: "8.5.1 / KO-TAL-03", ynt: "Gözlem - TTİ" },
+      { no: "2.3", desc: "Birim teslimat performansı hedeflenen seviyede mi? Personel bazlı kargo dağıtım performansı yeterli mi? Haftanın belli günlerinde adres teslim yapılan yerlere sistemde belirlenmiş günlerde AT yapılıyor mu?", kr: "8.5.1-8.5.2 / KO-TAL-03", ynt: "Veri Ambarı YK Operasyon BMY / GEN0285 / Gözlem", autoKPI: true },
+      { no: "2.4", desc: "Tüm adres teslim gelen kargolar (borçlandırma ve ringler de dahil) için zimmet alınıyor mu? Zimmet alınan kargolarla ilgili kurye mobil uygulaması kullanılıyor mu?", kr: "8.5.1-8.5.2 / KO-TAL-03", ynt: "TRN0400 / El Terminali Kullanım Oranı" },
+      { no: "2.5", desc: "Yeni personel rotalama uygulumasını kullanıyor mu? Birimin Rota ve TVS Uyum Oranı istenilen seviyede mi?", kr: "8.7-10.2 / KO-TAL-03", ynt: "Rotalama Uygulaması ve KOPS", autoKPI: true },
+      { no: "2.6", desc: "Kargo tesliminde kimlik doğrulaması yapılıyor mu? Teslimat esnasında SMS kodu ile doğrulama yapılıyor mu? Müşterinin seçimine göre teslimat yapılıyor mu?", kr: "8.5.2 / KO-TL-03", ynt: "Kargo Teslim Belgeleri / KOPS / Gözlem", autoKPI: true },
+      { no: "2.7", desc: "Yanlış gelen kargoların, doğru varış yerine aynı gün içinde gönderilmesi ve borçlandırma işlemlerinin zamanında yapılması sağlanıyor mu?", kr: "8.5 - 8.7 / KO-TA-10", ynt: "GEN0460 / Gözlem" },
+      { no: "2.8", desc: "Aktarma Merkezi tarafından HTF düzenlenen kargolar için şubede de içerik tespiti yapılıyor mu? Şubeye gelen eksik, fazla, kırık kargolar için zamanında HTF tutuluyor mu?", kr: "8.5 / 8.7 / KO-TAL-06", ynt: "GEN0560 Hasar Tespit Formu" }
+    ]
+  },
+  {
+    main: "KARGO OPERASYONLARI", sub: "Giden Kargo İşlemleri",
+    q: [
+      { no: "3.1", desc: "Dosya poşeti güvenlik numarası ile adresten alım yapılan ve şubeye bırakılan kargolar için ATF numarası sisteme not ediliyor mu?", kr: "8.5.2 / KO-TL-04", ynt: "BRN0070 / HQR0480" },
+      { no: "3.2", desc: "Müşterilerin kimlik bilgileri ile kargo içerik bilgileri ayrıntılı olarak sisteme giriliyor mu?", kr: "8.5.2 / KO-TL-04", ynt: "BRN0070 / Gözlem" },
+      { no: "3.3", desc: "Kargoların kabulünde içerik kontrolü yapılıyor mu? Standartlarımıza uygun dosya poşet, barkod kullanılıyor mu?", kr: "8.5.1 / KO-TL-04", ynt: "BRN0070 / Gözlem" },
+      { no: "3.4", desc: "Giden kargoların ölçüm-tartımı doğru yapılıyor mu?", kr: "8.5.1-8.5.2 / KO-TL-04", ynt: "Gözlem", autoKPI: true },
+      { no: "3.5", desc: "Sigortasız / Şartlı taşınacak Şube Geldi kargoları için sistem üzerinden İKB'ler oluşturuluyor mu? İmzalatılıyor mu?", kr: "8.5.2 / KO-TL-04", ynt: "BRN0492 İhtirazi Kayıt Raporu" },
+      { no: "3.6", desc: "Ambar tesellüm fişleri personele zimmetle teslim ediliyor mu? E-ATF düzenleniyor mu? Oluşturulan ATF'ler birimde doğru müşteri ile eşleştiriliyor mu?", kr: "8.5.2 / KO-TL-04", ynt: "Ambar Tesellüm Fişi / Gözlem", autoKPI: true },
+      { no: "3.7", desc: "Araç avadanlıkları tam mı? Araç dış görünüşü standartlara uygun mu? Araçta GPS mevcut mu? Mobil uygulama üzerinden sisteme fotoğraf yükleniyor mu?", kr: "7.1.3 / KO-TL-21", ynt: "Gözlem / Mobiliz" },
+      { no: "3.8", desc: "Şube zamanında kapanıyor mu? Şube kapanış aracını zamanında çıkarıyor mu?", kr: "8.5.2 / KO-TL-04", ynt: "GEN0460 / Gözlem" }
+    ]
+  },
+  {
+    main: "İNSAN KAYNAKLARI, EĞİTİM VE İDARİ İŞLER", sub: "İnsan Kaynakları",
+    q: [
+      { no: "4.1", desc: "SGK işe giriş kayıtları zamanında yapılıyor mu? Şube personelinin işe giriş evrakları eksiksiz ve güncel mi?", kr: "7.2 / IK-PRO-02", ynt: "10 Nolu Özlük Dosyası" },
+      { no: "4.2", desc: "Personel özlük dosyaları ve belgeleri ile ayrılan personel evrakları eksiksiz olarak kilitli dolaplarda muhafaza ediliyor mu?", kr: "7.2 / IK-PRO-02", ynt: "10 Nolu Özlük Dosyası" },
+      { no: "4.3", desc: "Personel görevine uygun iş kıyafeti giyiyor mu? Kişisel bakımına özen gösteriyor mu? Personel kimlik kartları takılıyor mu? Mesai saatlerine uyuyor mu?", kr: "7.2 / IK-PRO-02", ynt: "Gözlem" },
+      { no: "4.4", desc: "Personel günlük mesai takip çizelgeleri düzenleniyor ve puantaj kayıtları düzenli tutuluyor mu?", kr: "7.2 / IK-PRO-02", ynt: "İmza Takip / İzin Kayıtları" },
+      { no: "4.5", desc: "Çalışanın hak ettiği yıllık ücretli izinler zamanında kullandırılıyor mu? İzin kayıtları zamanında oluşturuluyor mu?", kr: "7.2 / IK-PRO-02", ynt: "İzin Formları / Puantaj" },
+      { no: "4.6", desc: "Personelin sosyal hak ödemesi zamanında ve eksiksiz yapılıyor mu?", kr: "7.2 / IK-TAL-02", ynt: "Ücret Bordrosu / Banka Dekontu" },
+      { no: "4.7", desc: "Ayda iki defa yapılması gereken hizmet içi eğitimler personele aktarılıyor mu? Uygulanan eğitimler etkin ve yeterli mi?", kr: "7.2 / IK-PRO-01", ynt: "Eğitim Kayıtları / Mülakat" }
+    ]
+  },
+  {
+    main: "İNSAN KAYNAKLARI, EĞİTİM VE İDARİ İŞLER", sub: "İdari İşler",
+    q: [
+      { no: "5.1", desc: "Müşteri ve personel panoları, İş İlanı Posteri, FIATA/IATA kapı etiketi, Kamera kapı etiketi, Ruhsat, Sigara İçilmez yazısı uygun yerlere asılmış mı?", kr: "7.1.4 / GM-PRO-07", ynt: "Gözlem" },
+      { no: "5.2", desc: "Kamera sistemleri çalışıyor mu? Yasal mevzuata göre cihazlarda 30 gün kayıt saklanıyor mu?", kr: "7.1.3 / GM-PR-07", ynt: "Kamera Cihazı / Gözlem" },
+      { no: "5.3", desc: "Alarm algılama sistemleri çalışıyor mu? Günlük alarm kurma-kapama işlemleri yapılıyor mu?", kr: "7.1.3 / GM-PRO-07", ynt: "Mülakat / Gözlem" },
+      { no: "5.4", desc: "Aylık talepler ERP üzerinden birim yetkililerince mi yapılıyor? Ambalaj ve sarf malzeme talepleri aylık gönderiler baz alınarak mı yapılıyor?", kr: "8.4 / GM-PRO-08", ynt: "ERP / Gözlem" },
+      { no: "5.5", desc: "Sarf malzemelerin stok sayım sonucu ERP kayıtlarıyla örtüşüyor mu? Eksik/Fazla var mı?", kr: "8.4 / GM-PRO-08", ynt: "ERP / Stok Sayımı" },
+      { no: "5.6", desc: "Şube düzen ve temizliği yeterli mi? Kurumsal kimliğe uygun mu?", kr: "7.1.4", ynt: "Gözlem" },
+      { no: "5.7", desc: "Şube içi aydınlatma, ısıtma-soğutma sistemleri çalışır durumda ve yeterli mi?", kr: "7.1.4", ynt: "Gözlem" },
+      { no: "5.8", desc: "Atık yönetimi (karton, plastik vb.) düzenli şekilde yapılıyor mu? Kategorize edilmiş mi?", kr: "7.1.4", ynt: "Gözlem" }
+    ]
+  },
+  {
+    main: "İNSAN KAYNAKLARI, EĞİTİM VE İDARİ İŞLER", sub: "İş Sağlığı ve Güvenliği",
+    q: [
+      { no: "6.1", desc: "İSG Uzmanı ve İş Yeri Hekimi ile İSG-KATİP sözleşmesi güncel ve imzalı mı?", kr: "7.1.4", ynt: "Sözleşme" },
+      { no: "6.2", desc: "Risk değerlendirme raporu var mı? İmzalı ve güncel mi?", kr: "7.1.4", ynt: "Risk Raporu" },
+      { no: "6.3", desc: "Acil Durum Eylem Planları hazırlanmış mı? Acil durum ekipleri eğitim almış mı?", kr: "7.1.3", ynt: "Acil Durum Planları" },
+      { no: "6.4", desc: "İSG eğitimleri yapılıyor mu? Temel eğitim almayan personel var mı?", kr: "7.2", ynt: "Eğitim Kayıtları" },
+      { no: "6.5", desc: "Personelin işe giriş ve periyodik sağlık raporları mevzuata uygun mu?", kr: "7.2", ynt: "Sağlık Raporu Evrakı" },
+      { no: "6.6", desc: "İSG tespit ve öneri defteri var mı? Onaylı mı?", kr: "7.1.4", ynt: "Yükümlülük Kontrolü" },
+      { no: "6.7", desc: "Şubede uygun nitelikte yangın söndürme tüpü ve ecza dolabı var mı? SKT geçmiş mi?", kr: "7.1.3", ynt: "Gözlem" }
+    ]
+  },
+  {
+    main: "KALİTE YÖNETİM SİSTEMİ (ISO 9001)", sub: "",
+    q: [
+      { no: "7.1", desc: "Kalite politikası ve taahhütlerimiz yönetici ve personelce anlaşılmış mı?", kr: "5.2-5.2.2", ynt: "Mülakat" },
+      { no: "7.2", desc: "Çalışanlar, görev sorumluluklarını ve önemini biliyor mu?", kr: "7.2-7.3", ynt: "Görev Tanımları / Mülakat" },
+      { no: "7.3", desc: "Doküman, belge ve formlar güncel haliyle kullanılıp muhafaza ediliyor mu?", kr: "7.5.2 / GM-PRO-01", ynt: "Gözlem / Doküman" },
+      { no: "7.4", desc: "İşleyiş ile ilgili tespit edilen uygunsuzluklar form ile kayıt altına alınıyor mu?", kr: "8.7 / KO-TAL-20", ynt: "GEN0460 / Gözlem" },
+      { no: "7.5", desc: "Elektronik kantarın kalibrasyonu yapılmış mı? Şerit metreler standartlara uygun mu?", kr: "7.1.5 / YS-PRO-01", ynt: "Gözlem / Kalibrasyon Raporu" }
+    ]
+  },
+  {
+    main: "MALİ İŞLER", sub: "",
+    q: [
+      { no: "8.1", desc: "Müşteri mutabakatları ve müşteri ödemelerine ilişkin yapılan kontroller gerçeği yansıtıyor mu? Kasa sayımı, mutabakatlar net mi?", kr: "8.5.1 / MU-TL-01", ynt: "BRN0080 / Kasa Sayım Tutanağı" },
+      { no: "8.2", desc: "Vadesi geçen faturalar takip ve kontrol ediliyor mu? Müşterilerle ödeme teyidi yapılıyor mu?", kr: "8.5.1 / MU-TAL-01", ynt: "BRN0760 / BRN0660" },
+      { no: "8.3", desc: "Virman işlemleri talimatlara uygun yapılıyor mu?", kr: "8.5.1", ynt: "BRN0240 Virman Ekranı" },
+      { no: "8.4", desc: "Birime gelen ve giden tahsilat borçlandırmalarının giriş ve çıkış işlemleri zamanında yapılıyor mu?", kr: "8.5.1", ynt: "BRN2000 Borç Dekontu" },
+      { no: "8.5", desc: "Alınan ödemeler için (çek, nakit, tahsilatlı gönderi) tahsilat makbuzu düzenleniyor mu?", kr: "8.5.1", ynt: "Gözlem / Tahsilat Makbuzu" }
+    ]
+  },
+  {
+    main: "SATIŞ VE PAZARLAMA, MÜŞTERİ MEMNUNİYETİ", sub: "",
+    q: [
+      { no: "9.1", desc: "Müşteriler güler yüzle karşılanıyor mu? Müşteri diyaloğu istenilen düzeyde mi?", kr: "8.2.1 / PH-PRO-01", ynt: "Gözlem" },
+      { no: "9.2", desc: "Onaysız indirim yapılıyor mu?", kr: "8.5.1 / ST-PRO-01", ynt: "Gözlem / KOPS" },
+      { no: "9.3", desc: "Şikayetleri ele alma politikası tüm personel tarafından biliniyor ve personel eğitimli mi?", kr: "ISO 10002", ynt: "Mülakat", autoKPI: true },
+      { no: "9.4", desc: "Önemli şikayet kapsamına girecek şikayetlerin nasıl kayıt altına alınacağı biliniyor mu?", kr: "ISO 10002", ynt: "Mülakat" },
+      { no: "9.5", desc: "Güncel Genel Kampanya, Personel Prim Afişi, Ürün Bilgilendirme Posterleri uygun yerlere asılmış mı?", kr: "7.1.4 / GM-PR-07", ynt: "Gözlem" }
+    ]
+  }
+];
+
+const loadAutoKPIs = (data) => {
+  const autoAnswers = {};
+  if (!data) return autoAnswers;
+
+  // Teslimat ve AT KPI (2.3)
+  autoAnswers["2.3"] = `Sistem Verisi: Teslim Performansı %${formatDisplayMetric(data.teslimPerformansi)}, Adres Alım %${formatDisplayMetric(data.adresAlimOrani)}. (Hedef T.P: 96, A.A: 90)`;
+  
+  // Rota ve TVS KPI (2.5)
+  autoAnswers["2.5"] = `Sistem Verisi: Rota %${formatDisplayMetric(data.rotaOrani)}, TVS %${formatDisplayMetric(data.tvsOrani)}. (Hedef Rota: 85, TVS: 95)`;
+  
+  // Checkin SMS Kimlik (2.6)
+  autoAnswers["2.6"] = `Sistem Verisi: Check-in %${formatDisplayMetric(data.checkInOrani)}, SMS %${formatDisplayMetric(data.smsOrani)}. (Hedef CI: 90, SMS: 70)`;
+  
+  // Ölçüm Tartım (3.4)
+  autoAnswers["3.4"] = `Sistem Verisi: Ölçüm Tartım Farkı Toplam ${formatDisplayMetric(data.olcumTartim, false)} Adet. (Kabul Edilebilir: 20)`;
+  
+  // ATF (3.6)
+  autoAnswers["3.6"] = `Sistem Verisi: E-ATF Oranı %${formatDisplayMetric(data.eAtfOrani)}. (Hedef: 95)`;
+
+  // Müşteri Şikayetleri (9.3)
+  autoAnswers["9.3"] = `Sistem Verisi: Şubeye Ait Şikayet Sayısı: ${formatDisplayMetric(data.musteriSikayet, false)} Adet.`;
+
+  return autoAnswers;
+};
+
 
 const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
@@ -86,10 +183,13 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
 
-  // YENİ: TETKİK RAPORU STATELERİ
+  // TETKİK FORMU MODALI
   const [showInspectionModal, setShowInspectionModal] = useState(false);
   const [auditorName, setAuditorName] = useState("");
-  const [inspectionNote, setInspectionNote] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("12:00");
+  const [inspectionResult, setInspectionResult] = useState("");
+  const [dofNote, setDofNote] = useState("");
   const [inspectionAnswers, setInspectionAnswers] = useState({});
 
   useEffect(() => {
@@ -143,12 +243,16 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
-  const handleInspectionAnswer = (qId, status) => {
-    setInspectionAnswers(prev => ({ ...prev, [qId]: { ...prev[qId], status } }));
+  // TETKİK VERİ ÇEKME
+  const handleAutoFillKPI = () => {
+    if(!displayData) return;
+    const autoData = loadAutoKPIs(displayData);
+    setInspectionAnswers(prev => ({ ...prev, ...autoData }));
+    alert("Sistem verileri rapora başarıyla eklendi!");
   };
 
-  const handleInspectionBulgu = (qId, bulgu) => {
-    setInspectionAnswers(prev => ({ ...prev, [qId]: { ...prev[qId], bulgu } }));
+  const handleInspectionChange = (qNo, value) => {
+    setInspectionAnswers(prev => ({ ...prev, [qNo]: value }));
   };
 
   const generateDynamicAnalysis = (data) => {
@@ -244,6 +348,119 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
 
     const donemText = isYearAvg ? `${year} Yılı Ortalaması` : `${year} - ${MONTH_NAMES[month]}`;
     
+    // ==================================
+    // TETKİK RAPORU (EXCEL ŞABLONU BİREBİR)
+    // ==================================
+    if (type === 'inspection') {
+      doc.setFontSize(14);
+      doc.setTextColor(20, 20, 20); 
+      doc.setFont("Roboto", "bold");
+      doc.text("ŞUBE - ACENTE  İÇ TETKİK SORU FORMU / RAPORU", 14, 20);
+      
+      doc.setFontSize(8);
+      doc.setFont("Roboto", "normal");
+      doc.text("Referans Standart: ISO 9001, ISO 10002, ISO 14001, ISO 22301, ISO 27001, İSO 27701, ISO 45001", 14, 26);
+      
+      const kapsamText = "Denetim Kapsamı: Kargo taşımacılığında; İNSAN KAYNAKLARI, SATIŞ, PAZARLAMA, OPERASYON İŞLEMLERİ, MALİ İŞLER, YÖNETİM VE İDARİ ORGANİZASYON FAALİYETLERİ İLE BU FAALİYETLER İLE İLİŞKİLİ HİZMETLERİN VERİLMESİ     Tetkik Hedefi: GM-PRO-04 / 3.1.3      Tetkik Kriterleri: GM-PRO-04 / 3.1.2";
+      doc.text(doc.splitTextToSize(kapsamText, 182), 14, 30);
+
+      doc.setFont("Roboto", "bold");
+      doc.text(`Bölge Müdürlüğü : GÜNEY EGE BÖLGE MÜDÜRLÜĞÜ`, 14, 45);
+      doc.text(`Şube / Acente : ${targetUnit}`, 14, 50);
+      doc.text(`Denetçi (ler) : ${auditorName || "-"}`, 14, 55);
+      
+      doc.text(`Tetkik Tarihi : ${new Date().toLocaleDateString('tr-TR')}`, 120, 45);
+      doc.text(`Tetkik Başlangıç Zamanı : ${startTime}`, 120, 50);
+      doc.text(`Tetkik Bitiş Zamanı : ${endTime}`, 120, 55);
+
+      const tableBody = [];
+      INSPECTION_DATA.forEach(section => {
+        // Ana Kategori ve Alt Kategori Başlıkları (Koyu gri zemin)
+        tableBody.push([{ content: section.main, colSpan: 5, styles: { fillColor: [230, 230, 230], fontStyle: 'bold', textColor: [0, 0, 0] } }]);
+        if (section.sub) {
+          tableBody.push([{ content: section.sub, colSpan: 5, styles: { fillColor: [245, 245, 245], fontStyle: 'bold', textColor: [50, 50, 50] } }]);
+        }
+        
+        section.q.forEach(q => {
+          const bulgu = inspectionAnswers[q.no] || "Uygun";
+          tableBody.push([
+            q.no, 
+            q.desc, 
+            q.kr, 
+            q.ynt, 
+            bulgu
+          ]);
+        });
+      });
+
+      doc.autoTable({
+        startY: 60,
+        head: [['Sıra No', 'Soru', 'Kriter (Standart/Doküman)', 'İnceleme Yöntemi / Delili', 'Bulgu']],
+        body: tableBody,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [20, 20, 20], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 12, halign: 'center' },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 40 },
+          4: { cellWidth: 38 }
+        },
+        pageBreak: 'auto'
+      });
+
+      let finalY = doc.lastAutoTable.finalY + 8;
+
+      doc.setFontSize(8);
+      doc.setFont("Roboto", "normal");
+      doc.text("Not 1: Bu soru listesi, şube tetkikinde yol gösterici bir araçtır. Tetkik kapsamına göre soru eklenebilir ya da çıkarılabilir. Soruların yanında belirtilen kriterler olası bir uygunsuzluk atfı için bir fikir vermek amacı ile belirtilmiştir. Tetkikçinin tetkik delillerini değerlendirmesi sonucu başka bir maddeye atıfta bulunması mümkündür.", 14, finalY, { maxWidth: 182 });
+      
+      finalY += 12;
+      doc.text("Not 2: İş Sağlığı ve Güvenliğinde bir uygunsuzluk tespit edildiğinde tetkik delilleri ve tetkik bulgusu Genel Müdürlük İş Sağlığı ve Güvenliği Uzmanlarına tetkikçi tarafından e-mail ile bildirilir.", 14, finalY, { maxWidth: 182 });
+
+      finalY += 15;
+      
+      // EĞER SAYFA SONUNA YAKLAŞTIYSAK YENİ SAYFA AÇ (İmzalar ve notlar sığsın diye)
+      if (finalY > 240) {
+        doc.addPage();
+        finalY = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont("Roboto", "bold");
+      doc.text("TETKİK RAPORU", 14, finalY);
+      
+      finalY += 6;
+      doc.setFontSize(10);
+      doc.text("Denetimde Tespit Edilen Konular ve Sonuç:", 14, finalY);
+      doc.setFont("Roboto", "normal");
+      doc.text(doc.splitTextToSize(inspectionResult || "Belirtilmedi.", 182), 14, finalY + 5);
+      
+      finalY += 30;
+      doc.setFont("Roboto", "bold");
+      doc.text("DÖF Konuları (Varsa):", 14, finalY);
+      doc.setFont("Roboto", "normal");
+      doc.text(doc.splitTextToSize(dofNote || "Yok", 182), 14, finalY + 5);
+
+      finalY += 30;
+      doc.setFont("Roboto", "bold");
+      doc.text("Denetim Ekibi (Denetçi)", 14, finalY);
+      doc.text("Denetlenen Birim Yetkilisi", 130, finalY);
+      
+      doc.setFont("Roboto", "normal");
+      doc.text(`Ad - Soyad: ${auditorName || "..............................."}`, 14, finalY + 8);
+      doc.text(`Ad - Soyad: ...............................`, 130, finalY + 8);
+      
+      doc.text("İmza:", 14, finalY + 16);
+      doc.text("İmza:", 130, finalY + 16);
+
+      return doc;
+    }
+
+    // ==================================
+    // STANDART BİRİM KARNESİ (ESKİ SİSTEM)
+    // ==================================
     doc.setFontSize(18);
     doc.setTextColor(40);
     const title = type === 'defense' ? "OPERASYON PERFORMANS SAVUNMA FORMU" : "OPERASYON BİRİM KARNESİ";
@@ -253,9 +470,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     doc.text(`Birim: ${targetUnit}`, 14, 30);
     doc.text(`Dönem: ${donemText}`, 14, 35);
     doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
-    
     let startY = 45;
-    
     if (type === 'report') {
       doc.setFontSize(9); 
       doc.setTextColor(60);
@@ -334,7 +549,6 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
         }
       }
     });
-    
     let finalY = doc.lastAutoTable.finalY + 10;
     if (type === 'defense') {
       doc.setFontSize(10);
@@ -402,131 +616,14 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
     setIsGeneratingPdf(true); 
     try {
       const doc = await createPdfDoc(type, selectedUnit, displayData, selectedYear, selectedMonth, showYearAvg, null);
-      const fileName = type === 'defense' ? `${selectedUnit}_Savunma.pdf` : `${selectedUnit}.pdf`;
+      const fileName = type === 'inspection' ? `${selectedUnit}_İc_Tetkik_Raporu.pdf` : (type === 'defense' ? `${selectedUnit}_Savunma.pdf` : `${selectedUnit}.pdf`);
       doc.save(fileName);
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
       setIsGeneratingPdf(false); 
       setShowPdfModal(false); 
-    }
-  };
-
-  // YENİ: TETKİK RAPORU OLUŞTURMA FONKSİYONU
-  const generateInspectionPDF = async () => {
-    setIsGeneratingPdf(true);
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      try {
-        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
-        const blob = await response.blob();
-        const base64Font = await getBase64(blob);
-        doc.addFileToVFS("Roboto.ttf", base64Font);
-        doc.addFont("Roboto.ttf", "Roboto", "normal");
-        doc.addFont("Roboto.ttf", "Roboto", "bold");
-        doc.setFont("Roboto");
-      } catch (e) { console.warn("Font indirilemedi."); }
-
-      // 1. BAŞLIK BÖLÜMÜ
-      doc.setFontSize(16);
-      doc.setTextColor(30, 58, 138); // Koyu Lacivert
-      doc.setFont("Roboto", "bold");
-      doc.text("ŞUBE - ACENTE İÇ TETKİK SORU FORMU / RAPORU", 14, 22);
-      
-      doc.setFontSize(9);
-      doc.setFont("Roboto", "normal");
-      doc.setTextColor(80);
-      doc.text("Referans Standartlar: ISO 9001, ISO 10002, ISO 14001, ISO 22301, ISO 27001, ISO 45001", 14, 30);
-      doc.text(`Birim: ${selectedUnit}`, 14, 38);
-      doc.text(`Tetkik Dönemi: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 43);
-      doc.text(`Tetkik Tarihi: ${new Date().toLocaleDateString('tr-TR')}`, 14, 48);
-      doc.text(`Denetçi: ${auditorName || "Belirtilmedi"}`, 14, 53);
-
-      // 2. OTOMATİK SİSTEM PERFORMANS TABLOSU
-      doc.setFontSize(11);
-      doc.setFont("Roboto", "bold");
-      doc.setTextColor(50);
-      doc.text("1. SİSTEM PERFORMANS VERİLERİ (Otomatik)", 14, 65);
-
-      const targetData = displayData || {};
-      const kpiRows = [
-        ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, "Rota Oranı", `%${formatDisplayMetric(targetData.rotaOrani, true)}`],
-        ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, "TVS Oranı", `%${formatDisplayMetric(targetData.tvsOrani, true)}`],
-        ["Müşteri Şikayeti", formatDisplayMetric(targetData.musteriSikayet, false), "Check-in Oranı", `%${formatDisplayMetric(targetData.checkInOrani, true)}`],
-        ["Ölçüm Tartım", formatDisplayMetric(targetData.olcumTartim, false), "SMS Oranı", `%${formatDisplayMetric(targetData.smsOrani, true)}`]
-      ];
-
-      doc.autoTable({
-        startY: 68,
-        body: kpiRows,
-        theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 9 },
-        headStyles: { fillColor: [240, 240, 240], textColor: [50, 50, 50] },
-        columnStyles: { 0: { fontStyle: 'bold' }, 2: { fontStyle: 'bold' } }
-      });
-
-      let finalY = doc.lastAutoTable.finalY + 12;
-
-      // 3. TETKİK SORULARI TABLOSU
-      doc.setFontSize(11);
-      doc.setFont("Roboto", "bold");
-      doc.setTextColor(50);
-      doc.text("2. TETKİK SORULARI VE BULGULAR", 14, finalY);
-
-      const qRows = INSPECTION_QUESTIONS.map((q, i) => {
-          const ans = inspectionAnswers[q.id] || {};
-          return [
-              i + 1,
-              q.question,
-              q.criteria,
-              ans.status || "Seçilmedi",
-              ans.bulgu || "-"
-          ];
-      });
-
-      doc.autoTable({
-        startY: finalY + 3,
-        head: [['No', 'Soru', 'Kriter (Std)', 'Durum', 'Bulgu / Açıklama']],
-        body: qRows,
-        theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 8 },
-        headStyles: { fillColor: [30, 58, 138], textColor: [255, 255, 255], halign: 'center' },
-        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { cellWidth: 75 }, 2: { cellWidth: 25, halign: 'center' }, 3: { cellWidth: 25, halign: 'center' } }
-      });
-
-      finalY = doc.lastAutoTable.finalY + 12;
-
-      // 4. DENETİMDE TESPİT EDİLEN KONULAR VE SONUÇ
-      doc.setFontSize(11);
-      doc.setFont("Roboto", "bold");
-      doc.text("DENETİMDE TESPİT EDİLEN KONULAR VE SONUÇ:", 14, finalY);
-      
-      doc.setFontSize(10);
-      doc.setFont("Roboto", "normal");
-      const splitNote = doc.splitTextToSize(inspectionNote || "Bu alan boş bırakılmıştır.", 182);
-      doc.text(splitNote, 14, finalY + 6);
-
-      finalY += (splitNote.length * 5) + 20;
-
-      // İMZALAR
-      doc.setFont("Roboto", "bold");
-      doc.text("Tetkik Eden (Denetçi):", 14, finalY);
-      doc.text("Birim Yöneticisi:", 130, finalY);
-      
-      doc.setFont("Roboto", "normal");
-      doc.text(auditorName || "....................................", 14, finalY + 8);
-      doc.text("....................................", 130, finalY + 8);
-      doc.text("İmza:", 14, finalY + 16);
-      doc.text("İmza:", 130, finalY + 16);
-
-      doc.save(`${selectedUnit}_İç_Tetkik_Raporu.pdf`);
       setShowInspectionModal(false);
-    } catch (err) {
-      console.error("Tetkik raporu hatası:", err);
-    } finally {
-      setIsGeneratingPdf(false);
     }
   };
 
@@ -580,7 +677,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             {showYearAvg ? "Aylara Dön" : "Yıl Ort."}
           </button>
           
-          {/* YENİ: TETKİK RAPORU BUTONU */}
+          {/* YENİ TETKİK BUTONU */}
           <button onClick={() => setShowInspectionModal(true)} className="flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border bg-indigo-600 text-white border-transparent shadow-md hover:bg-indigo-700 transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ml-1">
             <ClipboardCheck size={14} className="mb-0.5" />
             Tetkik Raporu
@@ -718,7 +815,7 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900 shrink-0">
               <div>
                 <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-                  <ClipboardCheck className="text-indigo-600" /> Şube İç Tetkik Soru Formu / Raporu
+                  <ClipboardCheck className="text-indigo-600" /> Şube İç Tetkik Soru Formu
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">Dönem: {selectedYear} - {MONTH_NAMES[selectedMonth]} | Birim: {selectedUnit}</p>
               </div>
@@ -728,59 +825,86 @@ const UnitDetail = ({ allData, unitInfo, onBack, onChangeUnit }) => {
             </div>
 
             <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Denetçi (Tetkik Eden) Ad Soyad</label>
-                  <input type="text" placeholder="Denetçi adını giriniz..." className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none dark:bg-slate-700 dark:text-white" value={auditorName} onChange={e => setAuditorName(e.target.value)} />
+              
+              {/* Üst Bilgiler & Otomatik Buton */}
+              <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
+                <div className="flex flex-col md:flex-row gap-4 items-end mb-4">
+                  <div className="flex-1 w-full">
+                    <label className="text-xs font-bold text-indigo-800 dark:text-indigo-300 block mb-1">Denetçi Ad Soyad</label>
+                    <input type="text" placeholder="Adınızı giriniz..." className="w-full border border-indigo-200 dark:border-indigo-700/50 rounded-lg p-2 text-sm outline-none dark:bg-slate-800 dark:text-white" value={auditorName} onChange={e => setAuditorName(e.target.value)} />
+                  </div>
+                  <div className="w-full md:w-32">
+                    <label className="text-xs font-bold text-indigo-800 dark:text-indigo-300 block mb-1">Başlangıç Saati</label>
+                    <input type="time" className="w-full border border-indigo-200 dark:border-indigo-700/50 rounded-lg p-2 text-sm outline-none dark:bg-slate-800 dark:text-white" value={startTime} onChange={e => setStartTime(e.target.value)} />
+                  </div>
+                  <div className="w-full md:w-32">
+                    <label className="text-xs font-bold text-indigo-800 dark:text-indigo-300 block mb-1">Bitiş Saati</label>
+                    <input type="time" className="w-full border border-indigo-200 dark:border-indigo-700/50 rounded-lg p-2 text-sm outline-none dark:bg-slate-800 dark:text-white" value={endTime} onChange={e => setEndTime(e.target.value)} />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Denetimde Tespit Edilen Konular ve Sonuç</label>
-                  <textarea placeholder="Raporun en alt kısmında yer alacak genel denetim özetini buraya yazabilirsiniz..." className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-h-[100px] resize-none dark:bg-slate-700 dark:text-white" value={inspectionNote} onChange={e => setInspectionNote(e.target.value)}></textarea>
+
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-t border-indigo-200 dark:border-indigo-800/50 pt-4">
+                  <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
+                    Tüm sorular otomatik olarak <strong>"Uygun"</strong> seçili gelir. Varsa değişiklik yapabilir veya not ekleyebilirsiniz.
+                  </p>
+                  <button onClick={handleAutoFillKPI} className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+                    <Activity size={14} /> Sistem Verilerini Forma Çek
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-4 border-b border-slate-200 dark:border-slate-700 pb-2 text-lg">Denetim Soruları</h4>
-                <div className="space-y-4">
-                  {INSPECTION_QUESTIONS.map((q, idx) => (
-                    <div key={q.id} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                      <div className="mb-3">
-                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full uppercase tracking-wider">{q.category}</span>
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 ml-2">KRİTER: {q.criteria}</span>
-                      </div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3">{idx + 1}. {q.question}</p>
-                      
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <select 
-                          className="border border-slate-300 dark:border-slate-600 p-2.5 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white font-medium outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-48 shrink-0" 
-                          value={inspectionAnswers[q.id]?.status || ""} 
-                          onChange={e => handleInspectionAnswer(q.id, e.target.value)}
-                        >
-                          <option value="">Değerlendirme Seç...</option>
-                          <option value="Uygun">Uygun</option>
-                          <option value="Uygun Değil">Uygun Değil</option>
-                          <option value="Gözlem">Gözlem</option>
-                          <option value="Uygulanamaz">Uygulanamaz</option>
-                        </select>
-                        <input 
-                          type="text" 
-                          placeholder="İsteğe bağlı bulgu, kanıt veya açıklama yazın..." 
-                          className="flex-1 border border-slate-300 dark:border-slate-600 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-700 dark:text-white" 
-                          value={inspectionAnswers[q.id]?.bulgu || ""} 
-                          onChange={e => handleInspectionBulgu(q.id, e.target.value)} 
-                        />
-                      </div>
+              {/* Sorular */}
+              <div className="space-y-6">
+                {INSPECTION_DATA.map((category, catIdx) => (
+                  <div key={catIdx} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
+                    <div className="bg-slate-100 dark:bg-slate-800 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                      <h4 className="font-bold text-slate-800 dark:text-white text-sm">{category.main} {category.sub && <span className="text-slate-500 font-medium ml-1">/ {category.sub}</span>}</h4>
                     </div>
-                  ))}
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                      {category.q.map((q) => (
+                        <div key={q.no} className="p-4 bg-white dark:bg-slate-900 flex flex-col md:flex-row gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded">{q.no}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">Std: {q.kr}</span>
+                            </div>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{q.desc}</p>
+                          </div>
+                          <div className="w-full md:w-64 shrink-0 flex flex-col gap-2">
+                            <input 
+                              type="text" 
+                              placeholder="Bulgu / Not / Veri giriniz..." 
+                              className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:text-white" 
+                              value={inspectionAnswers[q.no] !== undefined ? inspectionAnswers[q.no] : "Uygun"}
+                              onChange={(e) => handleInspectionChange(q.no, e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Sonuç Alanları */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <div>
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-2">Denetimde Tespit Edilen Konular ve Sonuç</label>
+                  <textarea placeholder="Raporun sonuç kısmına yazılacak genel değerlendirme..." className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-h-[100px] resize-none dark:bg-slate-800 dark:text-white" value={inspectionResult} onChange={e => setInspectionResult(e.target.value)}></textarea>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-2">DÖF Konuları (Varsa)</label>
+                  <textarea placeholder="Düzenleyici / Önleyici Faaliyet konuları..." className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-h-[100px] resize-none dark:bg-slate-800 dark:text-white" value={dofNote} onChange={e => setDofNote(e.target.value)}></textarea>
                 </div>
               </div>
+
             </div>
 
             <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 shrink-0">
               <button onClick={() => setShowInspectionModal(false)} className="px-5 py-2 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors">İptal</button>
-              <button onClick={generateInspectionPDF} disabled={isGeneratingPdf} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-bold shadow-md flex items-center gap-2 transition-all disabled:opacity-50">
+              <button onClick={() => generatePDF('inspection')} disabled={isGeneratingPdf} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-bold shadow-md flex items-center gap-2 transition-all disabled:opacity-50">
                 {isGeneratingPdf ? <Loader2 size={18} className="animate-spin" /> : <FileDown size={18} />}
-                Raporu Oluştur (PDF)
+                Tetkik Raporunu İndir
               </button>
             </div>
 
