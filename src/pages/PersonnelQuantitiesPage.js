@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, ChevronDown, Calendar, Truck, Box, Zap, Key, FileDown, Loader2, Search, ChevronRight, Home, X } from "lucide-react";
+// GÜNCELLENDİ: Package ikonu tekrar eklendi! (Beyaz ekranın sorumlusu)
+import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, Search, ChevronRight, Home, X } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -13,7 +14,7 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
-// İsim temizleme kuralı (Çift boşlukları ve harf hatalarını düzeltir)
+// İsim temizleme kuralı
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -30,7 +31,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const [selectedUnit, setSelectedUnit] = useState(null); 
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-    const [searchQuery, setSearchQuery] = useState(""); // ARAMA ÇUBUĞU İÇİN EKLENDİ
+    const [searchQuery, setSearchQuery] = useState(""); 
     
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
@@ -182,13 +183,12 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         }
     };
 
-    // ARAMA ÇUBUĞU İÇİN BİRİMLERİ FİLTRELEME
     const filteredUnits = useMemo(() =>
         UNITS.filter((unit) => unit !== "BÖLGE" && unit.toLowerCase().includes(searchQuery.toLowerCase())),
         [searchQuery]
     );
 
-    // EĞER BİRİM SEÇİLMEDİYSE (SENİN İSTEDİĞİN BİREBİR DASHBOARD TASARIMI)
+    // BİREBİR DASHBOARD TASARIMI İLE KARŞILAMA EKRANI
     if (!selectedUnit) {
         return (
             <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
@@ -201,7 +201,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Personel Adet Analizi</h1>
                   </div>
                 </div>
-                <div className="relative max-w-4xl mx-auto">
+                <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
                   <input
                     type="text"
@@ -217,7 +217,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                   )}
                 </div>
               </div>
-              <div className="px-4 mt-4 max-w-4xl mx-auto">
+              <div className="px-4 mt-4">
                 {filteredUnits.map((unit, index) => (
                   <div key={index} onClick={() => setSelectedUnit(unit)} className="group flex items-center justify-between p-4 mb-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm active:scale-[0.98] transition-all cursor-pointer">
                     <div className="flex items-center gap-3">
