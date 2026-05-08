@@ -13,13 +13,15 @@ const parseMetric = (val) => {
   return isNaN(num) ? null : num;
 };
 
+// GÜNCELLENDİ: Küsüratların uzamaması için "virgülden sonra sadece 2 hane" kuralı eklendi
 const formatDisplayMetric = (val) => {
   if (val === undefined || val === null || val === "") return "-";
-  let str = String(val).replace(/%/g, '').replace(/\s/g, '').trim();
-  if (str.includes('.') && !str.includes(',')) {
-    str = str.replace('.', ',');
+  let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
+  let num = parseFloat(strVal);
+  if (!isNaN(num)) {
+    return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  return str;
+  return val;
 };
 
 const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -50,34 +52,36 @@ const PersonnelDefensePanel = ({ allData }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
-  // YENİ: 3 Ay Görünümü Aç/Kapa Butonu State'i
   const [isThreeMonthView, setIsThreeMonthView] = useState(false);
 
-  // GÖRÜNÜME GÖRE HESAPLANACAK AYLAR
+  // GÜNCELLENDİ: Sistemdeki en güncel son 3 ayı otomatik bulur
   const targetMonths = useMemo(() => {
     if (!isThreeMonthView) {
       return [{ year: selectedYear, month: selectedMonth }];
     }
-    const months = [];
-    for (let i = 0; i < 3; i++) {
-      let m = selectedMonth - i;
-      let y = selectedYear;
-      if (m <= 0) {
-        m += 12;
-        y -= 1;
-      }
-      months.push({ year: y, month: m });
-    }
-    return months;
-  }, [selectedYear, selectedMonth, isThreeMonthView]);
+    
+    // Sistemdeki tüm eşsiz ayları topla
+    const uniqueMonths = [];
+    (allData || []).forEach(d => {
+      const exists = uniqueMonths.find(m => m.year === d.year && m.month === d.month);
+      if (!exists) { uniqueMonths.push({ year: d.year, month: d.month }); }
+    });
 
-  // PERSONEL VERİLERİNİ SÜZME VE HESAPLAMA
+    // Yeniden eskiye doğru sırala
+    uniqueMonths.sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.month - a.month;
+    });
+
+    // En yeni 3 tanesini al
+    return uniqueMonths.slice(0, 3);
+  }, [selectedYear, selectedMonth, isThreeMonthView, allData]);
+
   const filteredPersonnel = useMemo(() => {
     let list = [];
-    if (!allData) return list;
+    if (!allData || targetMonths.length === 0) return list;
 
     if (!isThreeMonthView) {
-      // 1. TEK AYLIK NORMAL GÖRÜNÜM
       allData.forEach(record => {
         if (record.year !== parseInt(selectedYear) || record.month !== parseInt(selectedMonth)) return;
         if (selectedUnit !== "TÜMÜ" && record.unit !== selectedUnit) return;
@@ -89,12 +93,7 @@ const PersonnelDefensePanel = ({ allData }) => {
             const c = parseMetric(person.checkInOrani);
             const s = parseMetric(person.smsOrani);
 
-            const isAnyFail = 
-              (r !== null && r < TARGETS.rotaOrani) ||
-              (t !== null && t < TARGETS.tvsOrani) ||
-              (c !== null && c < TARGETS.checkInOrani) ||
-              (s !== null && s < TARGETS.smsOrani);
-
+            const isAnyFail = (r !== null && r < TARGETS.rotaOrani) || (t !== null && t < TARGETS.tvsOrani) || (c !== null && c < TARGETS.checkInOrani) || (s !== null && s < TARGETS.smsOrani);
             const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
 
             list.push({ 
@@ -111,9 +110,7 @@ const PersonnelDefensePanel = ({ allData }) => {
         }
       });
     } else {
-      // 2. SON 3 AY ORTALAMA GÖRÜNÜMÜ
       const personMap = {};
-
       allData.forEach(record => {
         const isTargetMonth = targetMonths.some(tm => tm.year === record.year && tm.month === record.month);
         if (!isTargetMonth) return;
@@ -123,11 +120,7 @@ const PersonnelDefensePanel = ({ allData }) => {
           record.personnel.forEach(person => {
             const key = `${record.unit}|${person.name}`;
             if (!personMap[key]) {
-              personMap[key] = {
-                name: person.name,
-                unit: record.unit,
-                monthsData: {}
-              };
+              personMap[key] = { name: person.name, unit: record.unit, monthsData: {} };
             }
             personMap[key].monthsData[`${record.year}-${record.month}`] = {
               r: parseMetric(person.rotaOrani),
@@ -139,10 +132,14 @@ const PersonnelDefensePanel = ({ allData }) => {
         }
       });
 
+      const oldest = targetMonths[targetMonths.length - 1];
+      const newest = targetMonths[0];
+      const pString = `Son 3 Ay Ortalaması (${MONTH_NAMES[oldest.month]} ${oldest.year} - ${MONTH_NAMES[newest.month]} ${newest.year})`;
+
       Object.values(personMap).forEach(personData => {
-        // Sadece 3 ay boyunca kesintisiz verisi olan personelleri filtrele
         const monthsPresent = Object.keys(personData.monthsData).length;
-        if (monthsPresent === 3) {
+        // 3 ay boyunca kesintisiz verisi olanlar hesaba katılır
+        if (monthsPresent === targetMonths.length) {
            let sumR = 0, sumT = 0, sumC = 0, sumS = 0;
            let countR = 0, countT = 0, countC = 0, countS = 0;
 
@@ -158,18 +155,9 @@ const PersonnelDefensePanel = ({ allData }) => {
            const avgC = countC > 0 ? (sumC / countC) : null;
            const avgS = countS > 0 ? (sumS / countS) : null;
 
-           const isAnyFail = 
-              (avgR !== null && avgR < TARGETS.rotaOrani) ||
-              (avgT !== null && avgT < TARGETS.tvsOrani) ||
-              (avgC !== null && avgC < TARGETS.checkInOrani) ||
-              (avgS !== null && avgS < TARGETS.smsOrani);
-
+           const isAnyFail = (avgR !== null && avgR < TARGETS.rotaOrani) || (avgT !== null && avgT < TARGETS.tvsOrani) || (avgC !== null && avgC < TARGETS.checkInOrani) || (avgS !== null && avgS < TARGETS.smsOrani);
            const isTebrik = !isAnyFail && (avgR !== null || avgT !== null || avgC !== null || avgS !== null);
            
-           const oldest = targetMonths[2];
-           const newest = targetMonths[0];
-           const pString = `Son 3 Ay Ort. (${MONTH_NAMES[oldest.month]} ${oldest.year} - ${MONTH_NAMES[newest.month]} ${newest.year})`;
-
            list.push({ 
              name: personData.name,
              unit: personData.unit, 
@@ -341,7 +329,7 @@ const PersonnelDefensePanel = ({ allData }) => {
     const tebrikList = filteredPersonnel.filter(p => p.isTebrik);
 
     if (tebrikList.length === 0) {
-      alert(`Seçili dönem için tebrik almayı hak eden personel bulunmamaktadır.`);
+      alert(`Seçili görünüm için tebrik almayı hak eden personel bulunmamaktadır.`);
       return;
     }
 
@@ -434,8 +422,8 @@ const PersonnelDefensePanel = ({ allData }) => {
           </h2>
           <p className="text-sm text-slate-500 mt-1">
             {isThreeMonthView 
-              ? "Seçili ay ve önceki 2 ayın (Son 3 Ay) ortalaması alınır. Sadece 3 ay boyunca kesintisiz verisi olanlar listelenir." 
-              : "Seçili aydaki tüm personelinizi listeleyin; hedefleri tutturanları tebrik edin, sapanlar için savunma oluşturun."}
+              ? "Sistemdeki en güncel son 3 ayın ortalaması alınır. Sadece 3 ay boyunca kesintisiz verisi olanlar listelenir." 
+              : "Seçili aydaki personelinizi listeleyin; hedefleri tutturanları tebrik edin, sapanlar için savunma oluşturun."}
           </p>
         </div>
         
@@ -445,15 +433,17 @@ const PersonnelDefensePanel = ({ allData }) => {
             onClick={() => setIsThreeMonthView(!isThreeMonthView)} 
             className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-xs font-bold h-10 ${isThreeMonthView ? "bg-purple-600 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
           >
-            <div className="flex items-center gap-1.5"><TrendingUp size={14} /> {isThreeMonthView ? "Tek Aya Dön" : "Son 3 Ay Analizi"}</div>
+            <div className="flex items-center gap-1.5"><TrendingUp size={14} /> {isThreeMonthView ? "Tek Aya Dön" : "Sistemdeki Son 3 Ayı Al"}</div>
           </button>
 
-          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+          {/* 3 Aylık görünümde ay ve yıl seçimi devre dışı bırakılır */}
+          <select disabled={isThreeMonthView} value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+          <select disabled={isThreeMonthView} value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {MONTH_NAMES.map((m, i) => i !== 0 && <option key={i} value={i}>{m}</option>)}
           </select>
+
           <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="w-full md:w-auto bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             <option value="TÜMÜ">Tüm Birimler</option>
             {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
@@ -533,7 +523,7 @@ const PersonnelDefensePanel = ({ allData }) => {
               <tr>
                 <td colSpan="7" className="p-8 text-center text-slate-500">
                   {isThreeMonthView 
-                    ? "Seçilen dönem ve önceki 2 aya ait kesintisiz verisi olan personel bulunamadı." 
+                    ? "Sistemdeki son 3 aya ait kesintisiz verisi olan personel bulunamadı." 
                     : "Bu döneme ait personel verisi bulunmamaktadır."}
                 </td>
               </tr>
