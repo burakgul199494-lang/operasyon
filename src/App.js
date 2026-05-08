@@ -12,7 +12,7 @@ import AdminPanel from "./pages/AdminPanel";
 import NotesPage from "./pages/NotesPage";
 import FleetPage from "./pages/FleetPage";
 import PersonnelDefensePage from "./pages/PersonnelDefensePage";
-import PersonnelQuantitiesPage from "./pages/PersonnelQuantitiesPage"; // YENİ SAYFA IMPORTU
+import PersonnelQuantitiesPage from "./pages/PersonnelQuantitiesPage";
 import UserProfileModal from "./components/UserProfileModal";
 import { Lock } from "lucide-react";
 
@@ -22,7 +22,7 @@ export default function App() {
   const [unitInfo, setUnitInfo] = useState({});
   const [fleetData, setFleetData] = useState([]);
   const [fleetKms, setFleetKms] = useState({});
-  const [quantitiesData, setQuantitiesData] = useState([]); // YENİ: Personel Adet Verisi
+  const [quantitiesData, setQuantitiesData] = useState([]); 
 
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -89,7 +89,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // YENİ: Personel Adet Verilerini Çekme
   useEffect(() => {
     if (!user) { setQuantitiesData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "personnel_quantities");
@@ -114,7 +113,7 @@ export default function App() {
     else if (target === "notes") navigate("/notes");
     else if (target === "fleet") navigate("/fleet"); 
     else if (target === "personnelDefense") navigate("/personnel-defense"); 
-    else if (target === "quantities") navigate("/personnel-quantities"); // YENİ YÖNLENDİRME
+    else if (target === "quantities") navigate("/personnel-quantities");
   };
 
   const handleAdminLogin = () => {
@@ -137,7 +136,6 @@ export default function App() {
     } catch(e) { console.error(e); throw e; } 
   };
 
-  // YENİ: Adet verilerini kaydetme fonksiyonu
   const handleSaveQuantities = async (records) => {
     try {
         const chunkSize = 400;
@@ -161,7 +159,10 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingMenu user={user} onNavigate={handleNavigateFromMenu} onLogout={handleAppLogout} onProfile={() => setProfileOpen(true)} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />} />
         <Route path="/dashboard" element={<Dashboard onUnitClick={(unit) => navigate(`/detail/${unit}`)} onNavigateMenu={() => navigate("/")} />} />
-        <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
+        
+        {/* GÜNCELLENDİ: UnitDetail sayfasına quantitiesData gönderildi */}
+        <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
+        
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
         <Route path="/fleet" element={<FleetPage fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/")} />} />
         <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} onBack={() => navigate("/")} />} />
