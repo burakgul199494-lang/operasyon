@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, BarChart2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, ChevronRight } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -27,7 +27,7 @@ const getBase64 = (blob) => new Promise((resolve, reject) => {
 });
 
 const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) => {
-    // YENİ: Başlangıçta hiçbir birim seçili değil (null). Bu sayede karşılama ekranı açılacak.
+    // BAŞLANGIÇTA BİRİM SEÇİLİ DEĞİL (Karşılama ekranı açılır)
     const [selectedUnit, setSelectedUnit] = useState(null); 
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -35,10 +35,9 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-    // GÜNCELLENDİ: Sadece İÇİ DOLU olan (silinmemiş) en güncel ayı bulur
+    // OTOMATİK AY BULMA: Sadece "içi dolu olan" en güncel ayı bulur ve takvimi ona sabitler
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
-            // Sadece records dizisi dolu olan verileri süz
             const validData = quantitiesData.filter(d => d.records && d.records.length > 0);
             
             if (validData.length > 0) {
@@ -106,11 +105,12 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const parcabasiRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : 0;
     const ratioStr = parcabasiRatio.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    // YATAY PDF ÇIKTISI
     const generatePDF = async () => {
         setIsGeneratingPdf(true);
         try {
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('landscape', 'mm', 'a4');
+            const doc = new jsPDF('landscape', 'mm', 'a4'); // A4 Yatay
 
             try {
                 const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
@@ -185,7 +185,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         }
     };
 
-    // YENİ: KARŞILAMA EKRANI (Birim seçilmemişse gösterilecek ekran)
+    // YENİ VE SADELEŞTİRİLMİŞ KARŞILAMA EKRANI (Birim Seçimi)
     if (!selectedUnit) {
         return (
             <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300 pb-24">
@@ -199,20 +199,20 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </div>
                 </div>
 
-                <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className="p-4 sm:p-6 max-w-5xl mx-auto mt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {UNITS.map(unit => {
                             if (unit === "BÖLGE") return null;
                             return (
                                 <button 
                                     key={unit}
                                     onClick={() => setSelectedUnit(unit)}
-                                    className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-3 group"
+                                    className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700 flex items-center justify-between group"
                                 >
-                                    <div className="w-14 h-14 rounded-2xl bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        <BarChart2 size={28} />
+                                    <span className="font-bold text-slate-700 dark:text-slate-200 text-left">{unit}</span>
+                                    <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
+                                        <ChevronRight size={18} className="text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
                                     </div>
-                                    <span className="font-bold text-slate-700 dark:text-slate-200 text-center">{unit}</span>
                                 </button>
                             );
                         })}
