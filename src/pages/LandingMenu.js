@@ -6,7 +6,7 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
   const MENU_ITEMS = [
     {
       id: "dashboard",
-      title: "Güney Ege Yönetim Portalı",
+      title: "Birim Özet",
       desc: "Şube ve acentelerin operasyon, filo, hacim ve performans verilerini inceleyin.",
       icon: LayoutDashboard,
       color: "text-blue-600",
@@ -42,7 +42,7 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
     },
     {
       id: "notes",
-      title: "Kişisel Notlarım",
+      title: "Birim Ziyaret Kayıtları",
       desc: "Önemli operasyonel notlarınızı kaydedin ve günlük yapılacaklar listenizi yönetin.",
       icon: FileText,
       color: "text-indigo-600",
