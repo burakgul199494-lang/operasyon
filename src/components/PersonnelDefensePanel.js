@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { FileDown, Loader2, AlertCircle, Award, Archive, Users, TrendingUp } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
@@ -13,7 +13,6 @@ const parseMetric = (val) => {
   return isNaN(num) ? null : num;
 };
 
-// GÜNCELLENDİ: Küsüratların uzamaması için "virgülden sonra sadece 2 hane" kuralı eklendi
 const formatDisplayMetric = (val) => {
   if (val === undefined || val === null || val === "") return "-";
   let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
@@ -51,29 +50,44 @@ const PersonnelDefensePanel = ({ allData }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  
   const [isThreeMonthView, setIsThreeMonthView] = useState(false);
+  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-  // GÜNCELLENDİ: Sistemdeki en güncel son 3 ayı otomatik bulur
+  // YENİ: Sayfa açıldığında personel verisi olan EN GÜNCEL ayı bulup otomatik seçer
+  useEffect(() => {
+    if (allData && allData.length > 0 && !isInitialLoaded) {
+      const validRecords = allData.filter(d => d.personnel && d.personnel.length > 0);
+      if (validRecords.length > 0) {
+        validRecords.sort((a, b) => (b.year - a.year) || (b.month - a.month));
+        setSelectedYear(validRecords[0].year);
+        setSelectedMonth(validRecords[0].month);
+        setIsInitialLoaded(true); 
+      }
+    }
+  }, [allData, isInitialLoaded]);
+
+  // YENİ: Sistemdeki personel verisi olan en güncel 3 ayı bulur
   const targetMonths = useMemo(() => {
     if (!isThreeMonthView) {
       return [{ year: selectedYear, month: selectedMonth }];
     }
     
-    // Sistemdeki tüm eşsiz ayları topla
     const uniqueMonths = [];
     (allData || []).forEach(d => {
-      const exists = uniqueMonths.find(m => m.year === d.year && m.month === d.month);
-      if (!exists) { uniqueMonths.push({ year: d.year, month: d.month }); }
+      // Sadece gerçekten personel verisi girilmiş ayları listeye al
+      if (d.personnel && d.personnel.length > 0) {
+        const exists = uniqueMonths.find(m => m.year === d.year && m.month === d.month);
+        if (!exists) { uniqueMonths.push({ year: d.year, month: d.month }); }
+      }
     });
 
-    // Yeniden eskiye doğru sırala
+    // En yeniden en eskiye sırala
     uniqueMonths.sort((a, b) => {
       if (a.year !== b.year) return b.year - a.year;
       return b.month - a.month;
     });
 
-    // En yeni 3 tanesini al
+    // En güncel 3 ayı al
     return uniqueMonths.slice(0, 3);
   }, [selectedYear, selectedMonth, isThreeMonthView, allData]);
 
@@ -134,12 +148,14 @@ const PersonnelDefensePanel = ({ allData }) => {
 
       const oldest = targetMonths[targetMonths.length - 1];
       const newest = targetMonths[0];
-      const pString = `Son 3 Ay Ortalaması (${MONTH_NAMES[oldest.month]} ${oldest.year} - ${MONTH_NAMES[newest.month]} ${newest.year})`;
+      const pString = targetMonths.length > 1 
+         ? `Son ${targetMonths.length} Ay Ortalaması (${MONTH_NAMES[oldest.month]} ${oldest.year} - ${MONTH_NAMES[newest.month]} ${newest.year})`
+         : `Aylık Veri (${MONTH_NAMES[newest.month]} ${newest.year})`;
 
       Object.values(personMap).forEach(personData => {
         const monthsPresent = Object.keys(personData.monthsData).length;
-        // 3 ay boyunca kesintisiz verisi olanlar hesaba katılır
-        if (monthsPresent === targetMonths.length) {
+        // İlgili tüm aylarda kesintisiz verisi olanlar hesaba katılır
+        if (monthsPresent === targetMonths.length && targetMonths.length > 0) {
            let sumR = 0, sumT = 0, sumC = 0, sumS = 0;
            let countR = 0, countT = 0, countC = 0, countS = 0;
 
@@ -205,7 +221,7 @@ const PersonnelDefensePanel = ({ allData }) => {
       doc.text(`Dönem: ${person.periodString}`, 14, 40);
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
-      const isAvg = isThreeMonthView;
+      const isAvg = isThreeMonthView && targetMonths.length > 1;
       const tableRows = [
         [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
         [`TVS Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
@@ -215,7 +231,7 @@ const PersonnelDefensePanel = ({ allData }) => {
 
       doc.autoTable({
         startY: 50,
-        head: [['KPI Metriği', isAvg ? '3 Aylık Ortalama Değeri' : 'Personel Değeri', 'Hedef']],
+        head: [['KPI Metriği', isAvg ? 'Ortalama Değer' : 'Personel Değeri', 'Hedef']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 10 },
@@ -243,7 +259,7 @@ const PersonnelDefensePanel = ({ allData }) => {
       let finalY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(10);
       doc.setTextColor(40);
-      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin ${isAvg ? "son 3 ay ortalamasında " : ""}altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
+      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin ${isAvg ? "ilgili dönem ortalamasında " : ""}altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartların üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
       const splitText = doc.splitTextToSize(defenseText, 180);
       doc.text(splitText, 14, finalY);
       finalY += splitText.length * 5 + 10;
@@ -291,7 +307,7 @@ const PersonnelDefensePanel = ({ allData }) => {
       doc.text(`Dönem: ${person.periodString}`, 14, 40);
       doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
-      const isAvg = isThreeMonthView;
+      const isAvg = isThreeMonthView && targetMonths.length > 1;
       const tableRows = [
         [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
         [`TVS Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
@@ -301,7 +317,7 @@ const PersonnelDefensePanel = ({ allData }) => {
 
       doc.autoTable({
         startY: 50,
-        head: [['KPI Metriği', isAvg ? '3 Aylık Ortalama Değeri' : 'Personel Değeri', 'Hedef']],
+        head: [['KPI Metriği', isAvg ? 'Ortalama Değer' : 'Personel Değeri', 'Hedef']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 10 },
@@ -312,7 +328,7 @@ const PersonnelDefensePanel = ({ allData }) => {
       let finalY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(10);
       doc.setTextColor(40);
-      const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak ${isAvg ? "son 3 ay boyunca " : ""}göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili çalışmalarınızın devamını dileriz.`;
+      const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak ${isAvg ? "ilgili dönem boyunca " : ""}göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili çalışmalarınızın devamını dileriz.`;
       const splitText = doc.splitTextToSize(tebrikText, 180);
       doc.text(splitText, 14, finalY);
 
@@ -366,7 +382,7 @@ const PersonnelDefensePanel = ({ allData }) => {
         doc.text(`Dönem: ${person.periodString}`, 14, 40);
         doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
 
-        const isAvg = isThreeMonthView;
+        const isAvg = isThreeMonthView && targetMonths.length > 1;
         const tableRows = [
           [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
           [`TVS Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
@@ -376,7 +392,7 @@ const PersonnelDefensePanel = ({ allData }) => {
 
         doc.autoTable({
           startY: 50,
-          head: [['KPI Metriği', isAvg ? '3 Aylık Ortalama Değeri' : 'Personel Değeri', 'Hedef']],
+          head: [['KPI Metriği', isAvg ? 'Ortalama Değer' : 'Personel Değeri', 'Hedef']],
           body: tableRows,
           theme: 'grid',
           styles: { font: 'Roboto', fontSize: 10 },
@@ -387,7 +403,7 @@ const PersonnelDefensePanel = ({ allData }) => {
         let finalY = doc.lastAutoTable.finalY + 10;
         doc.setFontSize(10);
         doc.setTextColor(40);
-        const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak ${isAvg ? "son 3 ay boyunca " : ""}göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili çalışmalarınızın devamını dileriz.`;
+        const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak ${isAvg ? "ilgili dönem boyunca " : ""}göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili çalışmalarınızın devamını dileriz.`;
         const splitText = doc.splitTextToSize(tebrikText, 180);
         doc.text(splitText, 14, finalY);
 
@@ -399,7 +415,7 @@ const PersonnelDefensePanel = ({ allData }) => {
       }
 
       const zipContent = await zip.generateAsync({ type: "blob" });
-      const dlName = isThreeMonthView ? `Tebrik_Belgeleri_Son3AyOrtalamasi.zip` : `Tebrik_Belgeleri_${MONTH_NAMES[selectedMonth]}_${selectedYear}.zip`;
+      const dlName = isThreeMonthView ? `Tebrik_Belgeleri_Son_Ortalamalar.zip` : `Tebrik_Belgeleri_${MONTH_NAMES[selectedMonth]}_${selectedYear}.zip`;
       window.saveAs(zipContent, dlName);
 
     } catch (error) {
@@ -422,13 +438,13 @@ const PersonnelDefensePanel = ({ allData }) => {
           </h2>
           <p className="text-sm text-slate-500 mt-1">
             {isThreeMonthView 
-              ? "Sistemdeki en güncel son 3 ayın ortalaması alınır. Sadece 3 ay boyunca kesintisiz verisi olanlar listelenir." 
+              ? "Sistemdeki en güncel (son 3) ayın ortalaması alınır. Kesintisiz verisi olanlar listelenir." 
               : "Seçili aydaki personelinizi listeleyin; hedefleri tutturanları tebrik edin, sapanlar için savunma oluşturun."}
           </p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {/* YENİ: 3 AYLIK GÖRÜNÜM AÇ/KAPA BUTONU */}
+          {/* 3 AYLIK GÖRÜNÜM AÇ/KAPA BUTONU */}
           <button 
             onClick={() => setIsThreeMonthView(!isThreeMonthView)} 
             className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-xs font-bold h-10 ${isThreeMonthView ? "bg-purple-600 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
@@ -436,7 +452,6 @@ const PersonnelDefensePanel = ({ allData }) => {
             <div className="flex items-center gap-1.5"><TrendingUp size={14} /> {isThreeMonthView ? "Tek Aya Dön" : "Sistemdeki Son 3 Ayı Al"}</div>
           </button>
 
-          {/* 3 Aylık görünümde ay ve yıl seçimi devre dışı bırakılır */}
           <select disabled={isThreeMonthView} value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-white dark:bg-slate-800 text-sm font-medium h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
