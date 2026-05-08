@@ -160,12 +160,13 @@ export default function App() {
         <Route path="/" element={<LandingMenu user={user} onNavigate={handleNavigateFromMenu} onLogout={handleAppLogout} onProfile={() => setProfileOpen(true)} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />} />
         <Route path="/dashboard" element={<Dashboard onUnitClick={(unit) => navigate(`/detail/${unit}`)} onNavigateMenu={() => navigate("/")} />} />
         
-        {/* GÜNCELLENDİ: UnitDetail sayfasına quantitiesData gönderildi */}
         <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
-        
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
         <Route path="/fleet" element={<FleetPage fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/")} />} />
-        <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} onBack={() => navigate("/")} />} />
+        
+        {/* GÜNCELLENDİ: Savunma/Tebrik sayfasına quantitiesData gönderildi */}
+        <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
+        
         <Route path="/personnel-quantities" element={<PersonnelQuantitiesPage allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
         <Route path="/admin" element={
           <AdminPanel
