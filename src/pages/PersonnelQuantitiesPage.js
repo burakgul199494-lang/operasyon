@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, Search, ChevronRight, Home, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, Search, ChevronRight, Home, X, User, TrendingUp, Activity, CheckCircle2, Smartphone } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -13,6 +13,7 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
+// İsim temizleme kuralı
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -30,7 +31,7 @@ const COL1_WIDTH = "w-[120px] min-w-[120px] max-w-[120px] sm:w-[150px] sm:min-w-
 const COL2_WIDTH = "w-[40px] min-w-[40px] max-w-[40px] sm:w-[50px] sm:min-w-[50px] sm:max-w-[50px]";
 const COL2_LEFT = "left-[120px] sm:left-[150px]";
 
-const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) => {
+const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData = [], onBack }) => {
     const [selectedUnit, setSelectedUnit] = useState(null); 
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -38,7 +39,11 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+    
+    // YENİ: Tıklanan Personelin Performans Verilerini Tutacak State
+    const [selectedPersonData, setSelectedPersonData] = useState(null);
 
+    // OTOMATİK AY BULMA
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
             const validData = quantitiesData.filter(d => d.records && d.records.length > 0);
@@ -56,7 +61,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
     const getIsSunday = (day) => {
         const d = new Date(selectedYear, selectedMonth - 1, day);
-        return d.getDay() === 0; // 0 = Pazar
+        return d.getDay() === 0;
     };
 
     const currentVehicles = selectedUnit && unitInfo ? unitInfo[selectedUnit] : null;
@@ -76,7 +81,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
         let pList = [];
-        let PbList = [];
+        let pbList = [];
         let tPersonel = 0;
         let tParca = 0;
         let dTotals = {};
@@ -98,10 +103,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
             Object.values(map).forEach(p => {
                 const typeLower = (p.type || "").toLowerCase();
-                const shortType = typeLower.includes("parça") ? "Pb" : "Per"; 
+                const shortType = typeLower.includes("parça") ? "PB" : "Per."; 
                 
-                if (shortType === "Pb") {
-                    PbList.push({ ...p, type: shortType });
+                if (shortType === "PB") {
+                    pbList.push({ ...p, type: shortType });
                     Object.values(p.days).forEach(val => tParca += val);
                 } else {
                     pList.push({ ...p, type: shortType });
@@ -110,15 +115,28 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             });
 
             pList.sort((a,b) => a.name.localeCompare(b.name));
-            PbList.sort((a,b) => a.name.localeCompare(b.name));
+            pbList.sort((a,b) => a.name.localeCompare(b.name));
         }
 
-        return { personelList: pList, parcabasiList: PbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
+        return { personelList: pList, parcabasiList: pbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
     }, [unitQuantities, selectedYear, selectedMonth]);
 
     const totalCount = totalPersonel + totalParca;
     const parcabasiRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : 0;
     const ratioStr = parcabasiRatio.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // YENİ: Satıra tıklanınca personelin Rota, TVS, vs. bilgilerini allData'dan çeker
+    const handlePersonClick = (clickedPerson) => {
+        let perfData = null;
+        if (currentData && currentData.personnel) {
+            perfData = currentData.personnel.find(per => normalizeName(per.name) === normalizeName(clickedPerson.name));
+        }
+        setSelectedPersonData({
+            name: clickedPerson.name,
+            type: clickedPerson.type,
+            performance: perfData || null
+        });
+    };
 
     const generatePDF = async () => {
         setIsGeneratingPdf(true);
@@ -145,27 +163,26 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             doc.setTextColor(60);
             doc.text(`Birim: ${selectedUnit}`, 14, 28);
             doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 33);
-            doc.text(`Genel Toplam: ${totalCount}  |  Pb: ${totalParca}  |  Per: ${totalPersonel}  |  Pb Oranı: %${ratioStr}`, 14, 38);
+            doc.text(`Genel Toplam: ${totalCount}  |  PB: ${totalParca}  |  Per.: ${totalPersonel}  |  PB Oranı: %${ratioStr}`, 14, 38);
 
-            // GÜNCELLENDİ: Personel ve Türü PDF için tek sütunda birleştirildi
-            const tableHead = [['Personel (Tür)', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
+            const tableHead = [['Personel Adı', 'Tür', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
             const tableBody = [];
 
             personelList.forEach(p => {
                 const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
-                const rowData = [`${p.name} (${p.type})`, rowTotal];
+                const rowData = [p.name, p.type, rowTotal];
                 daysArray.forEach(d => rowData.push(p.days[d] || "-"));
                 tableBody.push(rowData);
             });
 
             parcabasiList.forEach(p => {
                 const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
-                const rowData = [`${p.name} (${p.type})`, rowTotal];
+                const rowData = [p.name, p.type, rowTotal];
                 daysArray.forEach(d => rowData.push(p.days[d] || "-"));
                 tableBody.push(rowData);
             });
 
-            const totalRow = ["GÜNLÜK ALT TOPLAM", totalCount];
+            const totalRow = ["GÜNLÜK ALT TOPLAM", "", totalCount];
             daysArray.forEach(d => totalRow.push(dailyTotals[d] || "-"));
             tableBody.push(totalRow);
 
@@ -177,14 +194,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 styles: { font: 'Roboto', fontSize: 6, cellPadding: 1, halign: 'center' },
                 headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255] },
                 columnStyles: {
-                    0: { halign: 'left', cellWidth: 40, fontStyle: 'bold' }, // Genişletildi
-                    1: { fontStyle: 'bold', textColor: [30, 58, 138], cellWidth: 12 } // TOPLAM Sütunu
+                    0: { halign: 'left', cellWidth: 35, fontStyle: 'bold' },
+                    1: { cellWidth: 10 },
+                    2: { fontStyle: 'bold', textColor: [30, 58, 138] }
                 },
                 didParseCell: function(data) {
                     if (data.section === 'body') {
                         const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
-                        // GÜNCELLENDİ: Sütun sayısı 1 azaldığı için index kontrolü 3 yerine 2 oldu
-                        const isSundayCol = data.column.index >= 2 && getIsSunday(daysArray[data.column.index - 2]);
+                        const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
                         
                         if (isTotalRow) {
                             data.cell.styles.fillColor = isSundayCol ? [254, 202, 202] : [226, 232, 240]; 
@@ -200,7 +217,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                             data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [159, 18, 57];
                         }
                     } else if (data.section === 'head') {
-                        const isSundayCol = data.column.index >= 2 && getIsSunday(daysArray[data.column.index - 2]);
+                        const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
                         if(isSundayCol) {
                             data.cell.styles.fillColor = [220, 38, 38]; 
                         }
@@ -225,7 +242,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     // KARŞILAMA EKRANI (Birim Seçimi)
     if (!selectedUnit) {
         return (
-            <div className="Pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+            <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
               <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 border-b border-slate-100 dark:border-slate-800 px-4 py-3 shadow-sm">
                 <div className="flex justify-between items-center mb-3">
                   <div className="flex items-center gap-3">
@@ -272,8 +289,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     }
 
     return (
-        <div className="Pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
-            {/* Üst Panel: Mobilde kaydırınca gider, LG'de sabit kalır */}
+        <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
             <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 shadow-sm border-b border-slate-200 dark:border-slate-800 relative lg:sticky lg:top-0">
                 <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -304,7 +320,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </button>
                 </div>
 
-                <div className="pl-4 Pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
+                <div className="pl-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
                     <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 px-3 rounded-lg border-none focus:ring-0 shrink-0">
                         {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
                     </select>
@@ -362,17 +378,17 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Aylık Hacim</h3>
                     <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 Pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
+                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
                             <div className="flex justify-between items-end">
-                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo, false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenAdet, false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                             </div>
                         </div>
                         <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 Pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
+                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
                             <div className="flex justify-between items-end">
-                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo, false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenAdet, false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                             </div>
                         </div>
                     </div>
@@ -382,11 +398,11 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Personel & Parçabaşı Dağıtım Analizi</h3>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <div className="bg-gradient-to-br from-rose-500 to-red-600 dark:from-red-600 dark:to-red-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-100/90 mb-1.5">Pb Toplam</span>
+                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-100/90 mb-1.5">PB Toplam</span>
                             <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalParca.toLocaleString('tr-TR')}</span>
                         </div>
                         <div className="bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-100/90 mb-1.5">Per Toplam</span>
+                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-100/90 mb-1.5">Per. Toplam</span>
                             <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalPersonel.toLocaleString('tr-TR')}</span>
                         </div>
                         <div className="bg-gradient-to-br from-purple-500 to-fuchsia-600 dark:from-purple-600 dark:to-fuchsia-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
@@ -394,7 +410,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                             <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalCount.toLocaleString('tr-TR')}</span>
                         </div>
                         <div className="bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-50/90 mb-1.5">Pb Oranı</span>
+                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-50/90 mb-1.5">PB Oranı</span>
                             <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">%{ratioStr}</span>
                         </div>
                     </div>
@@ -403,7 +419,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 {/* TABLO BÖLÜMÜ */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu</h3>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu <span className="text-[10px] font-medium text-slate-400 ml-1">(Performansı Görmek İçin İsme Tıklayın)</span></h3>
                         <span className="text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-600">
                             {MONTH_NAMES[selectedMonth]} {selectedYear}
                         </span>
@@ -412,16 +428,16 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     {totalCount > 0 ? (
                         <div className="overflow-x-auto relative no-scrollbar block w-full">
                             <table className="w-full text-left whitespace-nowrap border-separate border-spacing-0 text-[10px] sm:text-[11px]">
-                                <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-30">
+                                <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-30 shadow-sm">
                                     <tr>
-                                        <th className={`p-2 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 border-b border-slate-200 dark:border-slate-700 ${COL1_WIDTH}`}>Personel Adı</th>
-                                        <th className={`p-1 font-bold text-slate-600 dark:text-slate-300 text-center sticky bg-slate-100 dark:bg-slate-900 z-40 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Tür</th>
+                                        <th className={`p-2 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 shadow-none truncate ${COL1_WIDTH}`}>Personel Adı</th>
+                                        <th className={`p-1 font-bold text-slate-600 dark:text-slate-300 text-center sticky bg-slate-100 dark:bg-slate-900 z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Tür</th>
                                         
-                                        <th className="p-1 sm:p-2 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-b border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">TOPLAM</th>
+                                        <th className="p-1 sm:p-2 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">TOPLAM</th>
                                         {daysArray.map(d => {
                                             const isSun = getIsSunday(d);
                                             return (
-                                                <th key={d} className={`p-1 sm:p-2 font-bold text-center border-l border-b border-slate-200 dark:border-slate-700 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                <th key={d} className={`p-1 sm:p-2 font-bold text-center border-l border-slate-200 dark:border-slate-700 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'text-slate-600 dark:text-slate-400'}`}>
                                                     {String(d).padStart(2, '0')}
                                                 </th>
                                             );
@@ -432,11 +448,11 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                     {personelList.map((p, idx) => {
                                         const pTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                                         return (
-                                            <tr key={`p-${idx}`} className="bg-blue-50/40 hover:bg-blue-100/50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20 text-blue-900 dark:text-blue-100 transition-colors">
-                                                <td className={`p-2 font-bold sticky left-0 z-20 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 whitespace-normal break-words leading-tight ${COL1_WIDTH}`}>
+                                            <tr key={`p-${idx}`} onClick={() => handlePersonClick(p)} className="cursor-pointer bg-blue-50/40 hover:bg-blue-100 dark:bg-blue-900/10 dark:hover:bg-blue-900/30 text-blue-900 dark:text-blue-100 transition-colors">
+                                                <td className={`p-2 font-bold sticky left-0 z-20 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 shadow-none truncate ${COL1_WIDTH}`} title={p.name}>
                                                     {p.name}
                                                 </td>
-                                                <td className={`p-1 text-center font-semibold text-[8px] sm:text-[9px] sticky z-20 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                                <td className={`p-1 text-center font-semibold text-[8px] sm:text-[9px] sticky z-20 bg-blue-50 dark:bg-slate-800 border-b border-l border-blue-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
                                                     {p.type}
                                                 </td>
                                                 <td className="p-1 sm:p-2 text-center font-black border-b border-l border-blue-100 dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-blue-100/30 dark:bg-blue-800/20">{pTotal}</td>
@@ -453,16 +469,16 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                     })}
                                     
                                     {parcabasiList.map((p, idx) => {
-                                        const PbTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+                                        const pbTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                                         return (
-                                            <tr key={`Pb-${idx}`} className="bg-rose-50/40 hover:bg-rose-100/50 dark:bg-rose-900/10 dark:hover:bg-rose-900/20 text-rose-900 dark:text-rose-100 transition-colors">
-                                                <td className={`p-2 font-bold sticky left-0 z-20 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 whitespace-normal break-words leading-tight ${COL1_WIDTH}`}>
+                                            <tr key={`pb-${idx}`} onClick={() => handlePersonClick(p)} className="cursor-pointer bg-rose-50/40 hover:bg-rose-100 dark:bg-rose-900/10 dark:hover:bg-rose-900/30 text-rose-900 dark:text-rose-100 transition-colors">
+                                                <td className={`p-2 font-bold sticky left-0 z-20 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 shadow-none truncate ${COL1_WIDTH}`} title={p.name}>
                                                     {p.name}
                                                 </td>
-                                                <td className={`p-1 text-center font-semibold text-[8px] sm:text-[9px] sticky z-20 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                                <td className={`p-1 text-center font-semibold text-[8px] sm:text-[9px] sticky z-20 bg-rose-50 dark:bg-slate-800 border-b border-l border-rose-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
                                                     {p.type}
                                                 </td>
-                                                <td className="p-1 sm:p-2 text-center font-black border-b border-l border-rose-100 dark:border-slate-700/50 text-red-700 dark:text-red-400 bg-rose-100/30 dark:bg-rose-800/20">{PbTotal}</td>
+                                                <td className="p-1 sm:p-2 text-center font-black border-b border-l border-rose-100 dark:border-slate-700/50 text-red-700 dark:text-red-400 bg-rose-100/30 dark:bg-rose-800/20">{pbTotal}</td>
                                                 {daysArray.map(d => {
                                                     const isSun = getIsSunday(d);
                                                     return (
@@ -476,19 +492,19 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                     })}
                                     
                                     <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
-                                        <td className={`p-2 text-right font-black sticky left-0 z-20 bg-slate-200 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 ${COL1_WIDTH}`}>
-                                            Günlük
+                                        <td className={`p-2 text-right font-black sticky left-0 z-20 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 shadow-none ${COL1_WIDTH}`}>
+                                            ALT
                                         </td>
-                                        <td className={`p-1 text-center font-black sticky z-20 bg-slate-200 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
-                                            Top.
+                                        <td className={`p-1 text-center font-black sticky z-20 bg-slate-200 dark:bg-slate-700 border-t border-l border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                            TOP.
                                         </td>
-                                        <td className="p-1.5 sm:p-2 text-center font-black border-l border-b border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
+                                        <td className="p-1.5 sm:p-2 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
                                             {totalCount}
                                         </td>
                                         {daysArray.map(d => {
                                             const isSun = getIsSunday(d);
                                             return (
-                                                <td key={d} className={`p-1.5 sm:p-2 text-center font-bold border-l border-b border-slate-300 dark:border-slate-600 ${isSun ? 'text-red-700 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30' : ''}`}>
+                                                <td key={d} className={`p-1.5 sm:p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600 ${isSun ? 'text-red-700 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30' : ''}`}>
                                                     {dailyTotals[d] || "-"}
                                                 </td>
                                             );
@@ -506,6 +522,55 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 </div>
 
             </div>
+
+            {/* YENİ: PERSONEL PERFORMANS DETAY MODALI */}
+            {selectedPersonData && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedPersonData(null)}>
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <User className="text-indigo-600" size={20} /> 
+                                <span className="truncate max-w-[180px]" title={selectedPersonData.name}>{selectedPersonData.name}</span>
+                                <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400 px-1.5 py-0.5 rounded-md ml-1">
+                                    {selectedPersonData.type}
+                                </span>
+                            </h3>
+                            <button onClick={() => setSelectedPersonData(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><X size={20} /></button>
+                        </div>
+                        <div className="p-5">
+                            {selectedPersonData.performance ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-center flex flex-col items-center shadow-sm">
+                                        <TrendingUp className="text-blue-500 mb-1.5" size={20} />
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Rota</p>
+                                        <p className="text-xl font-black text-slate-800 dark:text-white">{formatDisplayMetric(selectedPersonData.performance.rotaOrani, true)}%</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-center flex flex-col items-center shadow-sm">
+                                        <Activity className="text-teal-500 mb-1.5" size={20} />
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">TVS</p>
+                                        <p className="text-xl font-black text-slate-800 dark:text-white">{formatDisplayMetric(selectedPersonData.performance.tvsOrani, true)}%</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-center flex flex-col items-center shadow-sm">
+                                        <CheckCircle2 className="text-emerald-500 mb-1.5" size={20} />
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Check-in</p>
+                                        <p className="text-xl font-black text-slate-800 dark:text-white">{formatDisplayMetric(selectedPersonData.performance.checkInOrani, true)}%</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-center flex flex-col items-center shadow-sm">
+                                        <Smartphone className="text-purple-500 mb-1.5" size={20} />
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">SMS</p>
+                                        <p className="text-xl font-black text-slate-800 dark:text-white">{formatDisplayMetric(selectedPersonData.performance.smsOrani, true)}%</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-6 text-slate-400 text-center">
+                                    <Box className="opacity-20 mb-3" size={40} />
+                                    <p className="text-sm">Bu personelin <span className="font-bold">{MONTH_NAMES[selectedMonth]} {selectedYear}</span> dönemine ait kalite verisi sisteme henüz işlenmemiştir.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
