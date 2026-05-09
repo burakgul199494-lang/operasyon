@@ -31,6 +31,7 @@ const formatDisplayMetric = (val, isPercent = true) => {
   return val;
 };
 
+// İsimleri standartlaştıran fonksiyon
 const normalizeName = (name) => {
   if (!name) return "";
   return name
@@ -94,7 +95,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [allData, selectedUnit, selectedYear, selectedMonth]);
 
-  // GÜNCELLENDİ: Hatalı Türkçe "birim" kelimesi "unit" olarak düzeltildi
   const unitFleet = useMemo(() => {
     if (!fleetData || !selectedUnit) return [];
     return fleetData.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
@@ -807,7 +807,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         </div>
       )}
 
-      {/* Filo Detayları Modal Penceresi */}
+      {/* YENİ: Filo Detayları Modal Penceresi (Sıralama Güncellendi) */}
       {showFleetModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowFleetModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -819,35 +819,34 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                 <table className="w-full text-left whitespace-nowrap border-collapse">
                    <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                       <tr>
+                        {/* GÜNCELLENDİ: Sıralama değiştirildi ve Araç Cinsi kaldırıldı */}
+                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Çalışma Şekli</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Plaka</th>
+                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Tedarikçi Adı</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Marka Model</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Model Yılı</th>
-                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Araç Cinsi</th>
-                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Çalışma Şekli</th>
-                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Tedarikçi Adı</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">Ort. KM</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                       {unitFleet.length > 0 ? (
                           unitFleet.map((vehicle, idx) => {
-                             // Güvenli KM eşleştirme: Boşlukları sil ve büyük harf yap
                              const plateKey = vehicle.plate ? String(vehicle.plate).replace(/\s/g, "").toUpperCase() : "";
                              return (
                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
+                                  {/* GÜNCELLENDİ: Sıralama değiştirildi ve Araç Cinsi kaldırıldı */}
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm font-semibold text-purple-600 dark:text-purple-400">{vehicle.operationType}</td>
                                   <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plate}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.supplier}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.brandModel}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400 text-center">{vehicle.year}</td>
-                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.vehicleType}</td>
-                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.operationType}</td>
-                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.supplier}</td>
                                   <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[plateKey] || "-"}</td>
                                </tr>
                              );
                           })
                       ) : (
                           <tr>
-                             <td colSpan="7" className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">Bu birime ait filo kaydı bulunmamaktadır.</td>
+                             <td colSpan="6" className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">Bu birime ait filo kaydı bulunmamaktadır.</td>
                           </tr>
                       )}
                    </tbody>
