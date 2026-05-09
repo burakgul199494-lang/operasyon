@@ -31,7 +31,6 @@ const formatDisplayMetric = (val, isPercent = true) => {
   return val;
 };
 
-// İsimleri standartlaştıran fonksiyon
 const normalizeName = (name) => {
   if (!name) return "";
   return name
@@ -153,9 +152,10 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     return { ratio };
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
 
-  const personnelTotals = useMemo(() => {
-    const totals = {};
-    if (!quantitiesData || quantitiesData.length === 0) return totals;
+  // GÜNCELLENDİ: Hem Adet hem de Tür (Per / Pb) bilgisini güvenle tutan motor
+  const personnelInfo = useMemo(() => {
+    const info = {};
+    if (!quantitiesData || quantitiesData.length === 0) return info;
 
     const relevantQuantities = showYearAvg 
         ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
@@ -165,12 +165,17 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         if (uq.records && Array.isArray(uq.records)) {
             uq.records.forEach(r => {
                 const safeName = normalizeName(r.name);
-                if (!totals[safeName]) totals[safeName] = 0;
-                totals[safeName] += (r.count || 0);
+                if (!info[safeName]) info[safeName] = { count: 0, type: 'Per' }; // Varsayılan Per
+                info[safeName].count += (r.count || 0);
+                
+                const typeLower = (r.type || "").toLowerCase();
+                if (typeLower.includes("parça")) {
+                    info[safeName].type = "Pb";
+                }
             });
         }
     });
-    return totals;
+    return info;
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
 
   const unitFleet = useMemo(() => {
@@ -395,7 +400,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       doc.setTextColor(100);
       doc.text(`Birim: ${targetUnit} | Dönem: ${donemText}`, 14, 30);
       
-      // GÜNCELLENDİ: Rapor ve Bulk Zip için hedef birime özel Tür ve Adet hesaplama
+      // GÜNCELLENDİ: PDF için hedef birime özel Tür ve Adet hesaplama
       const targetTotals = {};
       const targetTypes = {};
       const relevantQuantities = isYearAvg 
@@ -410,17 +415,26 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                   targetTotals[safeName] += (r.count || 0);
                   
                   const typeLower = (r.type || "").toLowerCase();
-                  targetTypes[safeName] = typeLower.includes("parça") ? "PB" : "Per.";
+                  targetTypes[safeName] = typeLower.includes("parça") ? "Pb" : "Per"; // GÜNCELLENDİ
               });
           }
       });
       
       const personnelRows = targetData.personnel
-        .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+        .sort((a, b) => {
+            const safeNameA = normalizeName(a.name);
+            const safeNameB = normalizeName(b.name);
+            const typeA = targetTypes[safeNameA] || "Per";
+            const typeB = targetTypes[safeNameB] || "Per";
+            // 1. Önce "Per", sonra "Pb" sırası
+            if (typeA !== typeB) return typeA === "Per" ? -1 : 1;
+            // 2. Kendi içinde alfabetik sıra
+            return (a.name || "").localeCompare(b.name || "", 'tr-TR');
+        })
         .map(p => {
           const safeName = normalizeName(p.name);
           const totalAdet = targetTotals[safeName] ? targetTotals[safeName].toLocaleString('tr-TR') : "-";
-          const pType = targetTypes[safeName] || "Per."; // Undefined sorununu çözer
+          const pType = targetTypes[safeName] || "Per";
           return [
             `${p.name} (${pType})`,
             totalAdet, 
@@ -661,9 +675,11 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2 pl-1">
                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Filo Durumu</h3>
-                 <button onClick={() => setShowFleetModal(true)} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm">
-                     <Truck size={12}/> Filo Detayları
-                 </button>
+                 {unitFleet.length > 0 && (
+                    <button onClick={() => setShowFleetModal(true)} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm">
+                        <Truck size={12}/> Filo Detayları
+                    </button>
+                 )}
               </div>
               <div className="flex gap-1">
                 <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
@@ -745,7 +761,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Pb D/O</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
-                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-transparent whitespace-nowrap"></span></div>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-transparent whitespace-nowrap">Dağıtım Oranı</span></div>
                 </div>
               </div>
             </div>
@@ -789,7 +805,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
               <table className="w-full text-left whitespace-nowrap border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                   <tr>
-                    <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Ad Soyad</th>
+                    <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Personel (Tür)</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-indigo-600 dark:text-indigo-400 text-center">Adet</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
@@ -799,7 +815,17 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                  {displayData.personnel.sort((a, b) => (a.name || "").localeCompare(b.name || "")).map((person, idx) => {
+                  {displayData.personnel
+                    .sort((a, b) => {
+                      const safeNameA = normalizeName(a.name);
+                      const safeNameB = normalizeName(b.name);
+                      const typeA = personnelInfo[safeNameA]?.type || "Per";
+                      const typeB = personnelInfo[safeNameB]?.type || "Per";
+                      // Önce "Per" sonra "Pb" sırasıyla dizilir
+                      if (typeA !== typeB) return typeA === "Per" ? -1 : 1;
+                      return (a.name || "").localeCompare(b.name || "", "tr-TR");
+                    })
+                    .map((person, idx) => {
                       const r = parseMetric(person.rotaOrani);
                       const t = parseMetric(person.tvsOrani);
                       const c = parseMetric(person.checkInOrani);
@@ -808,11 +834,14 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                       const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
                       
                       const safeName = normalizeName(person.name);
-                      const totalAdet = personnelTotals[safeName] ? personnelTotals[safeName].toLocaleString('tr-TR') : "-";
+                      const pInfo = personnelInfo[safeName] || { count: 0, type: "Per" };
+                      const totalAdet = pInfo.count ? pInfo.count.toLocaleString('tr-TR') : "-";
 
                       return (
                         <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                          <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{person.name}</td>
+                          <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                            {person.name} <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-1">({pInfo.type})</span>
+                          </td>
                           <td className="p-1.5 sm:p-3 text-center font-black text-[11px] sm:text-sm text-indigo-600 dark:text-indigo-400">{totalAdet}</td>
                           <td className={`p-1.5 sm:p-3 text-center font-bold text-[10px] sm:text-sm ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>{r !== null ? `%${formatDisplayMetric(person.rotaOrani, true)}` : "-"}</td>
                           <td className={`p-1.5 sm:p-3 text-center font-bold text-[10px] sm:text-sm ${t !== null && t < TARGETS.tvsOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>{t !== null ? `%${formatDisplayMetric(person.tvsOrani, true)}` : "-"}</td>
@@ -837,7 +866,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         </div>
       )}
 
-      {/* Filo Detayları Modal Penceresi */}
       {showFleetModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowFleetModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -849,12 +877,12 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                 <table className="w-full text-left whitespace-nowrap border-collapse">
                    <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                       <tr>
+                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">Ort. KM</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Çalışma Şekli</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Plaka</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Tedarikçi Adı</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Marka Model</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Model Yılı</th>
-                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">Ort. KM</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -866,12 +894,12 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                              
                              return (
                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm font-semibold text-purple-600 dark:text-purple-400">{vehicle.operationType}</td>
+                                  <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[plateKey] || "-"}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm font-semibold text-purple-600 dark:text-purple-400 bg-purple-50/30 dark:bg-purple-900/10">{vehicle.operationType}</td>
                                   <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plate}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400" title={supplierName}>{displaySupplier}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.brandModel}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400 text-center">{vehicle.year}</td>
-                                  <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[plateKey] || "-"}</td>
                                </tr>
                              );
                           })
