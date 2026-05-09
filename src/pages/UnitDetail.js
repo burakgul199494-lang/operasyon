@@ -33,7 +33,11 @@ const formatDisplayMetric = (val, isPercent = true) => {
 
 const normalizeName = (name) => {
   if (!name) return "";
-  return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR'); 
+  return name
+    .toString()
+    .trim()
+    .replace(/\s+/g, ' ') 
+    .toLocaleUpperCase('tr-TR'); 
 };
 
 const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -90,9 +94,10 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [allData, selectedUnit, selectedYear, selectedMonth]);
 
+  // GÜNCELLENDİ: Hatalı Türkçe "birim" kelimesi "unit" olarak düzeltildi
   const unitFleet = useMemo(() => {
     if (!fleetData || !selectedUnit) return [];
-    return fleetData.filter(v => v.birim === selectedUnit || normalizeName(v.birim) === normalizeName(selectedUnit));
+    return fleetData.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
   }, [fleetData, selectedUnit]);
 
   const calculateYearlyAverage = (targetUnit) => {
@@ -626,7 +631,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2 pl-1">
                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Filo Durumu</h3>
-                 {/* BUTON HER ZAMAN GÖRÜNÜR YAPILDI (Tıklanınca modal açılır) */}
                  <button onClick={() => setShowFleetModal(true)} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm">
                      <Truck size={12}/> Filo Detayları
                  </button>
@@ -802,7 +806,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
           </div>
         </div>
       )}
-      
+
       {/* Filo Detayları Modal Penceresi */}
       {showFleetModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowFleetModal(false)}>
@@ -826,17 +830,21 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                    </thead>
                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                       {unitFleet.length > 0 ? (
-                          unitFleet.map((vehicle, idx) => (
-                             <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                                <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plaka}</td>
-                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.markaModel}</td>
-                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400 text-center">{vehicle.modelYili}</td>
-                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.aracCinsi}</td>
-                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.calismaSekli}</td>
-                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.tedarikciAdi}</td>
-                                <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[vehicle.plaka] || "-"}</td>
-                             </tr>
-                          ))
+                          unitFleet.map((vehicle, idx) => {
+                             // Güvenli KM eşleştirme: Boşlukları sil ve büyük harf yap
+                             const plateKey = vehicle.plate ? String(vehicle.plate).replace(/\s/g, "").toUpperCase() : "";
+                             return (
+                               <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
+                                  <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plate}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.brandModel}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400 text-center">{vehicle.year}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.vehicleType}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.operationType}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.supplier}</td>
+                                  <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[plateKey] || "-"}</td>
+                               </tr>
+                             );
+                          })
                       ) : (
                           <tr>
                              <td colSpan="7" className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">Bu birime ait filo kaydı bulunmamaktadır.</td>
