@@ -31,14 +31,9 @@ const formatDisplayMetric = (val, isPercent = true) => {
   return val;
 };
 
-// İsimleri standartlaştıran fonksiyon
 const normalizeName = (name) => {
   if (!name) return "";
-  return name
-    .toString()
-    .trim()
-    .replace(/\s+/g, ' ') 
-    .toLocaleUpperCase('tr-TR'); 
+  return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR'); 
 };
 
 const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -63,7 +58,6 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-// GÜNCELLENDİ: fleetData ve fleetKms propları eklendi
 const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
@@ -75,8 +69,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
-  
-  // YENİ: Filo Modal State
   const [showFleetModal, setShowFleetModal] = useState(false);
 
   useEffect(() => {
@@ -98,7 +90,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [allData, selectedUnit, selectedYear, selectedMonth]);
 
-  // YENİ: Seçili birime ait filoyu filtreleme
   const unitFleet = useMemo(() => {
     if (!fleetData || !selectedUnit) return [];
     return fleetData.filter(v => v.birim === selectedUnit || normalizeName(v.birim) === normalizeName(selectedUnit));
@@ -635,12 +626,10 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2 pl-1">
                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Filo Durumu</h3>
-                 {/* YENİ: Filo Detayları Butonu Eklendi */}
-                 {unitFleet.length > 0 && (
-                    <button onClick={() => setShowFleetModal(true)} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm">
-                        <Truck size={12}/> Filo Detayları
-                    </button>
-                 )}
+                 {/* BUTON HER ZAMAN GÖRÜNÜR YAPILDI (Tıklanınca modal açılır) */}
+                 <button onClick={() => setShowFleetModal(true)} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm">
+                     <Truck size={12}/> Filo Detayları
+                 </button>
               </div>
               <div className="flex gap-1">
                 <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
@@ -814,7 +803,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         </div>
       )}
       
-      {/* YENİ: Filo Detayları Modal Penceresi */}
+      {/* Filo Detayları Modal Penceresi */}
       {showFleetModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowFleetModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -836,17 +825,23 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                      {unitFleet.map((vehicle, idx) => (
-                         <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                            <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plaka}</td>
-                            <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.markaModel}</td>
-                            <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400 text-center">{vehicle.modelYili}</td>
-                            <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.aracCinsi}</td>
-                            <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.calismaSekli}</td>
-                            <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.tedarikciAdi}</td>
-                            <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[vehicle.plaka] || "-"}</td>
-                         </tr>
-                      ))}
+                      {unitFleet.length > 0 ? (
+                          unitFleet.map((vehicle, idx) => (
+                             <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
+                                <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plaka}</td>
+                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.markaModel}</td>
+                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400 text-center">{vehicle.modelYili}</td>
+                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.aracCinsi}</td>
+                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.calismaSekli}</td>
+                                <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.tedarikciAdi}</td>
+                                <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[vehicle.plaka] || "-"}</td>
+                             </tr>
+                          ))
+                      ) : (
+                          <tr>
+                             <td colSpan="7" className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">Bu birime ait filo kaydı bulunmamaktadır.</td>
+                          </tr>
+                      )}
                    </tbody>
                 </table>
              </div>
