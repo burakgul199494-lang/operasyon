@@ -13,7 +13,6 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
-// İsim temizleme kuralı
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -26,10 +25,10 @@ const getBase64 = (blob) => new Promise((resolve, reject) => {
     reader.readAsDataURL(blob);
 });
 
-// GÜNCELLENDİ: Sütun genişlikleri artırıldı, isimlerin rahat sığması sağlandı
-const COL1_WIDTH = "w-[130px] min-w-[130px] max-w-[130px] sm:w-[160px] sm:min-w-[160px] sm:max-w-[160px]";
-const COL2_WIDTH = "w-[36px] min-w-[36px] max-w-[36px] sm:w-[46px] sm:min-w-[46px] sm:max-w-[46px]";
-const COL2_LEFT = "left-[130px] sm:left-[160px]";
+// Kaydırma sırasında iç içe geçmeyi engelleyen MİLİMETRİK sütun genişlik kilitleri
+const COL1_WIDTH = "w-[120px] min-w-[120px] max-w-[120px] sm:w-[150px] sm:min-w-[150px] sm:max-w-[150px]";
+const COL2_WIDTH = "w-[40px] min-w-[40px] max-w-[40px] sm:w-[50px] sm:min-w-[50px] sm:max-w-[50px]";
+const COL2_LEFT = "left-[120px] sm:left-[150px]";
 
 const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) => {
     const [selectedUnit, setSelectedUnit] = useState(null); 
@@ -57,7 +56,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
     const getIsSunday = (day) => {
         const d = new Date(selectedYear, selectedMonth - 1, day);
-        return d.getDay() === 0;
+        return d.getDay() === 0; // 0 = Pazar
     };
 
     const currentVehicles = selectedUnit && unitInfo ? unitInfo[selectedUnit] : null;
@@ -77,7 +76,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
         let pList = [];
-        let PbList = [];
+        let pbList = [];
         let tPersonel = 0;
         let tParca = 0;
         let dTotals = {};
@@ -99,10 +98,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
             Object.values(map).forEach(p => {
                 const typeLower = (p.type || "").toLowerCase();
-                const shortType = typeLower.includes("parça") ? "Pb" : "Per"; 
+                const shortType = typeLower.includes("parça") ? "PB" : "Per."; 
                 
-                if (shortType === "Pb") {
-                    PbList.push({ ...p, type: shortType });
+                if (shortType === "PB") {
+                    pbList.push({ ...p, type: shortType });
                     Object.values(p.days).forEach(val => tParca += val);
                 } else {
                     pList.push({ ...p, type: shortType });
@@ -111,10 +110,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             });
 
             pList.sort((a,b) => a.name.localeCompare(b.name));
-            PbList.sort((a,b) => a.name.localeCompare(b.name));
+            pbList.sort((a,b) => a.name.localeCompare(b.name));
         }
 
-        return { personelList: pList, parcabasiList: PbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
+        return { personelList: pList, parcabasiList: pbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
     }, [unitQuantities, selectedYear, selectedMonth]);
 
     const totalCount = totalPersonel + totalParca;
@@ -146,26 +145,27 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             doc.setTextColor(60);
             doc.text(`Birim: ${selectedUnit}`, 14, 28);
             doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 33);
-            doc.text(`Genel Toplam: ${totalCount}  |  Pb: ${totalParca}  |  Per: ${totalPersonel}  |  Pb Oranı: %${ratioStr}`, 14, 38);
+            doc.text(`Genel Toplam: ${totalCount}  |  PB: ${totalParca}  |  Per: ${totalPersonel}  |  PB Oranı: %${ratioStr}`, 14, 38);
 
-            const tableHead = [['Personel Adı', 'Tür', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
+            // GÜNCELLENDİ: Personel ve Türü PDF için tek sütunda birleştirildi
+            const tableHead = [['Personel (Tür)', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
             const tableBody = [];
 
             personelList.forEach(p => {
                 const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
-                const rowData = [p.name, p.type, rowTotal];
+                const rowData = [`${p.name} (${p.type})`, rowTotal];
                 daysArray.forEach(d => rowData.push(p.days[d] || "-"));
                 tableBody.push(rowData);
             });
 
             parcabasiList.forEach(p => {
                 const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
-                const rowData = [p.name, p.type, rowTotal];
+                const rowData = [`${p.name} (${p.type})`, rowTotal];
                 daysArray.forEach(d => rowData.push(p.days[d] || "-"));
                 tableBody.push(rowData);
             });
 
-            const totalRow = ["GÜNLÜK ALT TOPLAM", "", totalCount];
+            const totalRow = ["GÜNLÜK ALT TOPLAM", totalCount];
             daysArray.forEach(d => totalRow.push(dailyTotals[d] || "-"));
             tableBody.push(totalRow);
 
@@ -177,14 +177,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 styles: { font: 'Roboto', fontSize: 6, cellPadding: 1, halign: 'center' },
                 headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255] },
                 columnStyles: {
-                    0: { halign: 'left', cellWidth: 35, fontStyle: 'bold' },
-                    1: { cellWidth: 10 },
-                    2: { fontStyle: 'bold', textColor: [30, 58, 138] }
+                    0: { halign: 'left', cellWidth: 40, fontStyle: 'bold' }, // Genişletildi
+                    1: { fontStyle: 'bold', textColor: [30, 58, 138], cellWidth: 12 } // TOPLAM Sütunu
                 },
                 didParseCell: function(data) {
                     if (data.section === 'body') {
                         const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
-                        const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                        // GÜNCELLENDİ: Sütun sayısı 1 azaldığı için index kontrolü 3 yerine 2 oldu
+                        const isSundayCol = data.column.index >= 2 && getIsSunday(daysArray[data.column.index - 2]);
                         
                         if (isTotalRow) {
                             data.cell.styles.fillColor = isSundayCol ? [254, 202, 202] : [226, 232, 240]; 
@@ -200,7 +200,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                             data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [159, 18, 57];
                         }
                     } else if (data.section === 'head') {
-                        const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                        const isSundayCol = data.column.index >= 2 && getIsSunday(daysArray[data.column.index - 2]);
                         if(isSundayCol) {
                             data.cell.styles.fillColor = [220, 38, 38]; 
                         }
@@ -225,7 +225,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     // KARŞILAMA EKRANI (Birim Seçimi)
     if (!selectedUnit) {
         return (
-            <div className="Pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+            <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
               <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 border-b border-slate-100 dark:border-slate-800 px-4 py-3 shadow-sm">
                 <div className="flex justify-between items-center mb-3">
                   <div className="flex items-center gap-3">
@@ -272,7 +272,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     }
 
     return (
-        <div className="Pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+        <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
             {/* Üst Panel: Mobilde kaydırınca gider, LG'de sabit kalır */}
             <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 shadow-sm border-b border-slate-200 dark:border-slate-800 relative lg:sticky lg:top-0">
                 <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -304,7 +304,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </button>
                 </div>
 
-                <div className="pl-4 Pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
+                <div className="pl-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
                     <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 px-3 rounded-lg border-none focus:ring-0 shrink-0">
                         {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
                     </select>
@@ -362,14 +362,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Aylık Hacim</h3>
                     <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 Pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
+                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
                             <div className="flex justify-between items-end">
                                 <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
                                 <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                             </div>
                         </div>
                         <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 Pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
+                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
                             <div className="flex justify-between items-end">
                                 <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
                                 <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
@@ -400,7 +400,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </div>
                 </div>
 
-                {/* TABLO BÖLÜMÜ - GÜNCELLENDİ: "border-separate" eklendi, gap sorunu çözüldü, isimler sığması için boşluklar düzeltildi */}
+                {/* TABLO BÖLÜMÜ */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu</h3>
@@ -414,7 +414,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                             <table className="w-full text-left whitespace-nowrap border-separate border-spacing-0 text-[10px] sm:text-[11px]">
                                 <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-30">
                                     <tr>
-                                        {/* İsim sütunu: Genişletildi ve sığması için truncate yerine normal kaydırma kullanıldı */}
                                         <th className={`p-2 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 border-b border-slate-200 dark:border-slate-700 ${COL1_WIDTH}`}>Personel Adı</th>
                                         <th className={`p-1 font-bold text-slate-600 dark:text-slate-300 text-center sticky bg-slate-100 dark:bg-slate-900 z-40 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Tür</th>
                                         
