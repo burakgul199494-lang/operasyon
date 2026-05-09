@@ -62,6 +62,10 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
+const COL1_WIDTH = "w-[130px] min-w-[130px] max-w-[130px] sm:w-[160px] sm:min-w-[160px] sm:max-w-[160px]";
+const COL2_WIDTH = "w-[36px] min-w-[36px] max-w-[36px] sm:w-[46px] sm:min-w-[46px] sm:max-w-[46px]";
+const COL2_LEFT = "left-[130px] sm:left-[160px]";
+
 const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
@@ -89,10 +93,20 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     }
   }, [allData, selectedUnit]); 
 
+  const getIsSunday = (day) => {
+    const d = new Date(selectedYear, selectedMonth - 1, day);
+    return d.getDay() === 0;
+  };
+
   const currentData = useMemo(() => {
     if (!selectedUnit) return null;
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [allData, selectedUnit, selectedYear, selectedMonth]);
+
+  const unitQuantities = useMemo(() => {
+    if (!quantitiesData || !selectedUnit) return null;
+    return quantitiesData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+  }, [quantitiesData, selectedUnit, selectedYear, selectedMonth]);
 
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
@@ -125,58 +139,61 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
-  const pbRatioData = useMemo(() => {
-    let tPb = 0;
-    let tGenel = 0;
+  const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
+    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+    const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    if (!quantitiesData || quantitiesData.length === 0) return { ratio: null };
+    let pList = [];
+    let PbList = [];
+    let tPersonel = 0;
+    let tParca = 0;
+    let dTotals = {};
+    
+    daysArr.forEach(d => dTotals[d] = 0);
 
+    // Eğer Yıl Ortalaması görünümündeysek, adet detaylarını o ay için değil yıl için harmanlamamak adına 
+    // quantitiesData'yı ay bazında hesaplıyoruz (Adet tablosu aylıktır)
     const relevantQuantities = showYearAvg 
         ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
         : quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
 
-    relevantQuantities.forEach(uq => {
-        if (uq.records && Array.isArray(uq.records)) {
-            uq.records.forEach(r => {
-                const countVal = r.count || 0;
-                tGenel += countVal;
-                const typeLower = (r.type || "").toLowerCase();
-                if (typeLower.includes("parça")) {
-                    tPb += countVal;
-                }
-            });
-        }
-    });
-
-    const ratio = tGenel > 0 ? (tPb / tGenel) * 100 : null;
-    return { ratio };
-  }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
-
-  // GÜNCELLENDİ: Hem Adet hem de Tür (Per / Pb) bilgisini güvenle tutan motor
-  const personnelInfo = useMemo(() => {
-    const info = {};
-    if (!quantitiesData || quantitiesData.length === 0) return info;
-
-    const relevantQuantities = showYearAvg 
-        ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
-        : quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
-
+    const map = {};
     relevantQuantities.forEach(uq => {
         if (uq.records && Array.isArray(uq.records)) {
             uq.records.forEach(r => {
                 const safeName = normalizeName(r.name);
-                if (!info[safeName]) info[safeName] = { count: 0, type: 'Per' }; // Varsayılan Per
-                info[safeName].count += (r.count || 0);
+                if(!map[safeName]) map[safeName] = { name: safeName, type: r.type, days: {} };
+                if (!map[safeName].days[r.day]) map[safeName].days[r.day] = 0;
                 
-                const typeLower = (r.type || "").toLowerCase();
-                if (typeLower.includes("parça")) {
-                    info[safeName].type = "Pb";
-                }
+                const countVal = r.count || 0;
+                map[safeName].days[r.day] += countVal;
+                
+                if (dTotals[r.day] !== undefined) dTotals[r.day] += countVal;
             });
         }
     });
-    return info;
+
+    Object.values(map).forEach(p => {
+        const typeLower = (p.type || "").toLowerCase();
+        const shortType = typeLower.includes("parça") ? "Pb" : "Per"; 
+        
+        if (shortType === "Pb") {
+            PbList.push({ ...p, type: shortType });
+            Object.values(p.days).forEach(val => tParca += val);
+        } else {
+            pList.push({ ...p, type: shortType });
+            Object.values(p.days).forEach(val => tPersonel += val);
+        }
+    });
+
+    pList.sort((a,b) => a.name.localeCompare(b.name));
+    PbList.sort((a,b) => a.name.localeCompare(b.name));
+
+    return { personelList: pList, parcabasiList: PbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
+
+  const totalCount = totalPersonel + totalParca;
+  const pbRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : null;
 
   const unitFleet = useMemo(() => {
     if (!fleetData || !selectedUnit) return [];
@@ -192,78 +209,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     });
   }, [fleetData, selectedUnit]);
 
-  const generateDynamicAnalysis = (data) => {
-    const t = parseMetric(data.teslimPerformansi);
-    const a = parseMetric(data.adresAlimOrani);
-    const ms = parseMetric(data.musteriSikayet);
-    const r = parseMetric(data.rotaOrani);
-    const tvs = parseMetric(data.tvsOrani);
-    const c = parseMetric(data.checkInOrani);
-    const s = parseMetric(data.smsOrani);
-    const eatf = parseMetric(data.eAtfOrani);
-    const htf = parseMetric(data.htfOrani);
-    const ks = parseMetric(data.kontrolSende);
-    const ot = parseMetric(data.olcumTartim);
-
-    let text = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıda tarafınıza sunulmuştur:\n\n";
-
-    if (t !== null) {
-      if (t >= TARGETS.teslimPerformansi) text += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
-      else text += "• Teslim performansınız ilgili ay içerisinde hedef altı kalmıştır, dağıtım planlamalarınızda mutlaka günlük kargolara öncelik verilmelidir.\n";
-    }
-    if (a !== null) {
-      if (a >= TARGETS.adresAlimOrani) text += "• Adres alım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-      else if (a >= 80) text += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
-      else text += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
-    }
-    if (ms !== null) {
-      if (ms === 0) text += "• İlgili dönemde şubeye ait müşteri şikayeti bulunmamaktadır, çok iyi bir performans sergilenmiştir.\n";
-      else if (ms === 1) text += "• İlgili dönemde 1 adet müşteri şikayetiniz bulunmaktadır, operasyonel süreçlerde dikkatli olunmalıdır.\n";
-      else text += `• İlgili dönemde ${ms} adet müşteri şikayeti tespit edilmiştir. Bu durum ciddi uyarı gerektirmekte olup süreçlerinizi acilen gözden geçirmeniz şarttır.\n`;
-    }
-    if (r !== null) {
-      if (r >= TARGETS.rotaOrani) text += "• Rota oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-      else if (r >= 80) text += "• Rota oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-      else text += "• Rota oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
-    }
-    if (tvs !== null) {
-      if (tvs >= TARGETS.tvsOrani) text += "• TVS oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-      else if (tvs >= 90) text += "• TVS oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-      else text += "• TVS oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
-    }
-    if (c !== null) {
-      if (c >= TARGETS.checkInOrani) text += "• Check-in oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-      else if (c >= 85) text += "• Check-in oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-      else text += "• Check-in oranınız başarısızdır, kurye arkadaşlarımızın mutlaka her teslimat sonrası check-in yapması zorunludur.\n";
-    }
-    if (s !== null) {
-      if (s >= TARGETS.smsOrani) text += "• SMS ile teslimat oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-      else if (s >= 65) text += "• SMS ile teslimat oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-      else text += "• SMS ile teslimat oranınız başarısızdır, kurye arkadaşlarımızın kargo tesliminde mutlaka sms ile teslimat yöntemine yönlendirilmesi gerekmektedir.\n";
-    }
-    if (eatf !== null) {
-      if (eatf >= TARGETS.eAtfOrani) text += "• E-atf oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-      else if (eatf >= 90) text += "• E-ATF oranınız hedeflenen orana yakındır, kurye arkadaşlarımızın mutlaka E-atf düzenlemesi, ve operatör arkadaşlarımızın mutlaka eşleme yapması gerekmektedir.\n";
-      else text += "• E-ATF oranınız başarısızdır, bu alanda mutlaka tüm kurye ve operatör arkadaşlarımıza eğitim planlaması yapılmalıdır.\n";
-    }
-    if (htf !== null) {
-      if (htf >= TARGETS.htfOrani) text += "• HTF oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-      else if (htf >= 85) text += "• HTF oranınız hedeflenen oranlara yakın gerçekleşmiştir, mutlaka operatör arkadaşlarımızın aktarma merkezlerinde tutulan HTF'lere karşılık HTF tutması gerekmektedir.\n";
-      else text += "• HTF oranınız başarısızdır, bu konuda ciddi bir sıkıntı mevcuttur, mutlaka kargo indirmelerinde HTF düzenlenmelidir.\n";
-    }
-    if (ks !== null) {
-      if (ks >= TARGETS.kontrolSende) text += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-      else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız hedefe yakındır, konuyla ilgili alınacak küçük aksiyonlar hedefi gerçekleştirmemizi sağlayacaktır.\n";
-      else text += "• Kontrol Sende oranınız heedin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
-    }
-    if (ot !== null) {
-      if (ot <= TARGETS.olcumTartim) text += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
-      else if (ot <= 40) text += "• Ölçüm/Tartım farkı işlemleriniz ortalama seviyededir, artış eğilimine karşı dikkat edilmelidir.\n";
-      else text += "• Ölçüm/Tartım sayınız kritik seviyededir. Ölçüm tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
-    }
-    text += "\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm çalışma arkadaşlarımıza başarılar dileriz.";
-    return text;
-  };
+  // -------------- PDF OLUŞTURMA FONKSİYONLARI -------------- //
 
   const createPdfDoc = async (type, targetUnit, targetData, year, month, isYearAvg, preloadedFont) => {
     const { jsPDF } = window.jspdf;
@@ -400,22 +346,20 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       doc.setTextColor(100);
       doc.text(`Birim: ${targetUnit} | Dönem: ${donemText}`, 14, 30);
       
-      // GÜNCELLENDİ: PDF için hedef birime özel Tür ve Adet hesaplama
       const targetTotals = {};
       const targetTypes = {};
-      const relevantQuantities = isYearAvg 
+      const rq = isYearAvg 
           ? quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year))
           : quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
 
-      relevantQuantities.forEach(uq => {
+      rq.forEach(uq => {
           if (uq.records && Array.isArray(uq.records)) {
               uq.records.forEach(r => {
                   const safeName = normalizeName(r.name);
                   if (!targetTotals[safeName]) targetTotals[safeName] = 0;
                   targetTotals[safeName] += (r.count || 0);
-                  
                   const typeLower = (r.type || "").toLowerCase();
-                  targetTypes[safeName] = typeLower.includes("parça") ? "Pb" : "Per"; // GÜNCELLENDİ
+                  targetTypes[safeName] = typeLower.includes("parça") ? "Pb" : "Per"; 
               });
           }
       });
@@ -426,9 +370,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
             const safeNameB = normalizeName(b.name);
             const typeA = targetTypes[safeNameA] || "Per";
             const typeB = targetTypes[safeNameB] || "Per";
-            // 1. Önce "Per", sonra "Pb" sırası
             if (typeA !== typeB) return typeA === "Per" ? -1 : 1;
-            // 2. Kendi içinde alfabetik sıra
             return (a.name || "").localeCompare(b.name || "", 'tr-TR');
         })
         .map(p => {
@@ -478,13 +420,168 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     setIsGeneratingPdf(true); 
     try {
       const doc = await createPdfDoc(type, selectedUnit, displayData, selectedYear, selectedMonth, showYearAvg, null);
-      const fileName = type === 'defense' ? `${selectedUnit}_Savunma.pdf` : `${selectedUnit}.pdf`;
+      const fileName = type === 'defense' ? `${selectedUnit}_Savunma.pdf` : `${selectedUnit}_Karne.pdf`;
       doc.save(fileName);
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
       setIsGeneratingPdf(false); 
       setShowPdfModal(false); 
+    }
+  };
+
+  // YENİ: Adet Analizi PDF (Birim Detayından Tek Tıkla)
+  const generateQuantitiesPDF = async () => {
+    setIsGeneratingPdf(true);
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape', 'mm', 'a4'); 
+
+        try {
+            const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+            const blob = await response.blob();
+            const base64Font = await getBase64(blob);
+            doc.addFileToVFS("Roboto.ttf", base64Font);
+            doc.addFont("Roboto.ttf", "Roboto", "normal");
+            doc.setFont("Roboto");
+        } catch (e) {
+            console.warn("Font indirilemedi.");
+        }
+
+        doc.setFontSize(16);
+        doc.setTextColor(30, 58, 138); 
+        doc.text("PERSONEL ADET ANALİZ RAPORU", 14, 20);
+
+        doc.setFontSize(10);
+        doc.setTextColor(60);
+        doc.text(`Birim: ${selectedUnit}`, 14, 28);
+        doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 33);
+        doc.text(`Genel Toplam: ${totalCount}  |  Pb: ${totalParca}  |  Per: ${totalPersonel}  |  Pb Oranı: %${pbRatio !== null ? pbRatio.toLocaleString('tr-TR',{maximumFractionDigits:2}) : "0"}`, 14, 38);
+
+        const tableHead = [['Personel Adı', 'Tür', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
+        const tableBody = [];
+
+        personelList.forEach(p => {
+            const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+            const rowData = [p.name, p.type, rowTotal];
+            daysArray.forEach(d => rowData.push(p.days[d] || "-"));
+            tableBody.push(rowData);
+        });
+
+        parcabasiList.forEach(p => {
+            const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+            const rowData = [p.name, p.type, rowTotal];
+            daysArray.forEach(d => rowData.push(p.days[d] || "-"));
+            tableBody.push(rowData);
+        });
+
+        const totalRow = ["GÜNLÜK ALT TOPLAM", "", totalCount];
+        daysArray.forEach(d => totalRow.push(dailyTotals[d] || "-"));
+        tableBody.push(totalRow);
+
+        doc.autoTable({
+            startY: 45,
+            head: tableHead,
+            body: tableBody,
+            theme: 'grid',
+            styles: { font: 'Roboto', fontSize: 6, cellPadding: 1, halign: 'center' },
+            headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255] },
+            columnStyles: {
+                0: { halign: 'left', cellWidth: 35, fontStyle: 'bold' },
+                1: { cellWidth: 10 },
+                2: { fontStyle: 'bold', textColor: [30, 58, 138] }
+            },
+            didParseCell: function(data) {
+                if (data.section === 'body') {
+                    const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
+                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                    
+                    if (isTotalRow) {
+                        data.cell.styles.fillColor = isSundayCol ? [254, 202, 202] : [226, 232, 240]; 
+                        data.cell.styles.textColor = isSundayCol ? [153, 27, 27] : [15, 23, 42];
+                        data.cell.styles.fontStyle = 'bold';
+                    }
+                    else if (data.row.index < personelList.length) {
+                        data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [240, 248, 255]; 
+                        data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [30, 58, 138];
+                    } 
+                    else {
+                        data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [255, 241, 242]; 
+                        data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [159, 18, 57];
+                    }
+                } else if (data.section === 'head') {
+                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                    if(isSundayCol) {
+                        data.cell.styles.fillColor = [220, 38, 38]; 
+                    }
+                }
+            }
+        });
+
+        doc.save(`${selectedUnit}_Adet_Analizi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.pdf`);
+    } catch (error) {
+        console.error("PDF oluşturulurken hata:", error);
+        alert("PDF dışa aktarılırken bir sorun oluştu.");
+    } finally {
+        setIsGeneratingPdf(false);
+        setShowPdfModal(false);
+    }
+  };
+
+  // YENİ: Filo Listesi PDF (Birim Detayından Tek Tıkla)
+  const generateFleetPDF = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+        const blob = await response.blob();
+        const base64Font = await getBase64(blob);
+        doc.addFileToVFS("Roboto.ttf", base64Font);
+        doc.addFont("Roboto.ttf", "Roboto", "normal");
+        doc.addFont("Roboto.ttf", "Roboto", "bold");
+        doc.setFont("Roboto");
+      } catch (e) { console.warn("Font indirilemedi."); }
+
+      doc.setFontSize(18);
+      doc.setTextColor(30, 58, 138); 
+      doc.text("FİLO DETAY LİSTESİ", 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Birim: ${selectedUnit}`, 14, 30);
+      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 35);
+
+      const tableHead = [['Çalışma Şekli', 'Plaka', 'Tedarikçi Adı', 'Marka Model', 'Yıl', 'Ort. KM']];
+      const tableBody = unitFleet.map(v => {
+        const plateKey = v.plate ? String(v.plate).replace(/\s/g, "").toUpperCase() : "";
+        return [
+          v.operationType || "-",
+          v.plate || "-",
+          v.supplier || "-",
+          v.brandModel || "-",
+          v.year || "-",
+          fleetKms[plateKey] || "-"
+        ];
+      });
+
+      doc.autoTable({
+        startY: 45,
+        head: tableHead,
+        body: tableBody,
+        theme: 'striped',
+        styles: { font: 'Roboto', fontSize: 9 },
+        headStyles: { fillColor: [59, 130, 246], halign: 'center' },
+        columnStyles: { 0: { fontStyle: 'bold', textColor: [147, 51, 234] }, 1: { fontStyle: 'bold' }, 5: { halign: 'center', fontStyle: 'bold', textColor: [37, 99, 235] } }
+      });
+
+      doc.save(`${selectedUnit}_Filo_Listesi.pdf`);
+    } catch (error) {
+      console.error("PDF oluşturulurken hata:", error);
+    } finally {
+      setIsGeneratingPdf(false);
+      setShowPdfModal(false);
     }
   };
 
@@ -675,11 +772,9 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2 pl-1">
                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Filo Durumu</h3>
-                 {unitFleet.length > 0 && (
-                    <button onClick={() => setShowFleetModal(true)} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm">
-                        <Truck size={12}/> Filo Detayları
-                    </button>
-                 )}
+                 <button onClick={() => setShowFleetModal(true)} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm">
+                     <Truck size={12}/> Filo Detayları
+                 </button>
               </div>
               <div className="flex gap-1">
                 <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
@@ -805,7 +900,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
               <table className="w-full text-left whitespace-nowrap border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                   <tr>
-                    <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Personel (Tür)</th>
+                    <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Ad Soyad</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-indigo-600 dark:text-indigo-400 text-center">Adet</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
@@ -819,11 +914,10 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                     .sort((a, b) => {
                       const safeNameA = normalizeName(a.name);
                       const safeNameB = normalizeName(b.name);
-                      const typeA = personnelInfo[safeNameA]?.type || "Per";
-                      const typeB = personnelInfo[safeNameB]?.type || "Per";
-                      // Önce "Per" sonra "Pb" sırasıyla dizilir
-                      if (typeA !== typeB) return typeA === "Per" ? -1 : 1;
-                      return (a.name || "").localeCompare(b.name || "", "tr-TR");
+                      const tA = personelList.some(x=> normalizeName(x.name)===safeNameA) ? "Per" : (parcabasiList.some(x=> normalizeName(x.name)===safeNameA) ? "Pb" : "Per");
+                      const tB = personelList.some(x=> normalizeName(x.name)===safeNameB) ? "Per" : (parcabasiList.some(x=> normalizeName(x.name)===safeNameB) ? "Pb" : "Per");
+                      if (tA !== tB) return tA === "Per" ? -1 : 1;
+                      return (a.name || "").localeCompare(b.name || "", 'tr-TR');
                     })
                     .map((person, idx) => {
                       const r = parseMetric(person.rotaOrani);
@@ -834,13 +928,13 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                       const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
                       
                       const safeName = normalizeName(person.name);
-                      const pInfo = personnelInfo[safeName] || { count: 0, type: "Per" };
-                      const totalAdet = pInfo.count ? pInfo.count.toLocaleString('tr-TR') : "-";
+                      const totalAdet = personnelTotals[safeName] ? personnelTotals[safeName].toLocaleString('tr-TR') : "-";
+                      const pType = personelList.some(x=> normalizeName(x.name)===safeName) ? "Per" : (parcabasiList.some(x=> normalizeName(x.name)===safeName) ? "Pb" : "Per");
 
                       return (
                         <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
                           <td className="p-2 sm:p-3 font-medium text-[10px] sm:text-sm text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                            {person.name} <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-1">({pInfo.type})</span>
+                             {person.name} <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-1">({pType})</span>
                           </td>
                           <td className="p-1.5 sm:p-3 text-center font-black text-[11px] sm:text-sm text-indigo-600 dark:text-indigo-400">{totalAdet}</td>
                           <td className={`p-1.5 sm:p-3 text-center font-bold text-[10px] sm:text-sm ${r !== null && r < TARGETS.rotaOrani ? 'text-rose-600 bg-rose-50/50 dark:bg-rose-900/10' : 'text-slate-600 dark:text-slate-400'}`}>{r !== null ? `%${formatDisplayMetric(person.rotaOrani, true)}` : "-"}</td>
@@ -917,15 +1011,42 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
 
       {showPdfModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPdfModal(false)}>
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
-            <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm sm:max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><FileDown className="text-blue-600" size={20} /> Belge Dışa Aktar</h3>
               {!isGeneratingPdf && (<button onClick={() => setShowPdfModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={20} /></button>)}
             </div>
-            <div className="p-5 space-y-3">
-              <button onClick={() => generatePDF('report')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-4 rounded-xl border border-blue-100 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800/50 transition-colors text-left disabled:opacity-50"><div className="w-10 h-10 rounded-full bg-blue-200 dark:bg-blue-800/50 flex items-center justify-center text-blue-700 dark:text-blue-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <FileText size={20} />}</div><div><h4 className="font-bold text-blue-800 dark:text-blue-400">Birim Karnesi</h4><p className="text-[10px] sm:text-xs text-blue-600/80 dark:text-blue-400/80 mt-0.5">Yapay zeka analizli performans raporu.</p></div></button>
-              <button onClick={generateBulkZIP} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-4 rounded-xl border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800/50 transition-colors text-left disabled:opacity-50"><div className="w-10 h-10 rounded-full bg-indigo-200 dark:bg-indigo-800/50 flex items-center justify-center text-indigo-700 dark:text-indigo-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <Archive size={20} />}</div><div><h4 className="font-bold text-indigo-800 dark:text-indigo-400">Toplu İndir (ZIP)</h4><p className="text-[10px] sm:text-xs text-indigo-600/80 dark:text-indigo-400/80 mt-0.5">Tüm birimlerin karnelerini tek bir ZIP olarak indir.</p></div></button>
-              <button onClick={() => generatePDF('defense')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-4 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 transition-colors text-left disabled:opacity-50"><div className="w-10 h-10 rounded-full bg-rose-200 dark:bg-rose-800/50 flex items-center justify-center text-rose-700 dark:text-rose-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <ShieldCheck size={20} />}</div><div><h4 className="font-bold text-rose-800 dark:text-rose-400">Savunma Formu</h4><p className="text-[10px] sm:text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">Hedef altı kalan metrikler tabloda işaretlenir.</p></div></button>
+            
+            {/* GÜNCELLENDİ: Taşmaları Engellemek İçin Kaydırma Alanı eklendi */}
+            <div className="p-4 sm:p-5 space-y-3 max-h-[75vh] overflow-y-auto no-scrollbar">
+              <button onClick={() => generatePDF('report')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-blue-100 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800/50 transition-colors text-left disabled:opacity-50">
+                 <div className="w-10 h-10 rounded-full bg-blue-200 dark:bg-blue-800/50 flex items-center justify-center text-blue-700 dark:text-blue-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <FileText size={20} />}</div>
+                 <div><h4 className="font-bold text-blue-800 dark:text-blue-400">Birim Karnesi</h4><p className="text-[10px] sm:text-xs text-blue-600/80 dark:text-blue-400/80 mt-0.5">Yapay zeka analizli performans raporu.</p></div>
+              </button>
+              
+              <button onClick={generateBulkZIP} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800/50 transition-colors text-left disabled:opacity-50">
+                 <div className="w-10 h-10 rounded-full bg-indigo-200 dark:bg-indigo-800/50 flex items-center justify-center text-indigo-700 dark:text-indigo-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <Archive size={20} />}</div>
+                 <div><h4 className="font-bold text-indigo-800 dark:text-indigo-400">Toplu İndir (ZIP)</h4><p className="text-[10px] sm:text-xs text-indigo-600/80 dark:text-indigo-400/80 mt-0.5">Tüm birimlerin karnelerini ZIP olarak indir.</p></div>
+              </button>
+              
+              <button onClick={() => generatePDF('defense')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 transition-colors text-left disabled:opacity-50">
+                 <div className="w-10 h-10 rounded-full bg-rose-200 dark:bg-rose-800/50 flex items-center justify-center text-rose-700 dark:text-rose-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <ShieldCheck size={20} />}</div>
+                 <div><h4 className="font-bold text-rose-800 dark:text-rose-400">Savunma Formu</h4><p className="text-[10px] sm:text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">Hedef altı kalan metrikler tabloda işaretlenir.</p></div>
+              </button>
+
+              <button onClick={generateFleetPDF} disabled={isGeneratingPdf || unitFleet.length === 0} className="w-full flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-cyan-100 bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-900/20 dark:border-cyan-800/50 transition-colors text-left disabled:opacity-50">
+                 <div className="w-10 h-10 rounded-full bg-cyan-200 dark:bg-cyan-800/50 flex items-center justify-center text-cyan-700 dark:text-cyan-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <Truck size={20} />}</div>
+                 <div><h4 className="font-bold text-cyan-800 dark:text-cyan-400">Filo Listesi</h4><p className="text-[10px] sm:text-xs text-cyan-600/80 dark:text-cyan-400/80 mt-0.5">Birimdeki araçların detaylı PDF listesi.</p></div>
+              </button>
+
+              <button onClick={generateQuantitiesPDF} disabled={isGeneratingPdf || totalCount === 0 || showYearAvg} className="w-full flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-purple-100 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:border-purple-800/50 transition-colors text-left disabled:opacity-50 relative">
+                 <div className="w-10 h-10 rounded-full bg-purple-200 dark:bg-purple-800/50 flex items-center justify-center text-purple-700 dark:text-purple-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <ClipboardCheck size={20} />}</div>
+                 <div>
+                    <h4 className="font-bold text-purple-800 dark:text-purple-400">Adet Analizi {showYearAvg && <span className="text-[9px] text-rose-500">(Yıllık Görünümde Kapalı)</span>}</h4>
+                    <p className="text-[10px] sm:text-xs text-purple-600/80 dark:text-purple-400/80 mt-0.5">Personel bazlı 31 günlük adet tablosu.</p>
+                 </div>
+              </button>
+
             </div>
           </div>
         </div>
