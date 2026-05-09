@@ -173,23 +173,14 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     return totals;
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
 
-  // GÜNCELLENDİ: Çift Aşamalı Alfabetik Sıralama (1. Çalışma Şekli, 2. Plaka)
   const unitFleet = useMemo(() => {
     if (!fleetData || !selectedUnit) return [];
-    
-    // Önce birime ait araçları filtrele
     const filteredFleet = fleetData.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
-    
-    // Sonra sırala
     return filteredFleet.sort((a, b) => {
       const typeA = String(a.operationType || "");
       const typeB = String(b.operationType || "");
-      
-      // 1. Kural: Çalışma Şekline göre alfabetik sırala (Türkçe karakter duyarlı)
       const typeCompare = typeA.localeCompare(typeB, 'tr-TR');
       if (typeCompare !== 0) return typeCompare;
-      
-      // 2. Kural: Eğer çalışma şekilleri aynıysa, Plakaya göre alfabetik sırala
       const plateA = String(a.plate || "");
       const plateB = String(b.plate || "");
       return plateA.localeCompare(plateB, 'tr-TR');
@@ -404,13 +395,34 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       doc.setTextColor(100);
       doc.text(`Birim: ${targetUnit} | Dönem: ${donemText}`, 14, 30);
       
+      // GÜNCELLENDİ: Rapor ve Bulk Zip için hedef birime özel Tür ve Adet hesaplama
+      const targetTotals = {};
+      const targetTypes = {};
+      const relevantQuantities = isYearAvg 
+          ? quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year))
+          : quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
+
+      relevantQuantities.forEach(uq => {
+          if (uq.records && Array.isArray(uq.records)) {
+              uq.records.forEach(r => {
+                  const safeName = normalizeName(r.name);
+                  if (!targetTotals[safeName]) targetTotals[safeName] = 0;
+                  targetTotals[safeName] += (r.count || 0);
+                  
+                  const typeLower = (r.type || "").toLowerCase();
+                  targetTypes[safeName] = typeLower.includes("parça") ? "PB" : "Per.";
+              });
+          }
+      });
+      
       const personnelRows = targetData.personnel
         .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
         .map(p => {
           const safeName = normalizeName(p.name);
-          const totalAdet = personnelTotals[safeName] ? personnelTotals[safeName].toLocaleString('tr-TR') : "-";
+          const totalAdet = targetTotals[safeName] ? targetTotals[safeName].toLocaleString('tr-TR') : "-";
+          const pType = targetTypes[safeName] || "Per."; // Undefined sorununu çözer
           return [
-            `${p.name} (${p.type})`,
+            `${p.name} (${pType})`,
             totalAdet, 
             `%${formatDisplayMetric(p.rotaOrani, true)}`,
             `%${formatDisplayMetric(p.tvsOrani, true)}`,
