@@ -13,7 +13,6 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
-// İsim temizleme kuralı (Çift boşlukları ve harf hatalarını düzeltir)
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -52,11 +51,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         }
     }, [quantitiesData, isInitialLoaded]);
 
-    const getIsSunday = (day) => {
-        const d = new Date(selectedYear, selectedMonth - 1, day);
-        return d.getDay() === 0;
-    };
-
     const currentVehicles = selectedUnit && unitInfo ? unitInfo[selectedUnit] : null;
 
     const currentData = useMemo(() => {
@@ -68,6 +62,12 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         if (!quantitiesData || !selectedUnit) return null;
         return quantitiesData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
     }, [quantitiesData, selectedUnit, selectedYear, selectedMonth]);
+
+    // Pazar günlerini tespit etmek için fonksiyon
+    const getIsSunday = (day) => {
+        const d = new Date(selectedYear, selectedMonth - 1, day);
+        return d.getDay() === 0; // 0 = Pazar
+    };
 
     const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
@@ -90,18 +90,19 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 
                 const countVal = r.count || 0;
                 map[safeName].days[r.day] += countVal;
-                if (dTotals[r.day] !== undefined) dTotals[r.day] += countVal;
+                
+                if (dTotals[r.day] !== undefined) {
+                    dTotals[r.day] += countVal;
+                }
             });
 
             Object.values(map).forEach(p => {
                 const typeLower = (p.type || "").toLowerCase();
-                const shortType = typeLower.includes("parça") ? "PB" : "Per.";
-                
-                if (shortType === "PB") {
-                    pbList.push({ ...p, type: shortType });
+                if (typeLower.includes("parça")) {
+                    pbList.push(p);
                     Object.values(p.days).forEach(val => tParca += val);
                 } else {
-                    pList.push({ ...p, type: shortType });
+                    pList.push(p);
                     Object.values(p.days).forEach(val => tPersonel += val);
                 }
             });
@@ -110,7 +111,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             pbList.sort((a,b) => a.name.localeCompare(b.name));
         }
 
-        return { personelList: pList, parcabasiList: pbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
+        return { 
+            personelList: pList, 
+            parcabasiList: pbList, 
+            totalPersonel: tPersonel, 
+            totalParca: tParca, 
+            daysArray: daysArr,
+            dailyTotals: dTotals 
+        };
     }, [unitQuantities, selectedYear, selectedMonth]);
 
     const totalCount = totalPersonel + totalParca;
@@ -122,6 +130,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         try {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('landscape', 'mm', 'a4'); 
+
             try {
                 const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
                 const blob = await response.blob();
@@ -129,17 +138,21 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 doc.addFileToVFS("Roboto.ttf", base64Font);
                 doc.addFont("Roboto.ttf", "Roboto", "normal");
                 doc.setFont("Roboto");
-            } catch (e) { console.warn("Font indirilemedi."); }
+            } catch (e) {
+                console.warn("Font indirilemedi.");
+            }
 
             doc.setFontSize(16);
             doc.setTextColor(30, 58, 138); 
             doc.text("PERSONEL ADET ANALİZ RAPORU", 14, 20);
+
             doc.setFontSize(10);
             doc.setTextColor(60);
-            doc.text(`Birim: ${selectedUnit} | Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 28);
-            doc.text(`Genel Toplam: ${totalCount} | PB: ${totalParca} | Per: ${totalPersonel} | PB Oranı: %${ratioStr}`, 14, 34);
+            doc.text(`Birim: ${selectedUnit}`, 14, 28);
+            doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 33);
+            doc.text(`Genel Toplam: ${totalCount}  |  Parçabaşı: ${totalParca}  |  Personel: ${totalPersonel}  |  Parçabaşı Oranı: %${ratioStr}`, 14, 38);
 
-            const tableHead = [['Personel Adı', 'Tür', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
+            const tableHead = [['Personel Adı', 'Türü', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
             const tableBody = [];
 
             personelList.forEach(p => {
@@ -148,63 +161,110 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 daysArray.forEach(d => rowData.push(p.days[d] || "-"));
                 tableBody.push(rowData);
             });
+
             parcabasiList.forEach(p => {
                 const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                 const rowData = [p.name, p.type, rowTotal];
                 daysArray.forEach(d => rowData.push(p.days[d] || "-"));
                 tableBody.push(rowData);
             });
+
             const totalRow = ["GÜNLÜK ALT TOPLAM", "", totalCount];
             daysArray.forEach(d => totalRow.push(dailyTotals[d] || "-"));
             tableBody.push(totalRow);
 
             doc.autoTable({
-                startY: 40,
+                startY: 45,
                 head: tableHead,
                 body: tableBody,
                 theme: 'grid',
                 styles: { font: 'Roboto', fontSize: 6, cellPadding: 1, halign: 'center' },
                 headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255] },
-                columnStyles: { 0: { halign: 'left', cellWidth: 30, fontStyle: 'bold' }, 1: { cellWidth: 10 }, 2: { fontStyle: 'bold', textColor: [30, 58, 138] } },
+                columnStyles: {
+                    0: { halign: 'left', cellWidth: 35, fontStyle: 'bold' },
+                    1: { cellWidth: 15 },
+                    2: { fontStyle: 'bold', textColor: [30, 58, 138] }
+                },
                 didParseCell: function(data) {
                     if (data.section === 'body') {
                         const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
-                        const isSun = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
-                        if (isTotalRow) { data.cell.styles.fillColor = isSun ? [254, 202, 202] : [226, 232, 240]; data.cell.styles.fontStyle = 'bold'; }
-                        else if (data.row.index < personelList.length) { data.cell.styles.fillColor = isSun ? [254, 226, 226] : [240, 248, 255]; }
-                        else { data.cell.styles.fillColor = isSun ? [254, 226, 226] : [255, 241, 242]; }
+                        const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                        
+                        if (isTotalRow) {
+                            data.cell.styles.fillColor = isSundayCol ? [254, 202, 202] : [226, 232, 240]; 
+                            data.cell.styles.textColor = isSundayCol ? [153, 27, 27] : [15, 23, 42];
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                        else if (data.row.index < personelList.length) {
+                            data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [240, 248, 255]; 
+                            data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [30, 58, 138];
+                        } 
+                        else {
+                            data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [255, 241, 242]; 
+                            data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [159, 18, 57];
+                        }
+                    } else if (data.section === 'head') {
+                        const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                        if(isSundayCol) {
+                            data.cell.styles.fillColor = [220, 38, 38]; 
+                        }
                     }
                 }
             });
-            doc.save(`${selectedUnit}_Adet_Analizi.pdf`);
-        } catch (error) { console.error(error); } finally { setIsGeneratingPdf(false); }
+
+            doc.save(`${selectedUnit}_Adet_Analizi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.pdf`);
+        } catch (error) {
+            console.error("PDF oluşturulurken hata:", error);
+            alert("PDF dışa aktarılırken bir sorun oluştu.");
+        } finally {
+            setIsGeneratingPdf(false);
+        }
     };
 
-    const filteredUnits = useMemo(() => UNITS.filter((u) => u !== "BÖLGE" && u.toLowerCase().includes(searchQuery.toLowerCase())), [searchQuery]);
+    const filteredUnits = useMemo(() =>
+        UNITS.filter((unit) => unit !== "BÖLGE" && unit.toLowerCase().includes(searchQuery.toLowerCase())),
+        [searchQuery]
+    );
 
-    // KARŞILAMA EKRANI
     if (!selectedUnit) {
         return (
             <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
               <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 border-b border-slate-100 dark:border-slate-800 px-4 py-3 shadow-sm">
                 <div className="flex justify-between items-center mb-3">
                   <div className="flex items-center gap-3">
-                    <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400 transition-colors"><Home size={22} /></button>
+                    <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400 transition-colors">
+                      <Home size={22} />
+                    </button>
                     <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Personel Adet Analizi</h1>
                   </div>
                 </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
-                  <input type="text" placeholder="Birim ara..." className="w-full pl-10 pr-10 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                  {searchQuery && (<button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><X size={16} /></button>)}
+                  <input
+                    type="text"
+                    placeholder="Birim ara..."
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="px-4 mt-4">
                 {filteredUnits.map((unit, index) => (
                   <div key={index} onClick={() => setSelectedUnit(unit)} className="group flex items-center justify-between p-4 mb-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm active:scale-[0.98] transition-all cursor-pointer">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-md">{unit.charAt(0)}</div>
-                      <div><span className="font-semibold text-slate-800 dark:text-white block">{unit}</span><span className="text-xs text-slate-400 dark:text-slate-500">Adet analizini görüntüle</span></div>
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-blue-200 dark:shadow-none shadow-md">
+                        {unit.charAt(0)}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-800 dark:text-white block">{unit}</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">Adet analizini görüntüle</span>
+                      </div>
                     </div>
                     <ChevronRight className="text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors" size={20} />
                   </div>
@@ -216,11 +276,13 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
-            {/* ÜST PANEL: Tablo genişleyince Mobilde Scroll ile Gider (sticky iptal olur) */}
+            {/* Mobilde tablo genişleyince menüyü relative yapıp scroll ile gizleriz */}
             <div className={`bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-40 shadow-sm border-b border-slate-200 dark:border-slate-800 ${isTableExpanded ? 'relative lg:sticky lg:top-0' : 'sticky top-0'}`}>
                 <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                        <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors"><ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" /></button>
+                        <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
+                            <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
+                        </button>
                         <div className="flex-1 min-w-0">
                             <div className="relative flex items-center w-full max-w-[250px]">
                                 <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="appearance-none bg-transparent text-lg font-bold text-slate-800 dark:text-white w-full pr-8 outline-none cursor-pointer truncate py-1 z-10">
@@ -228,51 +290,71 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                 </select>
                                 <ChevronDown size={18} className="absolute right-0 text-slate-400 pointer-events-none" />
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5"><Calendar size={10} /><span>Personel Adet Analizi</span></div>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                <Calendar size={10} />
+                                <span>Personel Adet Analizi</span>
+                            </div>
                         </div>
                     </div>
-                    <button onClick={generatePDF} disabled={isGeneratingPdf || (personelList.length === 0 && parcabasiList.length === 0)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50">{isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}PDF Dışa Aktar</button>
+
+                    <button 
+                        onClick={generatePDF} 
+                        disabled={isGeneratingPdf || (personelList.length === 0 && parcabasiList.length === 0)}
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50"
+                    >
+                        {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
+                        PDF Dışa Aktar
+                    </button>
                 </div>
+
                 <div className="pl-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
-                    <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 px-3 rounded-lg border-none focus:ring-0 shrink-0">{availableYears.map((y) => <option key={y} value={y}>{y}</option>)}</select>
+                    <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 px-3 rounded-lg border-none focus:ring-0 shrink-0">
+                        {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
                     <div className="w-[1px] h-8 bg-slate-200 dark:bg-slate-700 shrink-0 mx-1"></div>
-                    {MONTH_NAMES.map((m, i) => i !== 0 && (<button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all snap-center border ${i === selectedMonth ? "bg-slate-800 dark:bg-blue-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300"}`}>{m}</button>))}
+                    {MONTH_NAMES.map((m, i) => { 
+                        if (i === 0) return null; 
+                        return (
+                            <button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all snap-center border ${i === selectedMonth ? "bg-slate-800 dark:bg-blue-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300"}`}>
+                                {m}
+                            </button>
+                        ); 
+                    })}
                 </div>
             </div>
 
             <div className="p-4 space-y-4">
-                
-                {/* MOBİLDE TABLO BÜYÜTÜLÜNCE GİZLENEN KARTLAR (EKSİKSİZ) */}
+                {/* Mobilde tablo genişleyince üst kartlar gizlenir */}
                 <div className={isTableExpanded ? "hidden sm:block" : "block"}>
                     <div className="mb-4">
                         <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
                         <div className="flex gap-1 overflow-x-auto no-scrollbar">
-                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                            <div className="flex-1 min-w-[70px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
                                 <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
                                 <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Özmal</p>
                                 <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozmal || "0"}</p>
                             </div>
-                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                            <div className="flex-1 min-w-[70px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
                                 <div className="w-6 h-6 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
                                 <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5 whitespace-nowrap">Öz.M.H</p>
                                 <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozMasHar || "0"}</p>
                             </div>
-                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                            <div className="flex-1 min-w-[70px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
                                 <div className="w-6 h-6 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-0.5"><Key size={12} /></div>
                                 <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Kiralık</p>
                                 <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.kiralik || "0"}</p>
                             </div>
-                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                            <div className="flex-1 min-w-[70px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
                                 <div className="w-6 h-6 rounded-full bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
                                 <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Destek</p>
                                 <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.destek || "0"}</p>
                             </div>
-                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                            <div className="flex-1 min-w-[70px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
                                 <div className="w-6 h-6 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-0.5"><Zap size={12} /></div>
                                 <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Motor</p>
                                 <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.motor || "0"}</p>
                             </div>
-                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                            <div className="flex-1 min-w-[70px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
                                 <div className="w-6 h-6 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-0.5"><Package size={12} /></div>
                                 <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">P.Başı</p>
                                 <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.parcaBasi || "0"}</p>
@@ -284,16 +366,16 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                         <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Aylık Hacim</h3>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <div className="flex items-center gap-2 mb-3 border-b dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
+                                <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
                                 <div className="flex justify-between items-end">
-                                    <div className="text-center flex-1 border-r dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                    <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
                                     <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                                 </div>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <div className="flex items-center gap-2 mb-3 border-b dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
+                                <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
                                 <div className="flex justify-between items-end">
-                                    <div className="text-center flex-1 border-r dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                    <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
                                     <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                                 </div>
                             </div>
@@ -323,62 +405,111 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </div>
                 </div>
 
-                {/* TABLO BÖLÜMÜ */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-700 flex justify-between items-center">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu</h3>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded border dark:border-slate-600">{MONTH_NAMES[selectedMonth]} {selectedYear}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-600">
+                            {MONTH_NAMES[selectedMonth]} {selectedYear}
+                        </span>
                     </div>
                     
                     {totalCount > 0 ? (
                         <>
-                            <div className="sm:hidden p-5 bg-white dark:bg-slate-800 border-b dark:border-slate-700 flex flex-col items-center justify-center text-center">
+                            <div className="sm:hidden p-5 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-center transition-all">
                                 {!isTableExpanded ? (
-                                    <><div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mb-3"><Maximize2 size={24} /></div><p className="text-sm text-slate-600 dark:text-slate-300 font-bold mb-1">Detaylı Tablo</p><p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Bu tablo 31 günlük veri içerdiğinden dikey ekrana sığmaz.</p><button onClick={() => setIsTableExpanded(true)} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2">Tabloyu Görüntüle</button></>
+                                    <>
+                                        <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mb-3">
+                                            <Maximize2 size={24} />
+                                        </div>
+                                        <p className="text-sm text-slate-600 dark:text-slate-300 font-bold mb-1">Detaylı Tablo</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Bu tablo 31 günlük veri içerdiğinden dikey ekrana sığmaz.</p>
+                                        <button onClick={() => setIsTableExpanded(true)} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2">
+                                            Tabloyu Görüntüle
+                                        </button>
+                                    </>
                                 ) : (
-                                    <div className="w-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex flex-col items-center"><div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-bold text-sm mb-1"><Smartphone size={18} className="animate-pulse" />Telefonunuzu Yan Çevirin</div><p className="text-[10px] text-blue-600/80 dark:text-blue-300/80 mb-3">Tabloyu sağa sola kaydırarak inceleyebilirsiniz.</p><button onClick={() => setIsTableExpanded(false)} className="text-xs text-rose-500 hover:text-rose-600 font-bold underline px-4 py-1">Tabloyu Gizle</button></div>
+                                    <div className="w-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex flex-col items-center">
+                                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-bold text-sm mb-1">
+                                            <Smartphone size={18} className="animate-pulse" />
+                                            Telefonunuzu Yan Çevirin
+                                        </div>
+                                        <p className="text-[10px] text-blue-600/80 dark:text-blue-300/80 mb-3">Tabloyu sağa sola kaydırarak inceleyebilirsiniz.</p>
+                                        <button onClick={() => setIsTableExpanded(false)} className="text-xs text-rose-500 hover:text-rose-600 font-bold underline px-4 py-1">Tabloyu Gizle</button>
+                                    </div>
                                 )}
                             </div>
 
                             <div className={`overflow-x-auto relative no-scrollbar ${!isTableExpanded ? 'hidden sm:block' : 'block'}`}>
-                                <table className="w-full text-left whitespace-nowrap border-collapse text-[9px] sm:text-[11px]">
+                                <table className="w-full text-left whitespace-nowrap border-collapse text-[10px] sm:text-[11px]">
                                     <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
                                         <tr>
-                                            {/* GÜNCELLENDİ: İlk 2 Sütun Sabitlendi (Sticky) */}
                                             <th className="p-2 sm:p-3 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[120px] sm:w-[150px]">Personel Adı</th>
                                             <th className="p-1 sm:p-2 font-bold text-slate-600 dark:text-slate-300 text-center sticky left-[120px] sm:left-[150px] bg-slate-100 dark:bg-slate-900 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[40px] sm:w-[50px]">Tür</th>
-                                            <th className="p-1 sm:p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l dark:border-slate-700 text-indigo-600 dark:text-indigo-400 bg-slate-100 dark:bg-slate-900">TOPLAM</th>
+                                            <th className="p-1 sm:p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 bg-slate-100 dark:bg-slate-900">TOPLAM</th>
                                             {daysArray.map(d => {
                                                 const isSun = getIsSunday(d);
-                                                return (<th key={d} className={`p-1 sm:p-2 font-bold text-center border-l dark:border-slate-700 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'text-slate-600 dark:text-slate-400'}`}>{String(d).padStart(2, '0')}</th>);
+                                                return (
+                                                    <th key={d} className={`p-1 sm:p-2 font-bold text-center border-l border-slate-200 dark:border-slate-700 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                        {String(d).padStart(2, '0')}
+                                                    </th>
+                                                );
                                             })}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {[...personelList, ...parcabasiList].map((p, idx) => {
-                                            const isPB = p.type === "PB";
+                                        {personelList.map((p, idx) => {
                                             const pTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                                             return (
-                                                <tr key={idx} className={`${isPB ? 'bg-rose-50/40 hover:bg-rose-100/50 text-rose-900 dark:text-rose-100' : 'bg-blue-50/40 hover:bg-blue-100/50 text-blue-900 dark:text-blue-100'} transition-colors`}>
-                                                    {/* GÜNCELLENDİ: İlk 2 Sütun Sabitlendi (Sticky) */}
-                                                    <td className={`p-2 sm:p-3 sticky left-0 z-10 border-b dark:border-slate-700/50 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isPB ? 'bg-rose-50 dark:bg-slate-800' : 'bg-blue-50 dark:bg-slate-800'}`}>{p.name}</td>
-                                                    <td className={`p-1 sm:p-2 sticky left-[120px] sm:left-[150px] z-10 border-b border-l dark:border-slate-700/50 text-center font-semibold text-[8px] sm:text-[10px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isPB ? 'bg-rose-50 dark:bg-slate-800' : 'bg-blue-50 dark:bg-slate-800'}`}>{p.type}</td>
-                                                    <td className="p-1 sm:p-3 text-center font-black border-b border-l dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-white/30 dark:bg-white/5">{pTotal}</td>
+                                                <tr key={`p-${idx}`} className="bg-blue-50/40 hover:bg-blue-100/50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20 text-blue-900 dark:text-blue-100 transition-colors">
+                                                    <td className="p-2 sm:p-3 sticky left-0 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 z-10 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{p.name}</td>
+                                                    <td className="p-1 sm:p-2 sticky left-[120px] sm:left-[150px] bg-blue-50 dark:bg-slate-800 border-b border-l border-blue-100 dark:border-slate-700/50 text-center font-semibold text-[8px] sm:text-[10px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] opacity-80">{p.type}</td>
+                                                    <td className="p-1.5 sm:p-3 text-center font-black border-b border-l border-blue-100 dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-white/30 dark:bg-white/5">{pTotal}</td>
                                                     {daysArray.map(d => {
                                                         const isSun = getIsSunday(d);
-                                                        return (<td key={d} className={`p-1.5 sm:p-2 text-center border-l border-b dark:border-slate-700/50 font-medium ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20' : ''}`}>{p.days[d] || "-"}</td>);
+                                                        return (
+                                                            <td key={d} className={`p-1.5 sm:p-2 text-center border-l border-b border-blue-100 dark:border-slate-700/50 font-medium opacity-90 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20' : ''}`}>
+                                                                {p.days[d] || "-"}
+                                                            </td>
+                                                        );
                                                     })}
                                                 </tr>
                                             );
                                         })}
+                                        
+                                        {parcabasiList.map((p, idx) => {
+                                            const pbTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+                                            return (
+                                                <tr key={`pb-${idx}`} className="bg-rose-50/40 hover:bg-rose-100/50 dark:bg-rose-900/10 dark:hover:bg-rose-900/20 text-rose-900 dark:text-rose-100 transition-colors">
+                                                    <td className="p-2 sm:p-3 sticky left-0 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 z-10 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{p.name}</td>
+                                                    <td className="p-1 sm:p-2 sticky left-[120px] sm:left-[150px] bg-rose-50 dark:bg-slate-800 border-b border-l border-rose-100 dark:border-slate-700/50 text-center font-semibold text-[8px] sm:text-[10px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] opacity-80">{p.type}</td>
+                                                    <td className="p-1.5 sm:p-3 text-center font-black border-b border-l border-rose-100 dark:border-slate-700/50 text-red-700 dark:text-red-400 bg-white/30 dark:bg-white/5">{pbTotal}</td>
+                                                    {daysArray.map(d => {
+                                                        const isSun = getIsSunday(d);
+                                                        return (
+                                                            <td key={d} className={`p-1.5 sm:p-2 text-center border-l border-b border-rose-100 dark:border-slate-700/50 font-medium opacity-90 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20' : ''}`}>
+                                                                {p.days[d] || "-"}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            );
+                                        })}
+                                        
                                         <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
-                                            {/* GÜNCELLENDİ: Alt Toplam Satırı Sabitlendi (Sticky) */}
-                                            <td className="p-2 sm:p-3 font-black sticky left-0 z-10 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] text-right">ALT TOPLAM</td>
-                                            <td className="p-1 sm:p-2 sticky left-[120px] sm:left-[150px] z-10 bg-slate-200 dark:bg-slate-700 border-t border-l border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]"></td>
-                                            <td className="p-1.5 sm:p-3 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">{totalCount}</td>
+                                            <td className="p-2 sm:p-3 text-right font-black sticky left-0 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                ALT TOPLAM
+                                            </td>
+                                            <td className="p-1 sm:p-2 sticky left-[120px] sm:left-[150px] bg-slate-200 dark:bg-slate-700 border-t border-l border-slate-300 dark:border-slate-600 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]"></td>
+                                            <td className="p-1.5 sm:p-3 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
+                                                {totalCount}
+                                            </td>
                                             {daysArray.map(d => {
                                                 const isSun = getIsSunday(d);
-                                                return (<td key={d} className={`p-1.5 sm:p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600 ${isSun ? 'text-red-700 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30' : ''}`}>{dailyTotals[d] || "-"}</td>);
+                                                return (
+                                                    <td key={d} className={`p-1.5 sm:p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600 ${isSun ? 'text-red-700 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30' : ''}`}>
+                                                        {dailyTotals[d] || "-"}
+                                                    </td>
+                                                );
                                             })}
                                         </tr>
                                     </tbody>
@@ -386,9 +517,13 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                             </div>
                         </>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-16 text-slate-400 dark:text-slate-500"><Box size={40} className="mb-3 opacity-20" /><p className="text-sm">Bu aya ait adet verisi bulunamadı.</p></div>
+                        <div className="flex flex-col items-center justify-center py-16 text-slate-400 dark:text-slate-500">
+                            <Box size={40} className="mb-3 opacity-20" />
+                            <p className="text-sm">Bu aya ait adet verisi bulunamadı.</p>
+                        </div>
                     )}
                 </div>
+
             </div>
         </div>
     );
