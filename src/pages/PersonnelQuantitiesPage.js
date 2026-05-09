@@ -13,7 +13,7 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
-// İsim temizleme kuralı (Çift boşlukları ve büyük/küçük harf hatalarını düzeltir)
+// İsim temizleme kuralı
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -40,7 +40,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-    // OTOMATİK AY BULMA (Sadece verisi olan en güncel ayı getirir)
+    // OTOMATİK AY BULMA
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
             const validData = quantitiesData.filter(d => d.records && d.records.length > 0);
@@ -106,7 +106,8 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     pbList.push({ ...p, type: shortType });
                     Object.values(p.days).forEach(val => tParca += val);
                 } else {
-                    personelList.push({ ...p, type: shortType });
+                    // İŞTE BEYAZ EKRANI YAPAN O HATA BURADAYDI! (personelList.push yerine pList.push yapıldı)
+                    pList.push({ ...p, type: shortType });
                     Object.values(p.days).forEach(val => tPersonel += val);
                 }
             });
@@ -223,7 +224,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         [searchQuery]
     );
 
-    // KARŞILAMA EKRANI (Birim Seçimi)
+    // KARŞILAMA EKRANI
     if (!selectedUnit) {
         return (
             <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
@@ -274,8 +275,8 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
-            {/* GÜNCELLENDİ: 'relative sm:sticky' kullanıldı. Mobilde ekranı kaydırınca bu üst panel kaybolur, tam ekran tabloya kalır. */}
-            <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 shadow-sm border-b border-slate-200 dark:border-slate-800 relative sm:sticky sm:top-0">
+            {/* GÜNCELLENDİ: Sadece büyük ekranlarda (lg) sabit kalır, mobilde ekrandan kayıp gider */}
+            <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 shadow-sm border-b border-slate-200 dark:border-slate-800 relative lg:sticky lg:top-0">
                 <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
@@ -322,7 +323,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             </div>
 
             <div className="p-4 space-y-4">
-                
                 {/* BİLGİ KARTLARI */}
                 <div className="mb-4">
                     <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
@@ -402,7 +402,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </div>
                 </div>
 
-                {/* TABLO BÖLÜMÜ - GÜNCELLENDİ: Direk Açık ve Mobil Uyumlu */}
+                {/* TABLO BÖLÜMÜ - DİREKT AÇIK */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu</h3>
@@ -416,7 +416,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                             <table className="w-full text-left whitespace-nowrap border-collapse text-[10px] sm:text-[11px]">
                                 <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-30 shadow-sm">
                                     <tr>
-                                        {/* GÜNCELLENDİ: İlk 2 Sütun milimetrik sabitlendi. */}
+                                        {/* İlk 2 Sütun milimetrik sabitlendi. */}
                                         <th className={`p-2 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 shadow-none truncate ${COL1_WIDTH}`}>Personel Adı</th>
                                         <th className={`p-1 font-bold text-slate-600 dark:text-slate-300 text-center sticky bg-slate-100 dark:bg-slate-900 z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Tür</th>
                                         
