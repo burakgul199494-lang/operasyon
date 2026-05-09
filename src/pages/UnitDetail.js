@@ -95,11 +95,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [allData, selectedUnit, selectedYear, selectedMonth]);
 
-  const unitFleet = useMemo(() => {
-    if (!fleetData || !selectedUnit) return [];
-    return fleetData.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
-  }, [fleetData, selectedUnit]);
-
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
     if (yearRecords.length === 0) return null;
@@ -177,6 +172,11 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     });
     return totals;
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
+
+  const unitFleet = useMemo(() => {
+    if (!fleetData || !selectedUnit) return [];
+    return fleetData.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
+  }, [fleetData, selectedUnit]);
 
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
@@ -392,7 +392,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
           const safeName = normalizeName(p.name);
           const totalAdet = personnelTotals[safeName] ? personnelTotals[safeName].toLocaleString('tr-TR') : "-";
           return [
-            p.name,
+            `${p.name} (${p.type})`,
             totalAdet, 
             `%${formatDisplayMetric(p.rotaOrani, true)}`,
             `%${formatDisplayMetric(p.tvsOrani, true)}`,
@@ -403,12 +403,12 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         
       doc.autoTable({
         startY: 35,
-        head: [['Personel Ad Soyad', 'Top. Adet', 'Rota %', 'TVS %', 'Check-in %', 'SMS %']],
+        head: [['Personel (Tür)', 'TOPLAM', 'Rota %', 'TVS %', 'Check-in %', 'SMS %']],
         body: personnelRows,
         theme: 'striped',
         styles: { font: 'Roboto', fontSize: 9 },
         headStyles: { fillColor: [100, 116, 139], halign: 'center' },
-        columnStyles: { 1: { halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229] }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' } },
+        columnStyles: { 0: { halign: 'left', cellWidth: 40, fontStyle: 'bold' }, 1: { halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229], cellWidth: 12 }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' } },
         didParseCell: function(data) {
           if (data.section === 'body') {
             const colIndex = data.column.index;
@@ -711,11 +711,12 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                   <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.musteriSikayet}</span></div>
                 </div>
               </div>
+              {/* GÜNCELLENDİ: Pb D/O ve Dağıtım Oranı Yazısı Eklendi */}
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-800 text-white`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">PB D/O</p>
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Pb D/O</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
-                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-transparent whitespace-nowrap"></span></div>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Dağıtım Oranı</span></div>
                 </div>
               </div>
             </div>
@@ -807,7 +808,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         </div>
       )}
 
-      {/* YENİ: Filo Detayları Modal Penceresi (Sıralama Güncellendi) */}
+      {/* GÜNCELLENDİ: Filo Detayları Modal Penceresi (Yeni Sıralama ve 25 Karakter Sınırı) */}
       {showFleetModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowFleetModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -819,28 +820,30 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                 <table className="w-full text-left whitespace-nowrap border-collapse">
                    <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                       <tr>
-                        {/* GÜNCELLENDİ: Sıralama değiştirildi ve Araç Cinsi kaldırıldı */}
+                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">Ort. KM</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Çalışma Şekli</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Plaka</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Tedarikçi Adı</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Marka Model</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Model Yılı</th>
-                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">Ort. KM</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                       {unitFleet.length > 0 ? (
                           unitFleet.map((vehicle, idx) => {
                              const plateKey = vehicle.plate ? String(vehicle.plate).replace(/\s/g, "").toUpperCase() : "";
+                             // Tedarikçi adını sınırla
+                             const supplierName = vehicle.supplier || "";
+                             const displaySupplier = supplierName.length > 25 ? supplierName.substring(0, 25) + "..." : supplierName;
+                             
                              return (
                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                                  {/* GÜNCELLENDİ: Sıralama değiştirildi ve Araç Cinsi kaldırıldı */}
-                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm font-semibold text-purple-600 dark:text-purple-400">{vehicle.operationType}</td>
+                                  <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[plateKey] || "-"}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm font-semibold text-purple-600 dark:text-purple-400 bg-purple-50/30 dark:bg-purple-900/10">{vehicle.operationType}</td>
                                   <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plate}</td>
-                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.supplier}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400" title={supplierName}>{displaySupplier}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.brandModel}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400 text-center">{vehicle.year}</td>
-                                  <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[plateKey] || "-"}</td>
                                </tr>
                              );
                           })
