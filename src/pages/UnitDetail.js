@@ -31,14 +31,14 @@ const formatDisplayMetric = (val, isPercent = true) => {
   return val;
 };
 
-// YENİ: İsimleri standartlaştıran (Çift boşlukları ve harf hatalarını düzelten) fonksiyon
+// İsimleri standartlaştıran fonksiyon
 const normalizeName = (name) => {
   if (!name) return "";
   return name
     .toString()
     .trim()
-    .replace(/\s+/g, ' ') // Birden fazla boşluğu tek boşluğa indirger
-    .toLocaleUpperCase('tr-TR'); // Hepsini standart büyük harfe çevirir
+    .replace(/\s+/g, ' ') 
+    .toLocaleUpperCase('tr-TR'); 
 };
 
 const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -125,7 +125,34 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, onBack, onChangeUnit })
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
-  // GÜNCELLENDİ: Adet verilerini çekerken İsimleri Normalize Ediyoruz
+  // YENİ: Ekranda gösterilecek 4. Metrik (Parçabaşı Dağıtım Oranı) için hesaplama
+  const pbRatioData = useMemo(() => {
+    let tPb = 0;
+    let tGenel = 0;
+
+    if (!quantitiesData || quantitiesData.length === 0) return { ratio: null };
+
+    const relevantQuantities = showYearAvg 
+        ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
+        : quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+
+    relevantQuantities.forEach(uq => {
+        if (uq.records && Array.isArray(uq.records)) {
+            uq.records.forEach(r => {
+                const countVal = r.count || 0;
+                tGenel += countVal;
+                const typeLower = (r.type || "").toLowerCase();
+                if (typeLower.includes("parça")) {
+                    tPb += countVal;
+                }
+            });
+        }
+    });
+
+    const ratio = tGenel > 0 ? (tPb / tGenel) * 100 : null;
+    return { ratio };
+  }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
+
   const personnelTotals = useMemo(() => {
     const totals = {};
     if (!quantitiesData || quantitiesData.length === 0) return totals;
@@ -357,7 +384,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, onBack, onChangeUnit })
       const personnelRows = targetData.personnel
         .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
         .map(p => {
-          // GÜNCELLENDİ: PDF'e yazarken de ismi normalize ediyoruz
           const safeName = normalizeName(p.name);
           const totalAdet = personnelTotals[safeName] ? personnelTotals[safeName].toLocaleString('tr-TR') : "-";
           return [
@@ -653,26 +679,35 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, onBack, onChangeUnit })
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            {/* GÜNCELLENDİ: Yan yana 4'lü Özel Tasarım Kartları */}
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mb-4">
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
-                <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Teslim" : "Teslim Perf."}</p>
-                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.teslimPerformansi, true)}%</h2>
-                  <div className="mt-auto"><span className="text-[8px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm">Hedef: %{TARGETS.teslimPerformansi}</span></div>
+                <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Teslim" : "Teslim"}</p>
+                  <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.teslimPerformansi, true)}%</h2>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">H: %{TARGETS.teslimPerformansi}</span></div>
                 </div>
               </div>
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isAdresAlimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
-                <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Adres" : "Adres Alım"}</p>
-                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.adresAlimOrani, true)}%</h2>
-                  <div className="mt-auto"><span className="text-[8px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm">Hedef: %{TARGETS.adresAlimOrani}</span></div>
+                <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Adres" : "Adres"}</p>
+                  <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.adresAlimOrani, true)}%</h2>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">H: %{TARGETS.adresAlimOrani}</span></div>
                 </div>
               </div>
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isMusteriSikayetBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
-                <div className="p-2 sm:p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[8px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap">{showYearAvg ? "Ort. Şikayet" : "Şikayet"}</p>
-                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.musteriSikayet, false)}</h2>
-                  <div className="mt-auto"><span className="text-[8px] sm:text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm">Hedef: {TARGETS.musteriSikayet}</span></div>
+                <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Şikayet" : "Şikayet"}</p>
+                  <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.musteriSikayet, false)}</h2>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">H: {TARGETS.musteriSikayet}</span></div>
+                </div>
+              </div>
+              {/* YENİ: Parçabaşı Dağıtım Oranı Kartı */}
+              <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-800 text-white`}>
+                <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">PB Oranı</p>
+                  <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Dağıtım</span></div>
                 </div>
               </div>
             </div>
@@ -734,7 +769,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, onBack, onChangeUnit })
                       const isAnyFail = (r !== null && r < TARGETS.rotaOrani) || (t !== null && t < TARGETS.tvsOrani) || (c !== null && c < TARGETS.checkInOrani) || (s !== null && s < TARGETS.smsOrani);
                       const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
                       
-                      // GÜNCELLENDİ: Ekrana yazdırırken de normalize edilmiş isimle arıyoruz
                       const safeName = normalizeName(person.name);
                       const totalAdet = personnelTotals[safeName] ? personnelTotals[safeName].toLocaleString('tr-TR') : "-";
 
