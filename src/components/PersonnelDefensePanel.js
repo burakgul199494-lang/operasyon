@@ -23,7 +23,7 @@ const formatDisplayMetric = (val) => {
   return val;
 };
 
-// KUSURSUZ EŞLEŞME: Tüm çift boşlukları ve büyük/küçük harfleri temizleyip standartlaştırır
+// İsim temizleme (Adetlerin hatasız eşleşmesi için)
 const normalizeName = (name) => {
   if (!name) return "";
   return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -92,7 +92,7 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
     return uniqueMonths.slice(0, 3);
   }, [selectedYear, selectedMonth, isThreeMonthView, allData]);
 
-  // ADET HESAPLAMA (KUSURSUZ İSİM EŞLEŞTİRME İLE)
+  // ADET HESAPLAMA (Tüm ilgili ayların toplamını bulur)
   const personnelAdetTotals = useMemo(() => {
     const totals = {};
     if (!quantitiesData || quantitiesData.length === 0 || targetMonths.length === 0) return totals;
@@ -109,7 +109,6 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
                 const key = `${unitName}|${safeName}`;
                 if (!totals[key]) totals[key] = 0;
                 
-                // Sayıyı güvenli formata çevir
                 const countVal = parseInt(String(r.count).replace(/\D/g, ''), 10) || 0;
                 totals[key] += countVal;
             });
@@ -137,7 +136,6 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
             const isAnyFail = (r !== null && r < TARGETS.rotaOrani) || (t !== null && t < TARGETS.tvsOrani) || (c !== null && c < TARGETS.checkInOrani) || (s !== null && s < TARGETS.smsOrani);
             const isTebrik = !isAnyFail && (r !== null || t !== null || c !== null || s !== null);
 
-            // Adet Eşleştirme (Normalize)
             const unitName = (record.unit || "").trim().toUpperCase();
             const safeName = normalizeName(person.name);
             const key = `${unitName}|${safeName}`;
@@ -210,9 +208,10 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
            const isAnyFail = (avgR !== null && avgR < TARGETS.rotaOrani) || (avgT !== null && avgT < TARGETS.tvsOrani) || (avgC !== null && avgC < TARGETS.checkInOrani) || (avgS !== null && avgS < TARGETS.smsOrani);
            const isTebrik = !isAnyFail && (avgR !== null || avgT !== null || avgC !== null || avgS !== null);
            
-           // Adet Eşleştirme (3 Aylık Toplam)
+           // GÜNCELLENDİ: Adeti Eşleştirme ve ORTALAMASINI (Bölü Ay Sayısı) Alma
            const key = `${personData.unitName}|${personData.safeName}`;
            const totalAdet = personnelAdetTotals[key] || 0;
+           const avgAdet = targetMonths.length > 0 ? Math.round(totalAdet / targetMonths.length) : 0;
 
            list.push({ 
              name: personData.name,
@@ -224,7 +223,7 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
              smsOrani: avgS,
              isTebrik, 
              isDefense: isAnyFail,
-             totalAdetDisplay: totalAdet > 0 ? totalAdet.toLocaleString('tr-TR') : "-", 
+             totalAdetDisplay: avgAdet > 0 ? avgAdet.toLocaleString('tr-TR') : "-", 
              periodString: pString
            });
         }
@@ -264,8 +263,9 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
 
       const isAvg = isThreeMonthView && targetMonths.length > 1;
       
+      // GÜNCELLENDİ: Metin 'Dönem Ort. Teslim Adeti' olarak değişti
       const tableRows = [
-        [`Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
+        [isAvg ? `Dönem Ort. Teslim Adeti` : `Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
         [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
         [`TVS Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
         [`Check-in Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
@@ -274,7 +274,7 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
 
       doc.autoTable({
         startY: 50,
-        head: [['Performans Kriteri', isAvg ? 'Ortalama / Toplam Değer' : 'Personel Değeri', 'Şirket Hedefi']],
+        head: [['Performans Kriteri', isAvg ? 'Ortalama Değer' : 'Personel Değeri', 'Şirket Hedefi']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 10 },
@@ -353,7 +353,7 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
       const isAvg = isThreeMonthView && targetMonths.length > 1;
       
       const tableRows = [
-        [`Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
+        [isAvg ? `Dönem Ort. Teslim Adeti` : `Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
         [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
         [`TVS Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
         [`Check-in Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
@@ -362,7 +362,7 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
 
       doc.autoTable({
         startY: 50,
-        head: [['Performans Kriteri', isAvg ? 'Ortalama / Toplam Değer' : 'Personel Değeri', 'Şirket Hedefi']],
+        head: [['Performans Kriteri', isAvg ? 'Ortalama Değer' : 'Personel Değeri', 'Şirket Hedefi']],
         body: tableRows,
         theme: 'grid',
         styles: { font: 'Roboto', fontSize: 10 },
@@ -436,7 +436,7 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
         const isAvg = isThreeMonthView && targetMonths.length > 1;
         
         const tableRows = [
-          [`Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
+          [isAvg ? `Dönem Ort. Teslim Adeti` : `Dönem Toplam Teslim Adeti`, person.totalAdetDisplay, `-`],
           [`Rota Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.rotaOrani)}`, `%${TARGETS.rotaOrani}`],
           [`TVS Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.tvsOrani)}`, `%${TARGETS.tvsOrani}`],
           [`Check-in Oranı ${isAvg ? '(Ort)' : ''}`, `%${formatDisplayMetric(person.checkInOrani)}`, `%${TARGETS.checkInOrani}`],
@@ -445,7 +445,7 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
 
         doc.autoTable({
           startY: 50,
-          head: [['Performans Kriteri', isAvg ? 'Ortalama / Toplam Değer' : 'Personel Değeri', 'Hedef']],
+          head: [['Performans Kriteri', isAvg ? 'Ortalama Değer' : 'Personel Değeri', 'Hedef']],
           body: tableRows,
           theme: 'grid',
           styles: { font: 'Roboto', fontSize: 10 },
@@ -487,7 +487,6 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
 
   return (
     <div className="bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
-      {/* GENİŞ YAPI KORUNDU VE GERİ DÖN BUTONU EKLENDİ */}
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800 px-4 py-4 shadow-sm flex items-center gap-3">
           <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
               <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
@@ -554,7 +553,7 @@ const PersonnelDefensePanel = ({ allData, quantitiesData, onBack }) => {
                 <tr>
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Birim</th>
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ad Soyad</th>
-                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Adet</th>
+                  <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "Adet Ort." : "Adet"}</th>
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "Rota Ort." : "Rota"}</th>
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "TVS Ort." : "TVS"}</th>
                   <th className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{isThreeMonthView ? "Check-in Ort." : "Check-in"}</th>
