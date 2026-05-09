@@ -685,29 +685,29 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, onBack, onChangeUnit })
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Teslim" : "Teslim"}</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.teslimPerformansi, true)}%</h2>
-                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">H: %{TARGETS.teslimPerformansi}</span></div>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: %{TARGETS.teslimPerformansi}</span></div>
                 </div>
               </div>
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isAdresAlimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Adres" : "Adres"}</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.adresAlimOrani, true)}%</h2>
-                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">H: %{TARGETS.adresAlimOrani}</span></div>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: %{TARGETS.adresAlimOrani}</span></div>
                 </div>
               </div>
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isMusteriSikayetBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Şikayet" : "Şikayet"}</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.musteriSikayet, false)}</h2>
-                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">H: {TARGETS.musteriSikayet}</span></div>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.musteriSikayet}</span></div>
                 </div>
               </div>
               {/* YENİ: Parçabaşı Dağıtım Oranı Kartı */}
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-800 text-white`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">PB Oranı</p>
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Pb Dağıtım Oranı</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
-                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Dağıtım</span></div>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Dağıtım Oranı</span></div>
                 </div>
               </div>
             </div>
