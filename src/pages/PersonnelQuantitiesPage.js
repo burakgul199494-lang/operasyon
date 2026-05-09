@@ -478,10 +478,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                     
                                     <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
                                         <td className={`p-2 text-right font-black sticky left-0 z-20 bg-slate-200 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 ${COL1_WIDTH}`}>
-                                            ALT
+                                            GÜNLÜK
                                         </td>
                                         <td className={`p-1 text-center font-black sticky z-20 bg-slate-200 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
-                                            TOP.
+                                            ALT TOPLAM
                                         </td>
                                         <td className="p-1.5 sm:p-2 text-center font-black border-l border-b border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
                                             {totalCount}
