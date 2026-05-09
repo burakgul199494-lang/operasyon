@@ -66,7 +66,8 @@ const COL1_WIDTH = "w-[130px] min-w-[130px] max-w-[130px] sm:w-[160px] sm:min-w-
 const COL2_WIDTH = "w-[36px] min-w-[36px] max-w-[36px] sm:w-[46px] sm:min-w-[46px] sm:max-w-[46px]";
 const COL2_LEFT = "left-[130px] sm:left-[160px]";
 
-const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
+// GÜNCELLENDİ: Hataları engellemek için varsayılan boş listeler (= []) eklendi
+const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
   const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
@@ -151,11 +152,10 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     
     daysArr.forEach(d => dTotals[d] = 0);
 
-    // Eğer Yıl Ortalaması görünümündeysek, adet detaylarını o ay için değil yıl için harmanlamamak adına 
-    // quantitiesData'yı ay bazında hesaplıyoruz (Adet tablosu aylıktır)
+    const safeQuantities = quantitiesData || []; // GÜVENLİK
     const relevantQuantities = showYearAvg 
-        ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
-        : quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+        ? safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
+        : safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
 
     const map = {};
     relevantQuantities.forEach(uq => {
@@ -195,9 +195,32 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
   const totalCount = totalPersonel + totalParca;
   const pbRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : null;
 
+  const pbRatioData = useMemo(() => {
+    return { ratio: pbRatio };
+  }, [pbRatio]);
+
+  const personnelTotals = useMemo(() => {
+    const totals = {};
+    const safeQuantities = quantitiesData || []; // GÜVENLİK
+    const relevantQuantities = showYearAvg 
+        ? safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
+        : safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+
+    relevantQuantities.forEach(uq => {
+        if (uq.records && Array.isArray(uq.records)) {
+            uq.records.forEach(r => {
+                const safeName = normalizeName(r.name);
+                if (!totals[safeName]) totals[safeName] = 0;
+                totals[safeName] += (r.count || 0);
+            });
+        }
+    });
+    return totals;
+  }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
+
   const unitFleet = useMemo(() => {
-    if (!fleetData || !selectedUnit) return [];
-    const filteredFleet = fleetData.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
+    const safeFleet = fleetData || []; // GÜVENLİK
+    const filteredFleet = safeFleet.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
     return filteredFleet.sort((a, b) => {
       const typeA = String(a.operationType || "");
       const typeB = String(b.operationType || "");
@@ -241,10 +264,81 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     doc.text(`Dönem: ${donemText}`, 14, 35);
     doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
     let startY = 45;
+    
     if (type === 'report') {
       doc.setFontSize(9); 
       doc.setTextColor(60);
-      const introText = generateDynamicAnalysis(targetData);
+      
+      const t = parseMetric(targetData.teslimPerformansi);
+      const a = parseMetric(targetData.adresAlimOrani);
+      const ms = parseMetric(targetData.musteriSikayet);
+      const r = parseMetric(targetData.rotaOrani);
+      const tvs = parseMetric(targetData.tvsOrani);
+      const c = parseMetric(targetData.checkInOrani);
+      const s = parseMetric(targetData.smsOrani);
+      const eatf = parseMetric(targetData.eAtfOrani);
+      const htf = parseMetric(targetData.htfOrani);
+      const ks = parseMetric(targetData.kontrolSende);
+      const ot = parseMetric(targetData.olcumTartim);
+
+      let introText = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıda tarafınıza sunulmuştur:\n\n";
+
+      if (t !== null) {
+        if (t >= TARGETS.teslimPerformansi) introText += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
+        else introText += "• Teslim performansınız ilgili ay içerisinde hedef altı kalmıştır, dağıtım planlamalarınızda mutlaka günlük kargolara öncelik verilmelidir.\n";
+      }
+      if (a !== null) {
+        if (a >= TARGETS.adresAlimOrani) introText += "• Adres alım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+        else if (a >= 80) introText += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
+        else introText += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
+      }
+      if (ms !== null) {
+        if (ms === 0) introText += "• İlgili dönemde şubeye ait müşteri şikayeti bulunmamaktadır, çok iyi bir performans sergilenmiştir.\n";
+        else if (ms === 1) introText += "• İlgili dönemde 1 adet müşteri şikayetiniz bulunmaktadır, operasyonel süreçlerde dikkatli olunmalıdır.\n";
+        else introText += `• İlgili dönemde ${ms} adet müşteri şikayeti tespit edilmiştir. Bu durum ciddi uyarı gerektirmekte olup süreçlerinizi acilen gözden geçirmeniz şarttır.\n`;
+      }
+      if (r !== null) {
+        if (r >= TARGETS.rotaOrani) introText += "• Rota oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+        else if (r >= 80) introText += "• Rota oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+        else introText += "• Rota oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
+      }
+      if (tvs !== null) {
+        if (tvs >= TARGETS.tvsOrani) introText += "• TVS oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+        else if (tvs >= 90) introText += "• TVS oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+        else introText += "• TVS oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
+      }
+      if (c !== null) {
+        if (c >= TARGETS.checkInOrani) introText += "• Check-in oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+        else if (c >= 85) introText += "• Check-in oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+        else introText += "• Check-in oranınız başarısızdır, kurye arkadaşlarımızın mutlaka her teslimat sonrası check-in yapması zorunludur.\n";
+      }
+      if (s !== null) {
+        if (s >= TARGETS.smsOrani) introText += "• SMS ile teslimat oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+        else if (s >= 65) introText += "• SMS ile teslimat oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+        else introText += "• SMS ile teslimat oranınız başarısızdır, kurye arkadaşlarımızın kargo tesliminde mutlaka sms ile teslimat yöntemine yönlendirilmesi gerekmektedir.\n";
+      }
+      if (eatf !== null) {
+        if (eatf >= TARGETS.eAtfOrani) introText += "• E-atf oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+        else if (eatf >= 90) introText += "• E-ATF oranınız hedeflenen orana yakındır, kurye arkadaşlarımızın mutlaka E-atf düzenlemesi, ve operatör arkadaşlarımızın mutlaka eşleme yapması gerekmektedir.\n";
+        else introText += "• E-ATF oranınız başarısızdır, bu alanda mutlaka tüm kurye ve operatör arkadaşlarımıza eğitim planlaması yapılmalıdır.\n";
+      }
+      if (htf !== null) {
+        if (htf >= TARGETS.htfOrani) introText += "• HTF oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+        else if (htf >= 85) introText += "• HTF oranınız hedeflenen oranlara yakın gerçekleşmiştir, mutlaka operatör arkadaşlarımızın aktarma merkezlerinde tutulan HTF'lere karşılık HTF tutması gerekmektedir.\n";
+        else introText += "• HTF oranınız başarısızdır, bu konuda ciddi bir sıkıntı mevcuttur, mutlaka kargo indirmelerinde HTF düzenlenmelidir.\n";
+      }
+      if (ks !== null) {
+        if (ks >= TARGETS.kontrolSende) introText += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+        else if (ks >= 80) introText += "• Kontrol Sende kullanım oranınız hedefe yakındır, konuyla ilgili alınacak küçük aksiyonlar hedefi gerçekleştirmemizi sağlayacaktır.\n";
+        else introText += "• Kontrol Sende oranınız heedin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
+      }
+      if (ot !== null) {
+        if (ot <= TARGETS.olcumTartim) introText += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
+        else if (ot <= 40) introText += "• Ölçüm/Tartım farkı işlemleriniz ortalama seviyededir, artış eğilimine karşı dikkat edilmelidir.\n";
+        else introText += "• Ölçüm/Tartım sayınız kritik seviyededir. Ölçüm tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
+      }
+      introText += "\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm çalışma arkadaşlarımıza başarılar dileriz.";
+
       const splitIntro = doc.splitTextToSize(introText, 182);
       doc.text(splitIntro, 14, 50);
 
@@ -337,6 +431,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       doc.text("İmza:", 140, finalY);
     }
     
+    // GÜNCELLENDİ: Hataları engellemek için array kopyalaması [...array] eklendi
     if (type === 'report' && targetData.personnel && targetData.personnel.length > 0) {
       doc.addPage();
       doc.setFontSize(16);
@@ -348,9 +443,10 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       
       const targetTotals = {};
       const targetTypes = {};
+      const safeQuantities = quantitiesData || []; // GÜVENLİK
       const rq = isYearAvg 
-          ? quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year))
-          : quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
+          ? safeQuantities.filter(d => d.unit === targetUnit && d.year === parseInt(year))
+          : safeQuantities.filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
 
       rq.forEach(uq => {
           if (uq.records && Array.isArray(uq.records)) {
@@ -364,7 +460,8 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
           }
       });
       
-      const personnelRows = targetData.personnel
+      // GÜNCELLENDİ: [...targetData.personnel] yaparak React'i kilitlenmeden kurtarıyoruz
+      const personnelRows = [...(targetData.personnel || [])]
         .sort((a, b) => {
             const safeNameA = normalizeName(a.name);
             const safeNameB = normalizeName(b.name);
@@ -430,7 +527,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     }
   };
 
-  // YENİ: Adet Analizi PDF (Birim Detayından Tek Tıkla)
   const generateQuantitiesPDF = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -528,7 +624,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     }
   };
 
-  // YENİ: Filo Listesi PDF (Birim Detayından Tek Tıkla)
   const generateFleetPDF = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -717,7 +812,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       } catch(e) { console.warn("Font indirilemedi."); }
       for (const unit of UNITS) {
         if(unit === "BÖLGE") continue;
-        const unitData = showYearAvg ? calculateYearlyAverage(unit) : allData.find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+        const unitData = showYearAvg ? calculateYearlyAverage(unit) : (allData || []).find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
         if (unitData && metricsList.some(m => unitData[m] !== null && unitData[m] !== undefined && unitData[m] !== "")) {
           const doc = await createPdfDoc('report', unit, unitData, selectedYear, selectedMonth, showYearAvg, base64Font);
           const pdfBlob = doc.output('blob');
@@ -889,6 +984,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         )}
       </div>
 
+      {/* TÜM PERSONELLER LİSTESİ MODAL PENCERESİ */}
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -910,13 +1006,14 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                  {displayData.personnel
+                  {/* GÜNCELLENDİ: [KOPYA ALINARAK] React kilitlenmesi engellendi ve Türüne Göre Sıralandı */}
+                  {[...(displayData.personnel || [])]
                     .sort((a, b) => {
                       const safeNameA = normalizeName(a.name);
                       const safeNameB = normalizeName(b.name);
                       const tA = personelList.some(x=> normalizeName(x.name)===safeNameA) ? "Per" : (parcabasiList.some(x=> normalizeName(x.name)===safeNameA) ? "Pb" : "Per");
                       const tB = personelList.some(x=> normalizeName(x.name)===safeNameB) ? "Per" : (parcabasiList.some(x=> normalizeName(x.name)===safeNameB) ? "Pb" : "Per");
-                      if (tA !== tB) return tA === "Per" ? -1 : 1;
+                      if (tA !== tB) return tA === "Per" ? -1 : 1; // Önce Per Sonra Pb
                       return (a.name || "").localeCompare(b.name || "", 'tr-TR');
                     })
                     .map((person, idx) => {
@@ -960,6 +1057,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         </div>
       )}
 
+      {/* FİLO DETAYLARI MODAL PENCERESİ */}
       {showFleetModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowFleetModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -1009,6 +1107,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         </div>
       )}
 
+      {/* BELGE (PDF) İNDİRME MODAL PENCERESİ */}
       {showPdfModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPdfModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm sm:max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
@@ -1017,7 +1116,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
               {!isGeneratingPdf && (<button onClick={() => setShowPdfModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={20} /></button>)}
             </div>
             
-            {/* GÜNCELLENDİ: Taşmaları Engellemek İçin Kaydırma Alanı eklendi */}
             <div className="p-4 sm:p-5 space-y-3 max-h-[75vh] overflow-y-auto no-scrollbar">
               <button onClick={() => generatePDF('report')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-blue-100 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800/50 transition-colors text-left disabled:opacity-50">
                  <div className="w-10 h-10 rounded-full bg-blue-200 dark:bg-blue-800/50 flex items-center justify-center text-blue-700 dark:text-blue-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <FileText size={20} />}</div>
@@ -1046,7 +1144,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
                     <p className="text-[10px] sm:text-xs text-purple-600/80 dark:text-purple-400/80 mt-0.5">Personel bazlı 31 günlük adet tablosu.</p>
                  </div>
               </button>
-
             </div>
           </div>
         </div>
