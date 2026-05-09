@@ -5,15 +5,21 @@ import { UNITS, MONTH_NAMES } from "../utils/helpers";
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-const formatDisplayMetric = (val) => {
+// GÜNCELLENDİ: Yüzdeler için 2 küsürat desteği eklendi
+const formatDisplayMetric = (val, isPercent = false) => {
     if (val === undefined || val === null || val === "") return "-";
     let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
     let num = parseFloat(strVal);
-    if (!isNaN(num)) return num.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    if (!isNaN(num)) return num.toLocaleString('tr-TR', { minimumFractionDigits: isPercent ? 2 : 0, maximumFractionDigits: isPercent ? 2 : 0 });
     return val;
 };
 
-// İsim temizleme kuralı
+// Panelde Yüzdelik gösterim için özel yardımcı fonksiyon (%93,23 formatı için)
+const getFormattedPercent = (val) => {
+    const formatted = formatDisplayMetric(val, true);
+    return formatted === "-" ? "-" : `%${formatted}`;
+};
+
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -26,7 +32,6 @@ const getBase64 = (blob) => new Promise((resolve, reject) => {
     reader.readAsDataURL(blob);
 });
 
-// Kaydırma sırasında iç içe geçmeyi engelleyen MİLİMETRİK sütun genişlik kilitleri
 const COL1_WIDTH = "w-[120px] min-w-[120px] max-w-[120px] sm:w-[150px] sm:min-w-[150px] sm:max-w-[150px]";
 const COL2_WIDTH = "w-[40px] min-w-[40px] max-w-[40px] sm:w-[50px] sm:min-w-[50px] sm:max-w-[50px]";
 const COL2_LEFT = "left-[120px] sm:left-[150px]";
@@ -39,11 +44,8 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
     
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
-    
-    // YENİ: Tıklanan Personelin Performans Verilerini Tutacak State
     const [selectedPersonData, setSelectedPersonData] = useState(null);
 
-    // OTOMATİK AY BULMA
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
             const validData = quantitiesData.filter(d => d.records && d.records.length > 0);
@@ -125,7 +127,6 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
     const parcabasiRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : 0;
     const ratioStr = parcabasiRatio.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    // YENİ: Satıra tıklanınca personelin Rota, TVS, vs. bilgilerini allData'dan çeker
     const handlePersonClick = (clickedPerson) => {
         let perfData = null;
         if (currentData && currentData.personnel) {
@@ -239,7 +240,6 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
         [searchQuery]
     );
 
-    // KARŞILAMA EKRANI (Birim Seçimi)
     if (!selectedUnit) {
         return (
             <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
@@ -337,7 +337,6 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
             </div>
 
             <div className="p-4 space-y-4">
-                {/* BİLGİ KARTLARI */}
                 <div className="mb-4">
                     <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
                     <div className="flex gap-1 overflow-x-auto no-scrollbar">
@@ -380,15 +379,15 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
                         <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                             <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
                             <div className="flex justify-between items-end">
-                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo, false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenAdet, false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                             </div>
                         </div>
                         <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                             <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
                             <div className="flex justify-between items-end">
-                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo, false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenAdet, false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                             </div>
                         </div>
                     </div>
@@ -416,7 +415,6 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
                     </div>
                 </div>
 
-                {/* TABLO BÖLÜMÜ */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu <span className="text-[10px] font-medium text-slate-400 ml-1">(Performansı Görmek İçin İsme Tıklayın)</span></h3>
@@ -447,8 +445,14 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
                                 <tbody>
                                     {personelList.map((p, idx) => {
                                         const pTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+                                        // GÜNCELLENDİ: Sadece performans verisi varsa tıklanabilir
+                                        const hasData = currentData && currentData.personnel && currentData.personnel.some(per => normalizeName(per.name) === normalizeName(p.name));
+                                        
                                         return (
-                                            <tr key={`p-${idx}`} onClick={() => handlePersonClick(p)} className="cursor-pointer bg-blue-50/40 hover:bg-blue-100 dark:bg-blue-900/10 dark:hover:bg-blue-900/30 text-blue-900 dark:text-blue-100 transition-colors">
+                                            <tr key={`p-${idx}`} 
+                                                onClick={() => hasData ? handlePersonClick(p) : null} 
+                                                className={`${hasData ? 'cursor-pointer' : ''} bg-blue-50/40 hover:bg-blue-100 dark:bg-blue-900/10 dark:hover:bg-blue-900/30 text-blue-900 dark:text-blue-100 transition-colors`}
+                                            >
                                                 <td className={`p-2 font-bold sticky left-0 z-20 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 shadow-none truncate ${COL1_WIDTH}`} title={p.name}>
                                                     {p.name}
                                                 </td>
@@ -470,8 +474,14 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
                                     
                                     {parcabasiList.map((p, idx) => {
                                         const pbTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+                                        // GÜNCELLENDİ: Sadece performans verisi varsa tıklanabilir
+                                        const hasData = currentData && currentData.personnel && currentData.personnel.some(per => normalizeName(per.name) === normalizeName(p.name));
+
                                         return (
-                                            <tr key={`pb-${idx}`} onClick={() => handlePersonClick(p)} className="cursor-pointer bg-rose-50/40 hover:bg-rose-100 dark:bg-rose-900/10 dark:hover:bg-rose-900/30 text-rose-900 dark:text-rose-100 transition-colors">
+                                            <tr key={`pb-${idx}`} 
+                                                onClick={() => hasData ? handlePersonClick(p) : null} 
+                                                className={`${hasData ? 'cursor-pointer' : ''} bg-rose-50/40 hover:bg-rose-100 dark:bg-rose-900/10 dark:hover:bg-rose-900/30 text-rose-900 dark:text-rose-100 transition-colors`}
+                                            >
                                                 <td className={`p-2 font-bold sticky left-0 z-20 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 shadow-none truncate ${COL1_WIDTH}`} title={p.name}>
                                                     {p.name}
                                                 </td>
@@ -523,7 +533,7 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
 
             </div>
 
-            {/* YENİ: PERSONEL PERFORMANS DETAY MODALI */}
+            {/* PERSONEL PERFORMANS DETAY MODALI */}
             {selectedPersonData && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedPersonData(null)}>
                     <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
@@ -543,22 +553,22 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
                                     <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-center flex flex-col items-center shadow-sm">
                                         <TrendingUp className="text-blue-500 mb-1.5" size={20} />
                                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Rota</p>
-                                        <p className="text-xl font-black text-slate-800 dark:text-white">{formatDisplayMetric(selectedPersonData.performance.rotaOrani, true)}%</p>
+                                        <p className="text-xl font-black text-slate-800 dark:text-white">{getFormattedPercent(selectedPersonData.performance.rotaOrani)}</p>
                                     </div>
                                     <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-center flex flex-col items-center shadow-sm">
                                         <Activity className="text-teal-500 mb-1.5" size={20} />
                                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">TVS</p>
-                                        <p className="text-xl font-black text-slate-800 dark:text-white">{formatDisplayMetric(selectedPersonData.performance.tvsOrani, true)}%</p>
+                                        <p className="text-xl font-black text-slate-800 dark:text-white">{getFormattedPercent(selectedPersonData.performance.tvsOrani)}</p>
                                     </div>
                                     <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-center flex flex-col items-center shadow-sm">
                                         <CheckCircle2 className="text-emerald-500 mb-1.5" size={20} />
                                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Check-in</p>
-                                        <p className="text-xl font-black text-slate-800 dark:text-white">{formatDisplayMetric(selectedPersonData.performance.checkInOrani, true)}%</p>
+                                        <p className="text-xl font-black text-slate-800 dark:text-white">{getFormattedPercent(selectedPersonData.performance.checkInOrani)}</p>
                                     </div>
                                     <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-center flex flex-col items-center shadow-sm">
                                         <Smartphone className="text-purple-500 mb-1.5" size={20} />
                                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">SMS</p>
-                                        <p className="text-xl font-black text-slate-800 dark:text-white">{formatDisplayMetric(selectedPersonData.performance.smsOrani, true)}%</p>
+                                        <p className="text-xl font-black text-slate-800 dark:text-white">{getFormattedPercent(selectedPersonData.performance.smsOrani)}</p>
                                     </div>
                                 </div>
                             ) : (
