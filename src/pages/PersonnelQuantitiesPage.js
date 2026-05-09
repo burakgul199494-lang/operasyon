@@ -40,6 +40,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
+    // OTOMATİK AY BULMA (Sadece verisi olan en güncel ayı getirir)
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
             const validData = quantitiesData.filter(d => d.records && d.records.length > 0);
@@ -99,7 +100,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
             Object.values(map).forEach(p => {
                 const typeLower = (p.type || "").toLowerCase();
-                const shortType = typeLower.includes("parça") ? "PB" : "Per."; // GÜNCELLENDİ: Kısaltma Yapıldı
+                const shortType = typeLower.includes("parça") ? "PB" : "Per."; 
                 
                 if (shortType === "PB") {
                     pbList.push({ ...p, type: shortType });
@@ -273,8 +274,8 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
-            {/* GÜNCELLENDİ: 'relative sm:sticky' -> Mobilde aşağı kaydırırken üst menüler kaybolur, tabloya yer açılır */}
-            <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-40 shadow-sm border-b border-slate-200 dark:border-slate-800 relative sm:sticky sm:top-0">
+            {/* GÜNCELLENDİ: 'relative sm:sticky' kullanıldı. Mobilde ekranı kaydırınca bu üst panel kaybolur, tam ekran tabloya kalır. */}
+            <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 shadow-sm border-b border-slate-200 dark:border-slate-800 relative sm:sticky sm:top-0">
                 <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
@@ -401,7 +402,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </div>
                 </div>
 
-                {/* TABLO BÖLÜMÜ - GÜNCELLENDİ: DİREKT AÇIK (Mobilde gizlenmez) */}
+                {/* TABLO BÖLÜMÜ - GÜNCELLENDİ: Direk Açık ve Mobil Uyumlu */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu</h3>
@@ -412,11 +413,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     
                     {totalCount > 0 ? (
                         <div className="overflow-x-auto relative no-scrollbar block w-full">
-                            {/* GÜNCELLENDİ: Fontlar mobilde en iyi sığsın diye text-[10px] yapıldı */}
                             <table className="w-full text-left whitespace-nowrap border-collapse text-[10px] sm:text-[11px]">
                                 <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-30 shadow-sm">
                                     <tr>
-                                        {/* GÜNCELLENDİ: 1. ve 2. Sütunlar MİLİMETRİK genişliklerle sabitlendi */}
+                                        {/* GÜNCELLENDİ: İlk 2 Sütun milimetrik sabitlendi. */}
                                         <th className={`p-2 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 shadow-none truncate ${COL1_WIDTH}`}>Personel Adı</th>
                                         <th className={`p-1 font-bold text-slate-600 dark:text-slate-300 text-center sticky bg-slate-100 dark:bg-slate-900 z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Tür</th>
                                         
@@ -479,7 +479,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                     })}
                                     
                                     <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
-                                        {/* GÜNCELLENDİ: Alt Toplam da iki ayrı hücre (td) olarak sabitlendi, colSpan kullanılmadı. */}
                                         <td className={`p-2 text-right font-black sticky left-0 z-20 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 shadow-none ${COL1_WIDTH}`}>
                                             ALT
                                         </td>
