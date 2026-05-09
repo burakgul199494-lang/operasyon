@@ -26,10 +26,10 @@ const getBase64 = (blob) => new Promise((resolve, reject) => {
     reader.readAsDataURL(blob);
 });
 
-// Kaydırma sırasında iç içe geçmeyi engelleyen MİLİMETRİK sütun genişlik kilitleri
-const COL1_WIDTH = "w-[120px] min-w-[120px] max-w-[120px] sm:w-[150px] sm:min-w-[150px] sm:max-w-[150px]";
-const COL2_WIDTH = "w-[40px] min-w-[40px] max-w-[40px] sm:w-[50px] sm:min-w-[50px] sm:max-w-[50px]";
-const COL2_LEFT = "left-[120px] sm:left-[150px]";
+// GÜNCELLENDİ: Sütun genişlikleri artırıldı, isimlerin rahat sığması sağlandı
+const COL1_WIDTH = "w-[130px] min-w-[130px] max-w-[130px] sm:w-[160px] sm:min-w-[160px] sm:max-w-[160px]";
+const COL2_WIDTH = "w-[36px] min-w-[36px] max-w-[36px] sm:w-[46px] sm:min-w-[46px] sm:max-w-[46px]";
+const COL2_LEFT = "left-[130px] sm:left-[160px]";
 
 const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) => {
     const [selectedUnit, setSelectedUnit] = useState(null); 
@@ -40,7 +40,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-    // OTOMATİK AY BULMA
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
             const validData = quantitiesData.filter(d => d.records && d.records.length > 0);
@@ -106,7 +105,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     pbList.push({ ...p, type: shortType });
                     Object.values(p.days).forEach(val => tParca += val);
                 } else {
-                    // İŞTE BEYAZ EKRANI YAPAN O HATA BURADAYDI! (personelList.push yerine pList.push yapıldı)
                     pList.push({ ...p, type: shortType });
                     Object.values(p.days).forEach(val => tPersonel += val);
                 }
@@ -224,7 +222,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         [searchQuery]
     );
 
-    // KARŞILAMA EKRANI
+    // KARŞILAMA EKRANI (Birim Seçimi)
     if (!selectedUnit) {
         return (
             <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
@@ -275,7 +273,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
-            {/* GÜNCELLENDİ: Sadece büyük ekranlarda (lg) sabit kalır, mobilde ekrandan kayıp gider */}
+            {/* Üst Panel: Mobilde kaydırınca gider, LG'de sabit kalır */}
             <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 shadow-sm border-b border-slate-200 dark:border-slate-800 relative lg:sticky lg:top-0">
                 <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -402,7 +400,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </div>
                 </div>
 
-                {/* TABLO BÖLÜMÜ - DİREKT AÇIK */}
+                {/* TABLO BÖLÜMÜ - GÜNCELLENDİ: "border-separate" eklendi, gap sorunu çözüldü, isimler sığması için boşluklar düzeltildi */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu</h3>
@@ -413,18 +411,18 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     
                     {totalCount > 0 ? (
                         <div className="overflow-x-auto relative no-scrollbar block w-full">
-                            <table className="w-full text-left whitespace-nowrap border-collapse text-[10px] sm:text-[11px]">
-                                <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-30 shadow-sm">
+                            <table className="w-full text-left whitespace-nowrap border-separate border-spacing-0 text-[10px] sm:text-[11px]">
+                                <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-30">
                                     <tr>
-                                        {/* İlk 2 Sütun milimetrik sabitlendi. */}
-                                        <th className={`p-2 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 shadow-none truncate ${COL1_WIDTH}`}>Personel Adı</th>
-                                        <th className={`p-1 font-bold text-slate-600 dark:text-slate-300 text-center sticky bg-slate-100 dark:bg-slate-900 z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Tür</th>
+                                        {/* İsim sütunu: Genişletildi ve sığması için truncate yerine normal kaydırma kullanıldı */}
+                                        <th className={`p-2 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 border-b border-slate-200 dark:border-slate-700 ${COL1_WIDTH}`}>Personel Adı</th>
+                                        <th className={`p-1 font-bold text-slate-600 dark:text-slate-300 text-center sticky bg-slate-100 dark:bg-slate-900 z-40 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Tür</th>
                                         
-                                        <th className="p-1 sm:p-2 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">TOPLAM</th>
+                                        <th className="p-1 sm:p-2 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-b border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">TOPLAM</th>
                                         {daysArray.map(d => {
                                             const isSun = getIsSunday(d);
                                             return (
-                                                <th key={d} className={`p-1 sm:p-2 font-bold text-center border-l border-slate-200 dark:border-slate-700 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                <th key={d} className={`p-1 sm:p-2 font-bold text-center border-l border-b border-slate-200 dark:border-slate-700 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'text-slate-600 dark:text-slate-400'}`}>
                                                     {String(d).padStart(2, '0')}
                                                 </th>
                                             );
@@ -436,10 +434,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                         const pTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                                         return (
                                             <tr key={`p-${idx}`} className="bg-blue-50/40 hover:bg-blue-100/50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20 text-blue-900 dark:text-blue-100 transition-colors">
-                                                <td className={`p-2 font-bold sticky left-0 z-20 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 shadow-none truncate ${COL1_WIDTH}`} title={p.name}>
+                                                <td className={`p-2 font-bold sticky left-0 z-20 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 whitespace-normal break-words leading-tight ${COL1_WIDTH}`}>
                                                     {p.name}
                                                 </td>
-                                                <td className={`p-1 text-center font-semibold text-[8px] sm:text-[9px] sticky z-20 bg-blue-50 dark:bg-slate-800 border-b border-l border-blue-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                                <td className={`p-1 text-center font-semibold text-[8px] sm:text-[9px] sticky z-20 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
                                                     {p.type}
                                                 </td>
                                                 <td className="p-1 sm:p-2 text-center font-black border-b border-l border-blue-100 dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-blue-100/30 dark:bg-blue-800/20">{pTotal}</td>
@@ -459,10 +457,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                         const pbTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                                         return (
                                             <tr key={`pb-${idx}`} className="bg-rose-50/40 hover:bg-rose-100/50 dark:bg-rose-900/10 dark:hover:bg-rose-900/20 text-rose-900 dark:text-rose-100 transition-colors">
-                                                <td className={`p-2 font-bold sticky left-0 z-20 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 shadow-none truncate ${COL1_WIDTH}`} title={p.name}>
+                                                <td className={`p-2 font-bold sticky left-0 z-20 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 whitespace-normal break-words leading-tight ${COL1_WIDTH}`}>
                                                     {p.name}
                                                 </td>
-                                                <td className={`p-1 text-center font-semibold text-[8px] sm:text-[9px] sticky z-20 bg-rose-50 dark:bg-slate-800 border-b border-l border-rose-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                                <td className={`p-1 text-center font-semibold text-[8px] sm:text-[9px] sticky z-20 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
                                                     {p.type}
                                                 </td>
                                                 <td className="p-1 sm:p-2 text-center font-black border-b border-l border-rose-100 dark:border-slate-700/50 text-red-700 dark:text-red-400 bg-rose-100/30 dark:bg-rose-800/20">{pbTotal}</td>
@@ -479,19 +477,19 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                     })}
                                     
                                     <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
-                                        <td className={`p-2 text-right font-black sticky left-0 z-20 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 shadow-none ${COL1_WIDTH}`}>
+                                        <td className={`p-2 text-right font-black sticky left-0 z-20 bg-slate-200 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 ${COL1_WIDTH}`}>
                                             ALT
                                         </td>
-                                        <td className={`p-1 text-center font-black sticky z-20 bg-slate-200 dark:bg-slate-700 border-t border-l border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                        <td className={`p-1 text-center font-black sticky z-20 bg-slate-200 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
                                             TOP.
                                         </td>
-                                        <td className="p-1.5 sm:p-2 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
+                                        <td className="p-1.5 sm:p-2 text-center font-black border-l border-b border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
                                             {totalCount}
                                         </td>
                                         {daysArray.map(d => {
                                             const isSun = getIsSunday(d);
                                             return (
-                                                <td key={d} className={`p-1.5 sm:p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600 ${isSun ? 'text-red-700 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30' : ''}`}>
+                                                <td key={d} className={`p-1.5 sm:p-2 text-center font-bold border-l border-b border-slate-300 dark:border-slate-600 ${isSun ? 'text-red-700 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30' : ''}`}>
                                                     {dailyTotals[d] || "-"}
                                                 </td>
                                             );
