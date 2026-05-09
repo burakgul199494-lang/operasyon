@@ -13,7 +13,6 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
-// İsim temizleme kuralı (Çift boşlukları ve harf hatalarını düzeltir)
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -63,6 +62,12 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         if (!quantitiesData || !selectedUnit) return null;
         return quantitiesData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
     }, [quantitiesData, selectedUnit, selectedYear, selectedMonth]);
+
+    // GÜNCELLENDİ: Pazar günlerini tespit etmek için fonksiyon eklendi
+    const getIsSunday = (day) => {
+        const d = new Date(selectedYear, selectedMonth - 1, day);
+        return d.getDay() === 0; // 0 = Pazar
+    };
 
     const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
@@ -183,18 +188,27 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 didParseCell: function(data) {
                     if (data.section === 'body') {
                         const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
+                        
+                        // PDF üzerinde Pazar günlerini kırmızı işaretleme
+                        const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                        
                         if (isTotalRow) {
-                            data.cell.styles.fillColor = [226, 232, 240]; 
-                            data.cell.styles.textColor = [15, 23, 42];
+                            data.cell.styles.fillColor = isSundayCol ? [254, 202, 202] : [226, 232, 240]; 
+                            data.cell.styles.textColor = isSundayCol ? [153, 27, 27] : [15, 23, 42];
                             data.cell.styles.fontStyle = 'bold';
                         }
                         else if (data.row.index < personelList.length) {
-                            data.cell.styles.fillColor = [240, 248, 255]; 
-                            data.cell.styles.textColor = [30, 58, 138];
+                            data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [240, 248, 255]; 
+                            data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [30, 58, 138];
                         } 
                         else {
-                            data.cell.styles.fillColor = [255, 241, 242]; 
-                            data.cell.styles.textColor = [159, 18, 57];
+                            data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [255, 241, 242]; 
+                            data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [159, 18, 57];
+                        }
+                    } else if (data.section === 'head') {
+                        const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                        if(isSundayCol) {
+                            data.cell.styles.fillColor = [220, 38, 38]; // Başlık için Koyu Kırmızı
                         }
                     }
                 }
@@ -264,7 +278,8 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 shadow-sm border-b border-slate-200 dark:border-slate-800">
+            {/* GÜNCELLENDİ: Mobilde tablo genişletildiğinde (isTableExpanded === true) panel 'relative' olur ve kayarak gizlenir. */}
+            <div className={`bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-40 shadow-sm border-b border-slate-200 dark:border-slate-800 ${isTableExpanded ? 'relative lg:sticky lg:top-0' : 'sticky top-0'}`}>
                 <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
@@ -429,19 +444,20 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                 )}
                             </div>
 
-                            {/* GÜNCELLENDİ: Mobilde gizlenen tablo (hidden sm:block), Fontlar Küçültüldü */}
                             <div className={`overflow-x-auto relative no-scrollbar ${!isTableExpanded ? 'hidden sm:block' : 'block'}`}>
                                 <table className="w-full text-left whitespace-nowrap border-collapse text-[10px] sm:text-xs">
                                     <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
                                         <tr>
-                                            {/* GÜNCELLENDİ: Personel ve Türü birleştirildi, tek sabit sütun yapıldı */}
                                             <th className="p-2 sm:p-3 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Personel (Tür)</th>
                                             <th className="p-1 sm:p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">TOPLAM</th>
-                                            {daysArray.map(d => (
-                                                <th key={d} className="p-1 sm:p-2 font-bold text-slate-600 dark:text-slate-400 text-center border-l border-slate-200 dark:border-slate-700">
-                                                    {String(d).padStart(2, '0')}
-                                                </th>
-                                            ))}
+                                            {daysArray.map(d => {
+                                                const isSun = getIsSunday(d);
+                                                return (
+                                                    <th key={d} className={`p-1 sm:p-2 font-bold text-center border-l border-slate-200 dark:border-slate-700 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                        {String(d).padStart(2, '0')}
+                                                    </th>
+                                                );
+                                            })}
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -449,17 +465,19 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                             const pTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                                             return (
                                                 <tr key={`p-${idx}`} className="bg-blue-50/40 hover:bg-blue-100/50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20 text-blue-900 dark:text-blue-100 transition-colors">
-                                                    {/* GÜNCELLENDİ: Sadece bu sütun sabit (sticky). Kayma sorunu çözüldü. */}
                                                     <td className="p-2 sm:p-3 sticky left-0 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                         <div className="font-bold">{p.name}</div>
                                                         <div className="text-[8px] sm:text-[9px] uppercase opacity-70 mt-0.5">{p.type}</div>
                                                     </td>
                                                     <td className="p-1.5 sm:p-3 text-center font-black border-b border-l border-blue-100 dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-blue-100/30 dark:bg-blue-800/20">{pTotal}</td>
-                                                    {daysArray.map(d => (
-                                                        <td key={d} className="p-1.5 sm:p-2 text-center border-l border-b border-blue-100 dark:border-slate-700/50 font-medium opacity-90">
-                                                            {p.days[d] || "-"}
-                                                        </td>
-                                                    ))}
+                                                    {daysArray.map(d => {
+                                                        const isSun = getIsSunday(d);
+                                                        return (
+                                                            <td key={d} className={`p-1.5 sm:p-2 text-center border-l border-b border-blue-100 dark:border-slate-700/50 font-medium opacity-90 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20' : ''}`}>
+                                                                {p.days[d] || "-"}
+                                                            </td>
+                                                        );
+                                                    })}
                                                 </tr>
                                             );
                                         })}
@@ -468,22 +486,23 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                             const pbTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                                             return (
                                                 <tr key={`pb-${idx}`} className="bg-rose-50/40 hover:bg-rose-100/50 dark:bg-rose-900/10 dark:hover:bg-rose-900/20 text-rose-900 dark:text-rose-100 transition-colors">
-                                                    {/* GÜNCELLENDİ: Sadece bu sütun sabit (sticky). */}
                                                     <td className="p-2 sm:p-3 sticky left-0 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                         <div className="font-bold">{p.name}</div>
                                                         <div className="text-[8px] sm:text-[9px] uppercase opacity-70 mt-0.5">{p.type}</div>
                                                     </td>
                                                     <td className="p-1.5 sm:p-3 text-center font-black border-b border-l border-rose-100 dark:border-slate-700/50 text-red-700 dark:text-red-400 bg-rose-100/30 dark:bg-rose-800/20">{pbTotal}</td>
-                                                    {daysArray.map(d => (
-                                                        <td key={d} className="p-1.5 sm:p-2 text-center border-l border-b border-rose-100 dark:border-slate-700/50 font-medium opacity-90">
-                                                            {p.days[d] || "-"}
-                                                        </td>
-                                                    ))}
+                                                    {daysArray.map(d => {
+                                                        const isSun = getIsSunday(d);
+                                                        return (
+                                                            <td key={d} className={`p-1.5 sm:p-2 text-center border-l border-b border-rose-100 dark:border-slate-700/50 font-medium opacity-90 ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20' : ''}`}>
+                                                                {p.days[d] || "-"}
+                                                            </td>
+                                                        );
+                                                    })}
                                                 </tr>
                                             );
                                         })}
                                         
-                                        {/* GÜNCELLENDİ: Alt Toplam sütunları birebir hizalandı, colSpan kaldırıldı. */}
                                         <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
                                             <td className="p-2 sm:p-3 text-right font-black sticky left-0 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                 ALT TOPLAM
@@ -491,11 +510,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                             <td className="p-1.5 sm:p-3 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
                                                 {totalCount}
                                             </td>
-                                            {daysArray.map(d => (
-                                                <td key={d} className="p-1.5 sm:p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600">
-                                                    {dailyTotals[d] || "-"}
-                                                </td>
-                                            ))}
+                                            {daysArray.map(d => {
+                                                const isSun = getIsSunday(d);
+                                                return (
+                                                    <td key={d} className={`p-1.5 sm:p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600 ${isSun ? 'text-red-700 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30' : ''}`}>
+                                                        {dailyTotals[d] || "-"}
+                                                    </td>
+                                                );
+                                            })}
                                         </tr>
                                     </tbody>
                                 </table>
