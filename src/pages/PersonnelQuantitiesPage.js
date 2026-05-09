@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from "react";
-// GÜNCELLENDİ: Maximize2 ve Smartphone ikonları eklendi
 import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, Search, ChevronRight, Home, X, Maximize2, Smartphone } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
@@ -14,6 +13,7 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
+// İsim temizleme kuralı (Çift boşlukları ve harf hatalarını düzeltir)
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -35,7 +35,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
     
-    // YENİ: Mobilde tabloyu göster/gizle state'i
     const [isTableExpanded, setIsTableExpanded] = useState(false);
 
     useEffect(() => {
@@ -184,7 +183,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                 didParseCell: function(data) {
                     if (data.section === 'body') {
                         const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
-                        
                         if (isTotalRow) {
                             data.cell.styles.fillColor = [226, 232, 240]; 
                             data.cell.styles.textColor = [15, 23, 42];
@@ -313,84 +311,89 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             </div>
 
             <div className="p-4 space-y-4">
-                <div className="mb-4">
-                    <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
-                    <div className="flex gap-1">
-                        <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
-                            <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Özmal</p>
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozmal || "0"}</p>
-                        </div>
-                        <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
-                            <div className="w-6 h-6 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5 whitespace-nowrap">Öz.M.H</p>
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozMasHar || "0"}</p>
-                        </div>
-                        <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
-                            <div className="w-6 h-6 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-0.5"><Key size={12} /></div>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Kiralık</p>
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.kiralik || "0"}</p>
-                        </div>
-                        <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
-                            <div className="w-6 h-6 rounded-full bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Destek</p>
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.destek || "0"}</p>
-                        </div>
-                        <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
-                            <div className="w-6 h-6 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-0.5"><Zap size={12} /></div>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Motor</p>
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.motor || "0"}</p>
-                        </div>
-                        <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
-                            <div className="w-6 h-6 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-0.5"><Package size={12} /></div>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">P.Başı</p>
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.parcaBasi || "0"}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="mb-4">
-                    <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Aylık Hacim</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
-                            <div className="flex justify-between items-end">
-                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                
+                {/* MOBİLDE TABLO AÇILDIĞINDA GİZLENECEK OLAN ÜST KARTLAR */}
+                <div className={isTableExpanded ? "hidden sm:block" : "block"}>
+                    <div className="mb-4">
+                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
+                        <div className="flex gap-1">
+                            <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Özmal</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozmal || "0"}</p>
                             </div>
-                        </div>
-                        <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
-                            <div className="flex justify-between items-end">
-                                <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
-                                <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                            <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5 whitespace-nowrap">Öz.M.H</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozMasHar || "0"}</p>
+                            </div>
+                            <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-0.5"><Key size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Kiralık</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.kiralik || "0"}</p>
+                            </div>
+                            <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Destek</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.destek || "0"}</p>
+                            </div>
+                            <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-0.5"><Zap size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Motor</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.motor || "0"}</p>
+                            </div>
+                            <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-0.5"><Package size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">P.Başı</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.parcaBasi || "0"}</p>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="mb-4">
-                    <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Personel & Parçabaşı Dağıtım Analizi</h3>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                        <div className="bg-gradient-to-br from-rose-500 to-red-600 dark:from-red-600 dark:to-red-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-100/90 mb-1.5">Parçabaşı Toplam</span>
-                            <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalParca.toLocaleString('tr-TR')}</span>
+                    <div className="mb-4">
+                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Aylık Hacim</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
+                                <div className="flex justify-between items-end">
+                                    <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                    <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                                </div>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
+                                <div className="flex justify-between items-end">
+                                    <div className="text-center flex-1 border-r border-slate-100 dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                    <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                                </div>
+                            </div>
                         </div>
-                        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-100/90 mb-1.5">Personel Toplam</span>
-                            <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalPersonel.toLocaleString('tr-TR')}</span>
-                        </div>
-                        <div className="bg-gradient-to-br from-purple-500 to-fuchsia-600 dark:from-purple-600 dark:to-fuchsia-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-100/90 mb-1.5">Genel Toplam</span>
-                            <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalCount.toLocaleString('tr-TR')}</span>
-                        </div>
-                        <div className="bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-50/90 mb-1.5">Parçabaşı Oranı</span>
-                            <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">%{ratioStr}</span>
+                    </div>
+
+                    <div className="mb-4">
+                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Personel & Parçabaşı Dağıtım Analizi</h3>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="bg-gradient-to-br from-rose-500 to-red-600 dark:from-red-600 dark:to-red-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-100/90 mb-1.5">Parçabaşı Toplam</span>
+                                <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalParca.toLocaleString('tr-TR')}</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-100/90 mb-1.5">Personel Toplam</span>
+                                <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalPersonel.toLocaleString('tr-TR')}</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-purple-500 to-fuchsia-600 dark:from-purple-600 dark:to-fuchsia-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-100/90 mb-1.5">Genel Toplam</span>
+                                <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalCount.toLocaleString('tr-TR')}</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-50/90 mb-1.5">Parçabaşı Oranı</span>
+                                <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">%{ratioStr}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
+                {/* TABLO BÖLÜMÜ */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu</h3>
@@ -401,7 +404,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     
                     {totalCount > 0 ? (
                         <>
-                            {/* YENİ: MOBİL İÇİN TABLO GÖSTER/GİZLE BUTONU */}
+                            {/* MOBİL İÇİN TABLO GÖSTER/GİZLE BUTONU */}
                             <div className="sm:hidden p-5 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-center transition-all">
                                 {!isTableExpanded ? (
                                     <>
@@ -409,7 +412,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                             <Maximize2 size={24} />
                                         </div>
                                         <p className="text-sm text-slate-600 dark:text-slate-300 font-bold mb-1">Detaylı Tablo</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Bu tablo 31 günlük veri içerdiğinden mobil ekrana sığmaz.</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Bu tablo 31 günlük veri içerdiğinden dikey ekrana sığmaz.</p>
                                         <button onClick={() => setIsTableExpanded(true)} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2">
                                             Tabloyu Görüntüle
                                         </button>
@@ -426,16 +429,16 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                 )}
                             </div>
 
-                            {/* GÜNCELLENDİ: Mobilde gizlenen tablo (hidden sm:block) */}
+                            {/* GÜNCELLENDİ: Mobilde gizlenen tablo (hidden sm:block), Fontlar Küçültüldü */}
                             <div className={`overflow-x-auto relative no-scrollbar ${!isTableExpanded ? 'hidden sm:block' : 'block'}`}>
-                                <table className="w-full text-left whitespace-nowrap border-collapse text-xs">
+                                <table className="w-full text-left whitespace-nowrap border-collapse text-[10px] sm:text-xs">
                                     <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
                                         <tr>
-                                            <th className="p-3 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Personel Adı</th>
-                                            <th className="p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700">Türü</th>
-                                            <th className="p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">TOPLAM</th>
+                                            {/* GÜNCELLENDİ: Personel ve Türü birleştirildi, tek sabit sütun yapıldı */}
+                                            <th className="p-2 sm:p-3 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Personel (Tür)</th>
+                                            <th className="p-1 sm:p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">TOPLAM</th>
                                             {daysArray.map(d => (
-                                                <th key={d} className="p-2 font-bold text-slate-600 dark:text-slate-400 text-center border-l border-slate-200 dark:border-slate-700">
+                                                <th key={d} className="p-1 sm:p-2 font-bold text-slate-600 dark:text-slate-400 text-center border-l border-slate-200 dark:border-slate-700">
                                                     {String(d).padStart(2, '0')}
                                                 </th>
                                             ))}
@@ -446,13 +449,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                             const pTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                                             return (
                                                 <tr key={`p-${idx}`} className="bg-blue-50/40 hover:bg-blue-100/50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20 text-blue-900 dark:text-blue-100 transition-colors">
-                                                    <td className="p-3 font-bold sticky left-0 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                                                        {p.name}
+                                                    {/* GÜNCELLENDİ: Sadece bu sütun sabit (sticky). Kayma sorunu çözüldü. */}
+                                                    <td className="p-2 sm:p-3 sticky left-0 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                        <div className="font-bold">{p.name}</div>
+                                                        <div className="text-[8px] sm:text-[9px] uppercase opacity-70 mt-0.5">{p.type}</div>
                                                     </td>
-                                                    <td className="p-3 text-center font-semibold text-[10px] uppercase border-b border-l border-blue-100 dark:border-slate-700/50 opacity-80">{p.type}</td>
-                                                    <td className="p-3 text-center font-black border-b border-l border-blue-100 dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-blue-100/30 dark:bg-blue-800/20">{pTotal}</td>
+                                                    <td className="p-1.5 sm:p-3 text-center font-black border-b border-l border-blue-100 dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-blue-100/30 dark:bg-blue-800/20">{pTotal}</td>
                                                     {daysArray.map(d => (
-                                                        <td key={d} className="p-2 text-center border-l border-b border-blue-100 dark:border-slate-700/50 font-medium opacity-90">
+                                                        <td key={d} className="p-1.5 sm:p-2 text-center border-l border-b border-blue-100 dark:border-slate-700/50 font-medium opacity-90">
                                                             {p.days[d] || "-"}
                                                         </td>
                                                     ))}
@@ -464,13 +468,14 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                             const pbTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
                                             return (
                                                 <tr key={`pb-${idx}`} className="bg-rose-50/40 hover:bg-rose-100/50 dark:bg-rose-900/10 dark:hover:bg-rose-900/20 text-rose-900 dark:text-rose-100 transition-colors">
-                                                    <td className="p-3 font-bold sticky left-0 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                                                        {p.name}
+                                                    {/* GÜNCELLENDİ: Sadece bu sütun sabit (sticky). */}
+                                                    <td className="p-2 sm:p-3 sticky left-0 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                        <div className="font-bold">{p.name}</div>
+                                                        <div className="text-[8px] sm:text-[9px] uppercase opacity-70 mt-0.5">{p.type}</div>
                                                     </td>
-                                                    <td className="p-3 text-center font-semibold text-[10px] uppercase border-b border-l border-rose-100 dark:border-slate-700/50 opacity-80">{p.type}</td>
-                                                    <td className="p-3 text-center font-black border-b border-l border-rose-100 dark:border-slate-700/50 text-red-700 dark:text-red-400 bg-rose-100/30 dark:bg-rose-800/20">{pbTotal}</td>
+                                                    <td className="p-1.5 sm:p-3 text-center font-black border-b border-l border-rose-100 dark:border-slate-700/50 text-red-700 dark:text-red-400 bg-rose-100/30 dark:bg-rose-800/20">{pbTotal}</td>
                                                     {daysArray.map(d => (
-                                                        <td key={d} className="p-2 text-center border-l border-b border-rose-100 dark:border-slate-700/50 font-medium opacity-90">
+                                                        <td key={d} className="p-1.5 sm:p-2 text-center border-l border-b border-rose-100 dark:border-slate-700/50 font-medium opacity-90">
                                                             {p.days[d] || "-"}
                                                         </td>
                                                     ))}
@@ -478,15 +483,16 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                             );
                                         })}
                                         
+                                        {/* GÜNCELLENDİ: Alt Toplam sütunları birebir hizalandı, colSpan kaldırıldı. */}
                                         <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
-                                            <td colSpan={2} className="p-3 text-right font-black sticky left-0 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                                                GÜNLÜK ALT TOPLAM
+                                            <td className="p-2 sm:p-3 text-right font-black sticky left-0 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                ALT TOPLAM
                                             </td>
-                                            <td className="p-3 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
+                                            <td className="p-1.5 sm:p-3 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
                                                 {totalCount}
                                             </td>
                                             {daysArray.map(d => (
-                                                <td key={d} className="p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600">
+                                                <td key={d} className="p-1.5 sm:p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600">
                                                     {dailyTotals[d] || "-"}
                                                 </td>
                                             ))}
