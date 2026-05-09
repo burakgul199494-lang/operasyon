@@ -13,6 +13,7 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
+// İsim temizleme kuralı (Çift boşlukları ve harf hatalarını düzeltir)
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -33,6 +34,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+    
     const [isTableExpanded, setIsTableExpanded] = useState(false);
 
     useEffect(() => {
@@ -93,14 +95,13 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
             Object.values(map).forEach(p => {
                 const typeLower = (p.type || "").toLowerCase();
-                // GÜNCELLENDİ: Kısaltma mantığı Per. ve PB
                 const shortType = typeLower.includes("parça") ? "PB" : "Per.";
                 
                 if (shortType === "PB") {
                     pbList.push({ ...p, type: shortType });
                     Object.values(p.days).forEach(val => tParca += val);
                 } else {
-                    personelList.push({ ...p, type: shortType });
+                    pList.push({ ...p, type: shortType });
                     Object.values(p.days).forEach(val => tPersonel += val);
                 }
             });
@@ -181,6 +182,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
     const filteredUnits = useMemo(() => UNITS.filter((u) => u !== "BÖLGE" && u.toLowerCase().includes(searchQuery.toLowerCase())), [searchQuery]);
 
+    // KARŞILAMA EKRANI
     if (!selectedUnit) {
         return (
             <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
@@ -214,6 +216,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
 
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+            {/* ÜST PANEL: Tablo genişleyince Mobilde Scroll ile Gider (sticky iptal olur) */}
             <div className={`bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-40 shadow-sm border-b border-slate-200 dark:border-slate-800 ${isTableExpanded ? 'relative lg:sticky lg:top-0' : 'sticky top-0'}`}>
                 <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -238,40 +241,89 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
             </div>
 
             <div className="p-4 space-y-4">
+                
+                {/* MOBİLDE TABLO BÜYÜTÜLÜNCE GİZLENEN KARTLAR (EKSİKSİZ) */}
                 <div className={isTableExpanded ? "hidden sm:block" : "block"}>
                     <div className="mb-4">
                         <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Filo Durumu</h3>
                         <div className="flex gap-1 overflow-x-auto no-scrollbar">
-                            {[ {label: "Özmal", key: "ozmal", icon: Truck, color: "blue"}, {label: "Öz.M.H", key: "ozMasHar", icon: Truck, color: "cyan"}, {label: "Kiralık", key: "kiralik", icon: Key, color: "indigo"}, {label: "Destek", key: "destek", icon: Truck, color: "rose"}, {label: "Motor", key: "motor", icon: Zap, color: "orange"}, {label: "P.Başı", key: "parcaBasi", icon: Package, color: "purple"} ].map(f => (
-                                <div key={f.key} className="flex-1 min-w-[70px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
-                                    <div className={`w-6 h-6 rounded-full bg-${f.color}-50 dark:bg-${f.color}-900/30 text-${f.color}-600 dark:text-${f.color}-400 flex items-center justify-center mb-0.5`}><f.icon size={12} /></div>
-                                    <p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">{f.label}</p>
-                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.[f.key] || "0"}</p>
-                                </div>
-                            ))}
+                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Özmal</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozmal || "0"}</p>
+                            </div>
+                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5 whitespace-nowrap">Öz.M.H</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozMasHar || "0"}</p>
+                            </div>
+                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-0.5"><Key size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Kiralık</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.kiralik || "0"}</p>
+                            </div>
+                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Destek</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.destek || "0"}</p>
+                            </div>
+                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-0.5"><Zap size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Motor</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.motor || "0"}</p>
+                            </div>
+                            <div className="flex-1 min-w-[65px] bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="w-6 h-6 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-0.5"><Package size={12} /></div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">P.Başı</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.parcaBasi || "0"}</p>
+                            </div>
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                        {[{label: "Gelen", k: "gelenKargo", a: "gelenAdet", i: Truck, c: "blue"}, {label: "Giden", k: "gidenKargo", a: "gidenAdet", i: Box, c: "teal"}].map(h => (
-                            <div key={h.label} className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <div className="flex items-center gap-2 mb-3 border-b dark:border-slate-700 pb-2"><div className={`p-1.5 bg-${h.c}-50 dark:bg-${h.c}-900/30 text-${h.c}-600 dark:text-${h.c}-400 rounded-lg`}><h.i size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">{h.label}</span></div>
+
+                    <div className="mb-4">
+                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Aylık Hacim</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <div className="flex items-center gap-2 mb-3 border-b dark:border-slate-700 pb-2"><div className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Truck size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Gelen</span></div>
                                 <div className="flex justify-between items-end">
-                                    <div className="text-center flex-1 border-r dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white">{currentData ? formatDisplayMetric(currentData[h.k], false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 uppercase">Belge</div></div>
-                                    <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white">{currentData ? formatDisplayMetric(currentData[h.a], false) : "-"}</div><div className="text-[10px] font-bold text-slate-400 uppercase">Kargo</div></div>
+                                    <div className="text-center flex-1 border-r dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                    <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gelenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                        {[{l: "Parçabaşı Toplam", v: totalParca, c: "from-rose-500 to-red-600"}, {l: "Personel Toplam", v: totalPersonel, c: "from-blue-500 to-indigo-600"}, {l: "Genel Toplam", v: totalCount, c: "from-purple-500 to-fuchsia-600"}, {l: "Parçabaşı Oranı", v: `%${ratioStr}`, c: "from-emerald-400 to-teal-600"}].map(card => (
-                            <div key={card.l} className={`bg-gradient-to-br ${card.c} rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1`}>
-                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-white/80 mb-1.5">{card.l}</span>
-                                <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{card.v.toLocaleString('tr-TR')}</span>
+                            <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <div className="flex items-center gap-2 mb-3 border-b dark:border-slate-700 pb-2"><div className="p-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"><Box size={16}/></div><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Giden</span></div>
+                                <div className="flex justify-between items-end">
+                                    <div className="text-center flex-1 border-r dark:border-slate-700"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenKargo) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Belge</div></div>
+                                    <div className="text-center flex-1"><div className="text-xl font-bold text-slate-800 dark:text-white leading-none">{currentData ? formatDisplayMetric(currentData.gidenAdet) : "-"}</div><div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kargo</div></div>
+                                </div>
                             </div>
-                        ))}
+                        </div>
+                    </div>
+
+                    <div className="mb-4">
+                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1">Personel & Parçabaşı Dağıtım Analizi</h3>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="bg-gradient-to-br from-rose-500 to-red-600 dark:from-red-600 dark:to-red-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-100/90 mb-1.5">Parçabaşı Toplam</span>
+                                <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalParca.toLocaleString('tr-TR')}</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-100/90 mb-1.5">Personel Toplam</span>
+                                <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalPersonel.toLocaleString('tr-TR')}</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-purple-500 to-fuchsia-600 dark:from-purple-600 dark:to-fuchsia-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-100/90 mb-1.5">Genel Toplam</span>
+                                <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">{totalCount.toLocaleString('tr-TR')}</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 rounded-2xl p-4 text-white shadow-lg flex flex-col justify-center items-center text-center transition-transform hover:-translate-y-1">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-50/90 mb-1.5">Parçabaşı Oranı</span>
+                                <span className="text-2xl sm:text-3xl font-black drop-shadow-sm">%{ratioStr}</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
+                {/* TABLO BÖLÜMÜ */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-700 flex justify-between items-center">
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white">Günlük Teslimat Tablosu</h3>
@@ -314,7 +366,7 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                                                     <td className="p-1 sm:p-3 text-center font-black border-b border-l dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-white/30 dark:bg-white/5">{pTotal}</td>
                                                     {daysArray.map(d => {
                                                         const isSun = getIsSunday(d);
-                                                        return (<td key={d} className={`p-1 sm:p-2 text-center border-l border-b dark:border-slate-700/50 font-medium ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20' : ''}`}>{p.days[d] || "-"}</td>);
+                                                        return (<td key={d} className={`p-1.5 sm:p-2 text-center border-l border-b dark:border-slate-700/50 font-medium ${isSun ? 'text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20' : ''}`}>{p.days[d] || "-"}</td>);
                                                     })}
                                                 </tr>
                                             );
