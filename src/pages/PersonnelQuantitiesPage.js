@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
-// GÜNCELLENDİ: Eksik olan "Package" ikonu tekrar eklendi. Beyaz ekran sorunu çözüldü!
-import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, Search, ChevronRight, Home, X } from "lucide-react";
+// GÜNCELLENDİ: Maximize2 ve Smartphone ikonları eklendi
+import { ArrowLeft, ChevronDown, Calendar, Truck, Package, Zap, Key, Box, FileDown, Loader2, Search, ChevronRight, Home, X, Maximize2, Smartphone } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -14,7 +14,6 @@ const formatDisplayMetric = (val) => {
     return val;
 };
 
-// İsim temizleme kuralı (Çift boşlukları ve harf hatalarını düzeltir)
 const normalizeName = (name) => {
     if (!name) return "";
     return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -35,8 +34,10 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
     
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+    
+    // YENİ: Mobilde tabloyu göster/gizle state'i
+    const [isTableExpanded, setIsTableExpanded] = useState(false);
 
-    // OTOMATİK AY BULMA
     useEffect(() => {
         if (quantitiesData && quantitiesData.length > 0 && !isInitialLoaded) {
             const validData = quantitiesData.filter(d => d.records && d.records.length > 0);
@@ -64,7 +65,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         return quantitiesData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
     }, [quantitiesData, selectedUnit, selectedYear, selectedMonth]);
 
-    // Günlük Alt Toplamlar (dailyTotals)
     const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
         const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
         const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -216,7 +216,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         [searchQuery]
     );
 
-    // BİREBİR DASHBOARD TASARIMI İLE KARŞILAMA EKRANI
     if (!selectedUnit) {
         return (
             <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
@@ -265,7 +264,6 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
         );
     }
 
-    // BİRİM SEÇİLDİYSE DETAY EKRANI
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 shadow-sm border-b border-slate-200 dark:border-slate-800">
@@ -402,73 +400,101 @@ const PersonnelQuantitiesPage = ({ allData, unitInfo, quantitiesData, onBack }) 
                     </div>
                     
                     {totalCount > 0 ? (
-                        <div className="overflow-x-auto relative no-scrollbar">
-                            <table className="w-full text-left whitespace-nowrap border-collapse text-xs">
-                                <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
-                                    <tr>
-                                        <th className="p-3 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Personel Adı</th>
-                                        <th className="p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700">Türü</th>
-                                        <th className="p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">TOPLAM</th>
-                                        {daysArray.map(d => (
-                                            <th key={d} className="p-2 font-bold text-slate-600 dark:text-slate-400 text-center border-l border-slate-200 dark:border-slate-700">
-                                                {String(d).padStart(2, '0')}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {personelList.map((p, idx) => {
-                                        const pTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
-                                        return (
-                                            <tr key={`p-${idx}`} className="bg-blue-50/40 hover:bg-blue-100/50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20 text-blue-900 dark:text-blue-100 transition-colors">
-                                                <td className="p-3 font-bold sticky left-0 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                                                    {p.name}
-                                                </td>
-                                                <td className="p-3 text-center font-semibold text-[10px] uppercase border-b border-l border-blue-100 dark:border-slate-700/50 opacity-80">{p.type}</td>
-                                                <td className="p-3 text-center font-black border-b border-l border-blue-100 dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-blue-100/30 dark:bg-blue-800/20">{pTotal}</td>
-                                                {daysArray.map(d => (
-                                                    <td key={d} className="p-2 text-center border-l border-b border-blue-100 dark:border-slate-700/50 font-medium opacity-90">
-                                                        {p.days[d] || "-"}
+                        <>
+                            {/* YENİ: MOBİL İÇİN TABLO GÖSTER/GİZLE BUTONU */}
+                            <div className="sm:hidden p-5 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-center transition-all">
+                                {!isTableExpanded ? (
+                                    <>
+                                        <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mb-3">
+                                            <Maximize2 size={24} />
+                                        </div>
+                                        <p className="text-sm text-slate-600 dark:text-slate-300 font-bold mb-1">Detaylı Tablo</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Bu tablo 31 günlük veri içerdiğinden mobil ekrana sığmaz.</p>
+                                        <button onClick={() => setIsTableExpanded(true)} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2">
+                                            Tabloyu Görüntüle
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="w-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex flex-col items-center">
+                                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-bold text-sm mb-1">
+                                            <Smartphone size={18} className="animate-pulse" />
+                                            Telefonunuzu Yan Çevirin
+                                        </div>
+                                        <p className="text-[10px] text-blue-600/80 dark:text-blue-300/80 mb-3">Tabloyu sağa sola kaydırarak inceleyebilirsiniz.</p>
+                                        <button onClick={() => setIsTableExpanded(false)} className="text-xs text-rose-500 hover:text-rose-600 font-bold underline px-4 py-1">Tabloyu Gizle</button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* GÜNCELLENDİ: Mobilde gizlenen tablo (hidden sm:block) */}
+                            <div className={`overflow-x-auto relative no-scrollbar ${!isTableExpanded ? 'hidden sm:block' : 'block'}`}>
+                                <table className="w-full text-left whitespace-nowrap border-collapse text-xs">
+                                    <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
+                                        <tr>
+                                            <th className="p-3 font-bold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Personel Adı</th>
+                                            <th className="p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700">Türü</th>
+                                            <th className="p-3 font-bold text-slate-600 dark:text-slate-300 text-center border-l border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">TOPLAM</th>
+                                            {daysArray.map(d => (
+                                                <th key={d} className="p-2 font-bold text-slate-600 dark:text-slate-400 text-center border-l border-slate-200 dark:border-slate-700">
+                                                    {String(d).padStart(2, '0')}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {personelList.map((p, idx) => {
+                                            const pTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+                                            return (
+                                                <tr key={`p-${idx}`} className="bg-blue-50/40 hover:bg-blue-100/50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20 text-blue-900 dark:text-blue-100 transition-colors">
+                                                    <td className="p-3 font-bold sticky left-0 bg-blue-50 dark:bg-slate-800 border-b border-blue-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                        {p.name}
                                                     </td>
-                                                ))}
-                                            </tr>
-                                        );
-                                    })}
-                                    
-                                    {parcabasiList.map((p, idx) => {
-                                        const pbTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
-                                        return (
-                                            <tr key={`pb-${idx}`} className="bg-rose-50/40 hover:bg-rose-100/50 dark:bg-rose-900/10 dark:hover:bg-rose-900/20 text-rose-900 dark:text-rose-100 transition-colors">
-                                                <td className="p-3 font-bold sticky left-0 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                                                    {p.name}
-                                                </td>
-                                                <td className="p-3 text-center font-semibold text-[10px] uppercase border-b border-l border-rose-100 dark:border-slate-700/50 opacity-80">{p.type}</td>
-                                                <td className="p-3 text-center font-black border-b border-l border-rose-100 dark:border-slate-700/50 text-red-700 dark:text-red-400 bg-rose-100/30 dark:bg-rose-800/20">{pbTotal}</td>
-                                                {daysArray.map(d => (
-                                                    <td key={d} className="p-2 text-center border-l border-b border-rose-100 dark:border-slate-700/50 font-medium opacity-90">
-                                                        {p.days[d] || "-"}
+                                                    <td className="p-3 text-center font-semibold text-[10px] uppercase border-b border-l border-blue-100 dark:border-slate-700/50 opacity-80">{p.type}</td>
+                                                    <td className="p-3 text-center font-black border-b border-l border-blue-100 dark:border-slate-700/50 text-indigo-700 dark:text-indigo-300 bg-blue-100/30 dark:bg-blue-800/20">{pTotal}</td>
+                                                    {daysArray.map(d => (
+                                                        <td key={d} className="p-2 text-center border-l border-b border-blue-100 dark:border-slate-700/50 font-medium opacity-90">
+                                                            {p.days[d] || "-"}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            );
+                                        })}
+                                        
+                                        {parcabasiList.map((p, idx) => {
+                                            const pbTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+                                            return (
+                                                <tr key={`pb-${idx}`} className="bg-rose-50/40 hover:bg-rose-100/50 dark:bg-rose-900/10 dark:hover:bg-rose-900/20 text-rose-900 dark:text-rose-100 transition-colors">
+                                                    <td className="p-3 font-bold sticky left-0 bg-rose-50 dark:bg-slate-800 border-b border-rose-100 dark:border-slate-700/50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                        {p.name}
                                                     </td>
-                                                ))}
-                                            </tr>
-                                        );
-                                    })}
-                                    
-                                    <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
-                                        <td colSpan={2} className="p-3 text-right font-black sticky left-0 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                                            GÜNLÜK ALT TOPLAM
-                                        </td>
-                                        <td className="p-3 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
-                                            {totalCount}
-                                        </td>
-                                        {daysArray.map(d => (
-                                            <td key={d} className="p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600">
-                                                {dailyTotals[d] || "-"}
+                                                    <td className="p-3 text-center font-semibold text-[10px] uppercase border-b border-l border-rose-100 dark:border-slate-700/50 opacity-80">{p.type}</td>
+                                                    <td className="p-3 text-center font-black border-b border-l border-rose-100 dark:border-slate-700/50 text-red-700 dark:text-red-400 bg-rose-100/30 dark:bg-rose-800/20">{pbTotal}</td>
+                                                    {daysArray.map(d => (
+                                                        <td key={d} className="p-2 text-center border-l border-b border-rose-100 dark:border-slate-700/50 font-medium opacity-90">
+                                                            {p.days[d] || "-"}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            );
+                                        })}
+                                        
+                                        <tr className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-100">
+                                            <td colSpan={2} className="p-3 text-right font-black sticky left-0 bg-slate-200 dark:bg-slate-700 border-t border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                GÜNLÜK ALT TOPLAM
                                             </td>
-                                        ))}
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                                            <td className="p-3 text-center font-black border-l border-t border-slate-300 dark:border-slate-600 text-indigo-700 dark:text-indigo-400 bg-slate-300/50 dark:bg-slate-800/50">
+                                                {totalCount}
+                                            </td>
+                                            {daysArray.map(d => (
+                                                <td key={d} className="p-2 text-center font-bold border-l border-t border-slate-300 dark:border-slate-600">
+                                                    {dailyTotals[d] || "-"}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-16 text-slate-400 dark:text-slate-500">
                             <Box size={40} className="mb-3 opacity-20" />
