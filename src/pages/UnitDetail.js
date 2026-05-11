@@ -62,12 +62,7 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const COL1_WIDTH = "w-[130px] min-w-[130px] max-w-[130px] sm:w-[160px] sm:min-w-[160px] sm:max-w-[160px]";
-const COL2_WIDTH = "w-[36px] min-w-[36px] max-w-[36px] sm:w-[46px] sm:min-w-[46px] sm:max-w-[46px]";
-const COL2_LEFT = "left-[130px] sm:left-[160px]";
-
-// GÜNCELLENDİ: Hataları engellemek için varsayılan boş listeler (= []) eklendi
-const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
+const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
   const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
@@ -94,20 +89,15 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     }
   }, [allData, selectedUnit]); 
 
-  const getIsSunday = (day) => {
-    const d = new Date(selectedYear, selectedMonth - 1, day);
-    return d.getDay() === 0;
-  };
-
   const currentData = useMemo(() => {
     if (!selectedUnit) return null;
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [allData, selectedUnit, selectedYear, selectedMonth]);
 
-  const unitQuantities = useMemo(() => {
-    if (!quantitiesData || !selectedUnit) return null;
-    return quantitiesData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
-  }, [quantitiesData, selectedUnit, selectedYear, selectedMonth]);
+  const unitFleet = useMemo(() => {
+    if (!fleetData || !selectedUnit) return [];
+    return fleetData.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
+  }, [fleetData, selectedUnit]);
 
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
@@ -140,71 +130,40 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
-  const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
-    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-    const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const pbRatioData = useMemo(() => {
+    let tPb = 0;
+    let tGenel = 0;
 
-    let pList = [];
-    let PbList = [];
-    let tPersonel = 0;
-    let tParca = 0;
-    let dTotals = {};
-    
-    daysArr.forEach(d => dTotals[d] = 0);
+    if (!quantitiesData || quantitiesData.length === 0) return { ratio: null };
 
-    const safeQuantities = quantitiesData || []; // GÜVENLİK
     const relevantQuantities = showYearAvg 
-        ? safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
-        : safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+        ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
+        : quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
 
-    const map = {};
     relevantQuantities.forEach(uq => {
         if (uq.records && Array.isArray(uq.records)) {
             uq.records.forEach(r => {
-                const safeName = normalizeName(r.name);
-                if(!map[safeName]) map[safeName] = { name: safeName, type: r.type, days: {} };
-                if (!map[safeName].days[r.day]) map[safeName].days[r.day] = 0;
-                
                 const countVal = r.count || 0;
-                map[safeName].days[r.day] += countVal;
-                
-                if (dTotals[r.day] !== undefined) dTotals[r.day] += countVal;
+                tGenel += countVal;
+                const typeLower = (r.type || "").toLowerCase();
+                if (typeLower.includes("parça")) {
+                    tPb += countVal;
+                }
             });
         }
     });
 
-    Object.values(map).forEach(p => {
-        const typeLower = (p.type || "").toLowerCase();
-        const shortType = typeLower.includes("parça") ? "Pb" : "Per"; 
-        
-        if (shortType === "Pb") {
-            PbList.push({ ...p, type: shortType });
-            Object.values(p.days).forEach(val => tParca += val);
-        } else {
-            pList.push({ ...p, type: shortType });
-            Object.values(p.days).forEach(val => tPersonel += val);
-        }
-    });
-
-    pList.sort((a,b) => a.name.localeCompare(b.name));
-    PbList.sort((a,b) => a.name.localeCompare(b.name));
-
-    return { personelList: pList, parcabasiList: PbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
+    const ratio = tGenel > 0 ? (tPb / tGenel) * 100 : null;
+    return { ratio };
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
-
-  const totalCount = totalPersonel + totalParca;
-  const pbRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : null;
-
-  const pbRatioData = useMemo(() => {
-    return { ratio: pbRatio };
-  }, [pbRatio]);
 
   const personnelTotals = useMemo(() => {
     const totals = {};
-    const safeQuantities = quantitiesData || []; // GÜVENLİK
+    if (!quantitiesData || quantitiesData.length === 0) return totals;
+
     const relevantQuantities = showYearAvg 
-        ? safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
-        : safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+        ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
+        : quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
 
     relevantQuantities.forEach(uq => {
         if (uq.records && Array.isArray(uq.records)) {
@@ -218,21 +177,73 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     return totals;
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
 
-  const unitFleet = useMemo(() => {
-    const safeFleet = fleetData || []; // GÜVENLİK
-    const filteredFleet = safeFleet.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
-    return filteredFleet.sort((a, b) => {
-      const typeA = String(a.operationType || "");
-      const typeB = String(b.operationType || "");
-      const typeCompare = typeA.localeCompare(typeB, 'tr-TR');
-      if (typeCompare !== 0) return typeCompare;
-      const plateA = String(a.plate || "");
-      const plateB = String(b.plate || "");
-      return plateA.localeCompare(plateB, 'tr-TR');
-    });
-  }, [fleetData, selectedUnit]);
+  // GÜNCELLENDİ: Dinamik analizden "Müşteri Şikayet" kısmı çıkarıldı.
+  const generateDynamicAnalysis = (data) => {
+    const t = parseMetric(data.teslimPerformansi);
+    const a = parseMetric(data.adresAlimOrani);
+    const r = parseMetric(data.rotaOrani);
+    const tvs = parseMetric(data.tvsOrani);
+    const c = parseMetric(data.checkInOrani);
+    const s = parseMetric(data.smsOrani);
+    const eatf = parseMetric(data.eAtfOrani);
+    const htf = parseMetric(data.htfOrani);
+    const ks = parseMetric(data.kontrolSende);
+    const ot = parseMetric(data.olcumTartim);
 
-  // -------------- PDF OLUŞTURMA FONKSİYONLARI -------------- //
+    let text = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıda tarafınıza sunulmuştur:\n\n";
+
+    if (t !== null) {
+      if (t >= TARGETS.teslimPerformansi) text += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
+      else text += "• Teslim performansınız ilgili ay içerisinde hedef altı kalmıştır, dağıtım planlamalarınızda mutlaka günlük kargolara öncelik verilmelidir.\n";
+    }
+    if (a !== null) {
+      if (a >= TARGETS.adresAlimOrani) text += "• Adres alım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (a >= 80) text += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
+      else text += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
+    }
+    if (r !== null) {
+      if (r >= TARGETS.rotaOrani) text += "• Rota oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (r >= 80) text += "• Rota oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• Rota oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
+    }
+    if (tvs !== null) {
+      if (tvs >= TARGETS.tvsOrani) text += "• TVS oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (tvs >= 90) text += "• TVS oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• TVS oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
+    }
+    if (c !== null) {
+      if (c >= TARGETS.checkInOrani) text += "• Check-in oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (c >= 85) text += "• Check-in oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• Check-in oranınız başarısızdır, kurye arkadaşlarımızın mutlaka her teslimat sonrası check-in yapması zorunludur.\n";
+    }
+    if (s !== null) {
+      if (s >= TARGETS.smsOrani) text += "• SMS ile teslimat oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (s >= 65) text += "• SMS ile teslimat oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• SMS ile teslimat oranınız başarısızdır, kurye arkadaşlarımızın kargo tesliminde mutlaka sms ile teslimat yöntemine yönlendirilmesi gerekmektedir.\n";
+    }
+    if (eatf !== null) {
+      if (eatf >= TARGETS.eAtfOrani) text += "• E-atf oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (eatf >= 90) text += "• E-ATF oranınız hedeflenen orana yakındır, kurye arkadaşlarımızın mutlaka E-atf düzenlemesi, ve operatör arkadaşlarımızın mutlaka eşleme yapması gerekmektedir.\n";
+      else text += "• E-ATF oranınız başarısızdır, bu alanda mutlaka tüm kurye ve operatör arkadaşlarımıza eğitim planlaması yapılmalıdır.\n";
+    }
+    if (htf !== null) {
+      if (htf >= TARGETS.htfOrani) text += "• HTF oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (htf >= 85) text += "• HTF oranınız hedeflenen oranlara yakın gerçekleşmiştir, mutlaka operatör arkadaşlarımızın aktarma merkezlerinde tutulan HTF'lere karşılık HTF tutması gerekmektedir.\n";
+      else text += "• HTF oranınız başarısızdır, bu konuda ciddi bir sıkıntı mevcuttur, mutlaka kargo indirmelerinde HTF düzenlenmelidir.\n";
+    }
+    if (ks !== null) {
+      if (ks >= TARGETS.kontrolSende) text += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız hedefe yakındır, konuyla ilgili alınacak küçük aksiyonlar hedefi gerçekleştirmemizi sağlayacaktır.\n";
+      else text += "• Kontrol Sende oranınız heedin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
+    }
+    if (ot !== null) {
+      if (ot <= TARGETS.olcumTartim) text += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
+      else if (ot <= 40) text += "• Ölçüm/Tartım farkı işlemleriniz ortalama seviyededir, artış eğilimine karşı dikkat edilmelidir.\n";
+      else text += "• Ölçüm/Tartım sayınız kritik seviyededir. Ölçüm tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
+    }
+    text += "\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm çalışma arkadaşlarımıza başarılar dileriz.";
+    return text;
+  };
 
   const createPdfDoc = async (type, targetUnit, targetData, year, month, isYearAvg, preloadedFont) => {
     const { jsPDF } = window.jspdf;
@@ -264,81 +275,10 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     doc.text(`Dönem: ${donemText}`, 14, 35);
     doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
     let startY = 45;
-    
     if (type === 'report') {
       doc.setFontSize(9); 
       doc.setTextColor(60);
-      
-      const t = parseMetric(targetData.teslimPerformansi);
-      const a = parseMetric(targetData.adresAlimOrani);
-      const ms = parseMetric(targetData.musteriSikayet);
-      const r = parseMetric(targetData.rotaOrani);
-      const tvs = parseMetric(targetData.tvsOrani);
-      const c = parseMetric(targetData.checkInOrani);
-      const s = parseMetric(targetData.smsOrani);
-      const eatf = parseMetric(targetData.eAtfOrani);
-      const htf = parseMetric(targetData.htfOrani);
-      const ks = parseMetric(targetData.kontrolSende);
-      const ot = parseMetric(targetData.olcumTartim);
-
-      let introText = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıda tarafınıza sunulmuştur:\n\n";
-
-      if (t !== null) {
-        if (t >= TARGETS.teslimPerformansi) introText += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
-        else introText += "• Teslim performansınız ilgili ay içerisinde hedef altı kalmıştır, dağıtım planlamalarınızda mutlaka günlük kargolara öncelik verilmelidir.\n";
-      }
-      if (a !== null) {
-        if (a >= TARGETS.adresAlimOrani) introText += "• Adres alım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (a >= 80) introText += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
-        else introText += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
-      }
-      if (ms !== null) {
-        if (ms === 0) introText += "• İlgili dönemde şubeye ait müşteri şikayeti bulunmamaktadır, çok iyi bir performans sergilenmiştir.\n";
-        else if (ms === 1) introText += "• İlgili dönemde 1 adet müşteri şikayetiniz bulunmaktadır, operasyonel süreçlerde dikkatli olunmalıdır.\n";
-        else introText += `• İlgili dönemde ${ms} adet müşteri şikayeti tespit edilmiştir. Bu durum ciddi uyarı gerektirmekte olup süreçlerinizi acilen gözden geçirmeniz şarttır.\n`;
-      }
-      if (r !== null) {
-        if (r >= TARGETS.rotaOrani) introText += "• Rota oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (r >= 80) introText += "• Rota oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-        else introText += "• Rota oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
-      }
-      if (tvs !== null) {
-        if (tvs >= TARGETS.tvsOrani) introText += "• TVS oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (tvs >= 90) introText += "• TVS oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-        else introText += "• TVS oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
-      }
-      if (c !== null) {
-        if (c >= TARGETS.checkInOrani) introText += "• Check-in oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (c >= 85) introText += "• Check-in oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-        else introText += "• Check-in oranınız başarısızdır, kurye arkadaşlarımızın mutlaka her teslimat sonrası check-in yapması zorunludur.\n";
-      }
-      if (s !== null) {
-        if (s >= TARGETS.smsOrani) introText += "• SMS ile teslimat oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (s >= 65) introText += "• SMS ile teslimat oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-        else introText += "• SMS ile teslimat oranınız başarısızdır, kurye arkadaşlarımızın kargo tesliminde mutlaka sms ile teslimat yöntemine yönlendirilmesi gerekmektedir.\n";
-      }
-      if (eatf !== null) {
-        if (eatf >= TARGETS.eAtfOrani) introText += "• E-atf oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (eatf >= 90) introText += "• E-ATF oranınız hedeflenen orana yakındır, kurye arkadaşlarımızın mutlaka E-atf düzenlemesi, ve operatör arkadaşlarımızın mutlaka eşleme yapması gerekmektedir.\n";
-        else introText += "• E-ATF oranınız başarısızdır, bu alanda mutlaka tüm kurye ve operatör arkadaşlarımıza eğitim planlaması yapılmalıdır.\n";
-      }
-      if (htf !== null) {
-        if (htf >= TARGETS.htfOrani) introText += "• HTF oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (htf >= 85) introText += "• HTF oranınız hedeflenen oranlara yakın gerçekleşmiştir, mutlaka operatör arkadaşlarımızın aktarma merkezlerinde tutulan HTF'lere karşılık HTF tutması gerekmektedir.\n";
-        else introText += "• HTF oranınız başarısızdır, bu konuda ciddi bir sıkıntı mevcuttur, mutlaka kargo indirmelerinde HTF düzenlenmelidir.\n";
-      }
-      if (ks !== null) {
-        if (ks >= TARGETS.kontrolSende) introText += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (ks >= 80) introText += "• Kontrol Sende kullanım oranınız hedefe yakındır, konuyla ilgili alınacak küçük aksiyonlar hedefi gerçekleştirmemizi sağlayacaktır.\n";
-        else introText += "• Kontrol Sende oranınız heedin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
-      }
-      if (ot !== null) {
-        if (ot <= TARGETS.olcumTartim) introText += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
-        else if (ot <= 40) introText += "• Ölçüm/Tartım farkı işlemleriniz ortalama seviyededir, artış eğilimine karşı dikkat edilmelidir.\n";
-        else introText += "• Ölçüm/Tartım sayınız kritik seviyededir. Ölçüm tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
-      }
-      introText += "\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm çalışma arkadaşlarımıza başarılar dileriz.";
-
+      const introText = generateDynamicAnalysis(targetData);
       const splitIntro = doc.splitTextToSize(introText, 182);
       doc.text(splitIntro, 14, 50);
 
@@ -353,10 +293,10 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       doc.setFont("Roboto", "normal"); 
     }
     
+    // GÜNCELLENDİ: Tablodan "Operasyonel Kaynaklı Müşteri Şikayet" satırı çıkarıldı
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, `%${TARGETS.adresAlimOrani}`],
-      ["Operasyonel Kaynaklı Müşteri Şikayet", formatDisplayMetric(targetData.musteriSikayet, false), `${TARGETS.musteriSikayet}`],
       ["Rota Oranı", `%${formatDisplayMetric(targetData.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
       ["TVS Oranı", `%${formatDisplayMetric(targetData.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
       ["Check-in Oranı", `%${formatDisplayMetric(targetData.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
@@ -384,7 +324,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           const rVal = parseMetric(targetData[
             metricName === "Teslim Performansı" ? "teslimPerformansi" : 
             metricName === "Adres Alım Oranı" ? "adresAlimOrani" :
-            metricName === "Operasyonel Kaynaklı Müşteri Şikayet" ? "musteriSikayet" :
             metricName === "Rota Oranı" ? "rotaOrani" : 
             metricName === "TVS Oranı" ? "tvsOrani" : 
             metricName === "Check-in Oranı" ? "checkInOrani" : 
@@ -396,7 +335,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           ]);
           if (metricName === "Teslim Performansı" && rVal !== null && rVal < TARGETS.teslimPerformansi) isFail = true;
           if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < TARGETS.adresAlimOrani) isFail = true;
-          if (metricName === "Operasyonel Kaynaklı Müşteri Şikayet" && rVal !== null && rVal > TARGETS.musteriSikayet) isFail = true;
           if (metricName === "Rota Oranı" && rVal !== null && rVal < TARGETS.rotaOrani) isFail = true;
           if (metricName === "TVS Oranı" && rVal !== null && rVal < TARGETS.tvsOrani) isFail = true;
           if (metricName === "Check-in Oranı" && rVal !== null && rVal < TARGETS.checkInOrani) isFail = true;
@@ -405,6 +343,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           if (metricName === "HTF Oranı" && rVal !== null && rVal < TARGETS.htfOrani) isFail = true;
           if (metricName === "Kontrol Sende" && rVal !== null && rVal < TARGETS.kontrolSende) isFail = true;
           if (metricName === "Ölçüm Tartım" && rVal !== null && rVal > TARGETS.olcumTartim) isFail = true;
+          
           if (isFail) { 
             data.cell.styles.fillColor = [254, 226, 226]; 
             data.cell.styles.textColor = [185, 28, 28]; 
@@ -431,7 +370,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       doc.text("İmza:", 140, finalY);
     }
     
-    // GÜNCELLENDİ: Hataları engellemek için array kopyalaması [...array] eklendi
     if (type === 'report' && targetData.personnel && targetData.personnel.length > 0) {
       doc.addPage();
       doc.setFontSize(16);
@@ -443,10 +381,9 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       
       const targetTotals = {};
       const targetTypes = {};
-      const safeQuantities = quantitiesData || []; // GÜVENLİK
       const rq = isYearAvg 
-          ? safeQuantities.filter(d => d.unit === targetUnit && d.year === parseInt(year))
-          : safeQuantities.filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
+          ? quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year))
+          : quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
 
       rq.forEach(uq => {
           if (uq.records && Array.isArray(uq.records)) {
@@ -460,7 +397,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           }
       });
       
-      // GÜNCELLENDİ: [...targetData.personnel] yaparak React'i kilitlenmeden kurtarıyoruz
       const personnelRows = [...(targetData.personnel || [])]
         .sort((a, b) => {
             const safeNameA = normalizeName(a.name);
@@ -544,6 +480,9 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
             console.warn("Font indirilemedi.");
         }
 
+        const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+        const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
         doc.setFontSize(16);
         doc.setTextColor(30, 58, 138); 
         doc.text("PERSONEL ADET ANALİZ RAPORU", 14, 20);
@@ -552,72 +491,21 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         doc.setTextColor(60);
         doc.text(`Birim: ${selectedUnit}`, 14, 28);
         doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 33);
-        doc.text(`Genel Toplam: ${totalCount}  |  Pb: ${totalParca}  |  Per: ${totalPersonel}  |  Pb Oranı: %${pbRatio !== null ? pbRatio.toLocaleString('tr-TR',{maximumFractionDigits:2}) : "0"}`, 14, 38);
 
-        const tableHead = [['Personel Adı', 'Tür', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
+        const tableHead = [['Personel Adı', 'Tür', 'TOPLAM', ...daysArr.map(d => String(d).padStart(2, '0'))]];
         const tableBody = [];
-
-        personelList.forEach(p => {
-            const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
-            const rowData = [p.name, p.type, rowTotal];
-            daysArray.forEach(d => rowData.push(p.days[d] || "-"));
-            tableBody.push(rowData);
-        });
-
-        parcabasiList.forEach(p => {
-            const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
-            const rowData = [p.name, p.type, rowTotal];
-            daysArray.forEach(d => rowData.push(p.days[d] || "-"));
-            tableBody.push(rowData);
-        });
-
-        const totalRow = ["GÜNLÜK ALT TOPLAM", "", totalCount];
-        daysArray.forEach(d => totalRow.push(dailyTotals[d] || "-"));
-        tableBody.push(totalRow);
 
         doc.autoTable({
             startY: 45,
             head: tableHead,
             body: tableBody,
             theme: 'grid',
-            styles: { font: 'Roboto', fontSize: 6, cellPadding: 1, halign: 'center' },
-            headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255] },
-            columnStyles: {
-                0: { halign: 'left', cellWidth: 35, fontStyle: 'bold' },
-                1: { cellWidth: 10 },
-                2: { fontStyle: 'bold', textColor: [30, 58, 138] }
-            },
-            didParseCell: function(data) {
-                if (data.section === 'body') {
-                    const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
-                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
-                    
-                    if (isTotalRow) {
-                        data.cell.styles.fillColor = isSundayCol ? [254, 202, 202] : [226, 232, 240]; 
-                        data.cell.styles.textColor = isSundayCol ? [153, 27, 27] : [15, 23, 42];
-                        data.cell.styles.fontStyle = 'bold';
-                    }
-                    else if (data.row.index < personelList.length) {
-                        data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [240, 248, 255]; 
-                        data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [30, 58, 138];
-                    } 
-                    else {
-                        data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [255, 241, 242]; 
-                        data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [159, 18, 57];
-                    }
-                } else if (data.section === 'head') {
-                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
-                    if(isSundayCol) {
-                        data.cell.styles.fillColor = [220, 38, 38]; 
-                    }
-                }
-            }
+            styles: { font: 'Roboto', fontSize: 6, cellPadding: 1, halign: 'center' }
         });
 
         doc.save(`${selectedUnit}_Adet_Analizi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.pdf`);
     } catch (error) {
         console.error("PDF oluşturulurken hata:", error);
-        alert("PDF dışa aktarılırken bir sorun oluştu.");
     } finally {
         setIsGeneratingPdf(false);
         setShowPdfModal(false);
@@ -678,125 +566,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       setIsGeneratingPdf(false);
       setShowPdfModal(false);
     }
-  };
-
-  const generatePersonnelPDF = async (person) => {
-    setIsGeneratingPdf(true);
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      try {
-        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
-        const blob = await response.blob();
-        const base64Font = await getBase64(blob);
-        doc.addFileToVFS("Roboto.ttf", base64Font);
-        doc.addFont("Roboto.ttf", "Roboto", "normal");
-        doc.addFont("Roboto.ttf", "Roboto", "bold");
-        doc.setFont("Roboto");
-      } catch (e) { console.warn("Font indirilemedi."); }
-      const r = parseMetric(person.rotaOrani);
-      const t = parseMetric(person.tvsOrani);
-      const c = parseMetric(person.checkInOrani);
-      const s = parseMetric(person.smsOrani);
-      doc.setFontSize(18);
-      doc.setTextColor(220, 38, 38);
-      doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Personel: ${person.name}`, 14, 30);
-      doc.text(`Birim: ${selectedUnit}`, 14, 35);
-      doc.text(`Dönem: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 40);
-      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
-      const tableRows = [
-        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani, true)}`, `%${TARGETS.smsOrani}`]
-      ];
-      doc.autoTable({
-        startY: 50,
-        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
-        body: tableRows,
-        theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 10 },
-        headStyles: { fillColor: [220, 38, 38], halign: 'center', font: 'Roboto' },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
-        didParseCell: function(data) {
-          if (data.section === 'body') {
-            const metricName = data.row.raw[0];
-            let isFail = false;
-            if (metricName === "Rota Oranı" && r !== null && r < TARGETS.rotaOrani) isFail = true;
-            if (metricName === "TVS Oranı" && t !== null && t < TARGETS.tvsOrani) isFail = true;
-            if (metricName === "Check-in Oranı" && c !== null && c < TARGETS.checkInOrani) isFail = true;
-            if (metricName === "SMS Oranı" && s !== null && s < TARGETS.smsOrani) isFail = true;
-            if (isFail) { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [185, 28, 28]; data.cell.styles.fontStyle = 'bold'; }
-          }
-        }
-      });
-      let finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(10);
-      doc.setTextColor(40);
-      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartlar üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
-      const splitText = doc.splitTextToSize(defenseText, 180);
-      doc.text(splitText, 14, finalY);
-      finalY += splitText.length * 5 + 10;
-      doc.setFontSize(11);
-      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
-      doc.setDrawColor(200);
-      for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
-      finalY += 75;
-      doc.setFontSize(10);
-      doc.text("Personel Ad / Soyad:", 14, finalY);
-      doc.text("İmza:", 140, finalY);
-      doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma.pdf`);
-    } catch (error) { console.error("PDF oluşturulurken hata:", error); } finally { setIsGeneratingPdf(false); }
-  };
-
-  const generateTebrikPDF = async (person) => {
-    setIsGeneratingPdf(true);
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      try {
-        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
-        const blob = await response.blob();
-        const base64Font = await getBase64(blob);
-        doc.addFileToVFS("Roboto.ttf", base64Font);
-        doc.addFont("Roboto.ttf", "Roboto", "normal");
-        doc.setFont("Roboto");
-      } catch (e) { console.warn("Font indirilemedi."); }
-      doc.setFontSize(18);
-      doc.setTextColor(22, 163, 74); 
-      doc.text("PERSONEL PERFORMANS TEBRİK BELGESİ", 14, 22);
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Personel: ${person.name}`, 14, 30);
-      doc.text(`Birim: ${selectedUnit}`, 14, 35);
-      doc.text(`Dönem: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 40);
-      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
-      const tableRows = [
-        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
-        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
-        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
-        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani, true)}`, `%${TARGETS.smsOrani}`]
-      ];
-      doc.autoTable({
-        startY: 50,
-        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
-        body: tableRows,
-        theme: 'grid',
-        styles: { font: 'Roboto', fontSize: 10 },
-        headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }
-      });
-      let finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(10);
-      doc.setTextColor(40);
-      const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
-      const splitText = doc.splitTextToSize(tebrikText, 180);
-      doc.text(splitText, 14, finalY);
-      doc.save(`${selectedUnit}_${person.name.replace(/\s+/g, '_')}_Tebrik.pdf`);
-    } catch (error) { console.error("PDF oluşturulurken hata:", error); } finally { setIsGeneratingPdf(false); }
   };
 
   const generateBulkZIP = async () => {
@@ -984,7 +753,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         )}
       </div>
 
-      {/* TÜM PERSONELLER LİSTESİ MODAL PENCERESİ */}
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -996,7 +764,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
               <table className="w-full text-left whitespace-nowrap border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                   <tr>
-                    <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Ad Soyad</th>
+                    <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Personel (Tür)</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-indigo-600 dark:text-indigo-400 text-center">Adet</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
@@ -1006,14 +774,13 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                  {/* GÜNCELLENDİ: [KOPYA ALINARAK] React kilitlenmesi engellendi ve Türüne Göre Sıralandı */}
                   {[...(displayData.personnel || [])]
                     .sort((a, b) => {
                       const safeNameA = normalizeName(a.name);
                       const safeNameB = normalizeName(b.name);
                       const tA = personelList.some(x=> normalizeName(x.name)===safeNameA) ? "Per" : (parcabasiList.some(x=> normalizeName(x.name)===safeNameA) ? "Pb" : "Per");
                       const tB = personelList.some(x=> normalizeName(x.name)===safeNameB) ? "Per" : (parcabasiList.some(x=> normalizeName(x.name)===safeNameB) ? "Pb" : "Per");
-                      if (tA !== tB) return tA === "Per" ? -1 : 1; // Önce Per Sonra Pb
+                      if (tA !== tB) return tA === "Per" ? -1 : 1;
                       return (a.name || "").localeCompare(b.name || "", 'tr-TR');
                     })
                     .map((person, idx) => {
@@ -1057,7 +824,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         </div>
       )}
 
-      {/* FİLO DETAYLARI MODAL PENCERESİ */}
       {showFleetModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowFleetModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -1107,7 +873,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         </div>
       )}
 
-      {/* BELGE (PDF) İNDİRME MODAL PENCERESİ */}
       {showPdfModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPdfModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm sm:max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
