@@ -8,6 +8,7 @@ const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) 
 // HESAPLAMA DIŞI BIRAKILAN BİRİMLER (61 Birim Kalacak)
 const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN", "BÖLGE"];
 
+// GÜNCELLENDİ: Boş, tire (-) veya hatalı verileri anında çöpe atan hassas filtre
 const parseMetric = (val) => {
   if (val === undefined || val === null || val === "") return null;
   const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
@@ -93,10 +94,7 @@ const COL2_LEFT = "left-[120px] sm:left-[150px]";
 const FinalRankingPage = ({ allData = [], onBack }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  
-  // YENİ: Yıllık Ortalama Modu State'i
   const [isShowYearAvg, setIsShowYearAvg] = useState(false);
-  
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const [isInitialLoaded, setIsInitialLoaded] = useState(false);
@@ -116,7 +114,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
     }
   }, [allData, isInitialLoaded]);
 
-  // GÜNCELLENDİ: Hem Aylık Hem de "Yıllık Ortalama" yı hesaplayabilen ana motor
   const rankingData = useMemo(() => {
     try {
         if (!allData || allData.length === 0) return [];
@@ -136,6 +133,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                 }
                 const g = unitGroups[d.unit];
 
+                // GÜNCELLENDİ: Sadece ve sadece içi dolu olan, gerçek veriye sahip aylar dahil edilir (Akıllı Sayaç)
                 RANK_METRICS.forEach(m => {
                     const val = parseMetric(d[m.key]);
                     if (val !== null) {
@@ -162,10 +160,10 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                 const res = { unit };
 
                 RANK_METRICS.forEach(m => {
+                    // Verisi olan ay sayısına (count) bölünür, böylece hatalı ortalama oluşmaz
                     res[m.key] = g.metrics[m.key].count > 0 ? (g.metrics[m.key].total / g.metrics[m.key].count) : null;
                 });
 
-                // Şikayet puanı için en yakın tam sayıya yuvarlanır
                 res.musteriSikayet = g.musteriSikayet.count > 0 ? Math.round(g.musteriSikayet.total / g.musteriSikayet.count) : null;
                 res.gelenKargo = g.gelenKargo.count > 0 ? (g.gelenKargo.total / g.gelenKargo.count) : null;
 
@@ -247,7 +245,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   const donemTextStr = isShowYearAvg ? `Yıllık Ortalama (${selectedYear})` : `${MONTH_NAMES[selectedMonth]} ${selectedYear}`;
   const fileNameSuffix = isShowYearAvg ? `Yillik_Ortalama_${selectedYear}` : `${MONTH_NAMES[selectedMonth]}_${selectedYear}`;
 
-  // PDF ÇIKTISI
   const generatePDF = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -322,7 +319,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
     }
   };
 
-  // EXCEL ÇIKTISI
   const generateExcel = async () => {
     setIsGeneratingExcel(true);
     try {
@@ -383,7 +379,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   return (
     <div className="bg-slate-50 dark:bg-slate-900 h-screen flex flex-col transition-colors duration-300 overflow-hidden">
       
-      {/* ÜST MENÜ */}
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-50 shadow-sm border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -421,7 +416,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                   {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
               
-              {/* YENİ: Yıl Ortalaması Butonu ve Dinamik Ay Gösterimi */}
               <button onClick={() => setIsShowYearAvg(!isShowYearAvg)} className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ml-1 ${isShowYearAvg ? "bg-purple-600 dark:bg-purple-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"}`}>
                   <TrendingUp size={14} className="mb-0.5" />
                   {isShowYearAvg ? "Aylara Dön" : "Yıl Ort."}
@@ -443,7 +437,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
           </div>
       </div>
 
-      {/* İÇERİK ALANI */}
       <div className="p-4 sm:p-6 max-w-[1600px] mx-auto w-full flex-1 flex flex-col min-h-0">
           {rankingData.length > 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0 overflow-hidden">
