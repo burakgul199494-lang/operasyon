@@ -53,6 +53,13 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
     { key: "count", label: "Adet", width: "w-24" }
   ];
 
+  // YENİ METRİKLERİ LİSTEYE DİNAMİK EKLEME
+  const EXTENDED_METRICS = [
+    ...METRIC_TYPES,
+    ...(METRIC_TYPES.some(m => m.id === "teslimDusulen") ? [] : [{ id: "teslimDusulen", label: "Teslim Düşülen" }]),
+    ...(METRIC_TYPES.some(m => m.id === "transferGecikme") ? [] : [{ id: "transferGecikme", label: "Transfer Gecikme" }])
+  ];
+
   const handleAddYear = () => {
     const nextYear = availableYears[availableYears.length - 1] + 1;
     setAvailableYears([...availableYears, nextYear]);
@@ -402,9 +409,12 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
             const origRec = allData.find((d) => d.unit === unit && d.year === parseInt(selectedYear) && d.month === month);
             const origVal = origRec ? origRec[selectedMetric] : null;
             let finalVal = null;
+            
             if (cleanStr !== "") {
               const p = parseFloat(cleanStr);
-              if (!Number.isNaN(p)) { finalVal = (selectedMetric.includes("Kargo") || selectedMetric.includes("Adet")) ? Math.round(p) : Number(p.toFixed(2)); } else return;
+              // GÜNCELLENDİ: Yeni metrikler de "Adet" olduğu için yuvarlanır (virgüllü kaydedilmez)
+              const isCount = selectedMetric.includes("Kargo") || selectedMetric.includes("Adet") || selectedMetric.includes("Sikayet") || selectedMetric === "teslimDusulen" || selectedMetric === "transferGecikme";
+              if (!Number.isNaN(p)) { finalVal = isCount ? Math.round(p) : Number(p.toFixed(2)); } else return;
             }
             if ((origVal !== null && finalVal === null) || (origVal !== finalVal)) {
                 if(!((origVal === null || origVal === undefined) && finalVal === null)) { recordsToUpdate.push({ id: `${unit}-${selectedYear}-${month}`, unit, year: parseInt(selectedYear), month, [selectedMetric]: finalVal }); }
@@ -493,7 +503,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
             alert("KM verileri başarıyla güncellendi.");
         } catch(e) { alert("Hata: " + e.message); }
     
-    // GÜNCELLENDİ: "Eski verilerin üzerine yazma (Override)" mantığı eklendi
     } else if (activeTab === "quantities") {
         const validRows = quantitiesGrid.filter(r => r.tarih && r.birim && r.name && r.count !== "");
         
@@ -515,7 +524,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
 
         const recordsToUpdate = [];
         
-        // Bu ay için önceden veritabanında kaydı olan tüm birimler bulunur
         const existingDocsForMonth = quantitiesData.filter(d => d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
         
         UNITS.forEach(unit => {
@@ -523,7 +531,6 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
             const newRecords = grouped[docId] ? grouped[docId].records : [];
             const existingDoc = existingDocsForMonth.find(d => d.unit === unit);
             
-            // Eğer ekranda yeni veri varsa veya önceden veritabanında eski veri varsa, veriyi sıfırla ya da güncelle
             if (newRecords.length > 0 || (existingDoc && existingDoc.records && existingDoc.records.length > 0)) {
                 recordsToUpdate.push({ id: docId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), records: newRecords });
             }
@@ -573,7 +580,8 @@ const AdminPanel = ({ allData, unitInfo, fleetData, fleetKms, quantitiesData, on
                     <button onClick={() => { if(window.confirm("Bu tablodaki veriler temizlensin mi?")) { const ng={}; UNITS.forEach(u=>{ng[u]={};MONTH_INDICES.forEach(m=>ng[u][m]="")}); setGridData(ng); setPendingChanges(true); } }} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Temizle</button>
                 </div>
                 <div className="px-2 py-2 flex gap-2 overflow-x-auto no-scrollbar bg-slate-50 border-b border-slate-200">
-                    {METRIC_TYPES.map((metric) => (<button key={metric.id} onClick={() => setSelectedMetric(metric.id)} className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${selectedMetric === metric.id ? "bg-slate-800 text-white shadow-md transform scale-105" : "bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"}`}><Layers size={14} /> {metric.label}</button>))}
+                    {/* GÜNCELLENDİ: Dinamik yeni liste render ediliyor */}
+                    {EXTENDED_METRICS.map((metric) => (<button key={metric.id} onClick={() => setSelectedMetric(metric.id)} className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${selectedMetric === metric.id ? "bg-slate-800 text-white shadow-md transform scale-105" : "bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"}`}><Layers size={14} /> {metric.label}</button>))}
                 </div>
             </>
         )}
