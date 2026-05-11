@@ -1,16 +1,16 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck, Trophy } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck, Trophy, AlertCircle } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
 const TARGETS = { 
   teslimPerformansi: 96, adresAlimOrani: 90, musteriSikayet: 0,
   rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70,
-  eAtfOrani: 95, htfOrani: 90, kontrolSende: 90, olcumTartim: 20
+  eAtfOrani: 95, htfOrani: 90, kontrolSende: 90, olcumTartim: 20,
+  teslimDusulen: 0, transferGecikme: 0 // YENİ HEDEFLER
 };
 
-// SIRALAMA İÇİN GEREKLİ SABİTLER
 const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN", "BÖLGE"];
 const RANK_METRICS = [
   { key: "teslimPerformansi", label: "Teslim", weight: 0.20 },
@@ -35,7 +35,20 @@ const getComplaintScore = (val) => {
     return 0;
 };
 
-const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"];
+const getPenaltyScore = (val) => {
+    if (val === null || val === undefined) return 0;
+    if (val === 0) return 5;
+    if (val === 1) return 3;
+    if (val === 2) return 1;
+    if (val >= 3 && val <= 5) return 0;
+    if (val >= 6 && val <= 10) return -1;
+    if (val >= 11 && val <= 20) return -2;
+    if (val >= 21) return -5;
+    return 0;
+};
+
+// YENİ METRİKLER EKLENDİ
+const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "teslimDusulen", "transferGecikme"];
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
@@ -123,30 +136,27 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
             const unitGroups = {};
             yearData.forEach(d => {
                 if (!unitGroups[d.unit]) {
-                    unitGroups[d.unit] = { metrics: {}, musteriSikayet: { total: 0, count: 0 }, gelenKargo: { total: 0, count: 0 } };
+                    unitGroups[d.unit] = { metrics: {}, musteriSikayet: { total: 0, count: 0 }, gelenKargo: { total: 0, count: 0 }, teslimDusulen: { total: 0, count: 0 }, transferGecikme: { total: 0, count: 0 } };
                     RANK_METRICS.forEach(m => unitGroups[d.unit].metrics[m.key] = { total: 0, count: 0 });
                 }
                 const g = unitGroups[d.unit];
 
                 RANK_METRICS.forEach(m => {
                     const val = parseMetric(d[m.key]);
-                    if (val !== null) {
-                        g.metrics[m.key].total += val;
-                        g.metrics[m.key].count += 1;
-                    }
+                    if (val !== null) { g.metrics[m.key].total += val; g.metrics[m.key].count += 1; }
                 });
 
                 const sikayet = parseMetric(d.musteriSikayet);
-                if (sikayet !== null) {
-                    g.musteriSikayet.total += sikayet;
-                    g.musteriSikayet.count += 1;
-                }
+                if (sikayet !== null) { g.musteriSikayet.total += sikayet; g.musteriSikayet.count += 1; }
 
                 const kargo = parseMetric(d.gelenKargo);
-                if (kargo !== null) {
-                    g.gelenKargo.total += kargo;
-                    g.gelenKargo.count += 1;
-                }
+                if (kargo !== null) { g.gelenKargo.total += kargo; g.gelenKargo.count += 1; }
+
+                const tDusulen = parseMetric(d.teslimDusulen);
+                if (tDusulen !== null) { g.teslimDusulen.total += tDusulen; g.teslimDusulen.count += 1; }
+
+                const tGecikme = parseMetric(d.transferGecikme);
+                if (tGecikme !== null) { g.transferGecikme.total += tGecikme; g.transferGecikme.count += 1; }
             });
 
             targetData = Object.keys(unitGroups).map(unit => {
@@ -157,26 +167,20 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                 });
                 res.musteriSikayet = g.musteriSikayet.count > 0 ? Math.round(g.musteriSikayet.total / g.musteriSikayet.count) : null;
                 res.gelenKargo = g.gelenKargo.count > 0 ? (g.gelenKargo.total / g.gelenKargo.count) : null;
+                res.teslimDusulen = g.teslimDusulen.count > 0 ? Math.round(g.teslimDusulen.total / g.teslimDusulen.count) : null;
+                res.transferGecikme = g.transferGecikme.count > 0 ? Math.round(g.transferGecikme.total / g.transferGecikme.count) : null;
                 return res;
             });
         } else {
-            targetData = allData.filter(d => 
-                d.year === parseInt(selectedYear) && 
-                d.month === parseInt(selectedMonth) &&
-                !EXCLUDED_UNITS.includes(d.unit)
-            );
+            targetData = allData.filter(d => d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth) && !EXCLUDED_UNITS.includes(d.unit));
         }
 
         if (targetData.length === 0) return null;
 
         const regionalTotalIncoming = targetData.reduce((acc, curr) => acc + (parseMetric(curr.gelenKargo) || 0), 0);
-
         const rankPointsMap = {};
         RANK_METRICS.forEach(m => {
-            const validUnits = targetData
-                .filter(d => parseMetric(d[m.key]) !== null)
-                .map(d => ({ unit: d.unit, val: parseMetric(d[m.key]) }));
-            
+            const validUnits = targetData.filter(d => parseMetric(d[m.key]) !== null).map(d => ({ unit: d.unit, val: parseMetric(d[m.key]) }));
             validUnits.sort((a, b) => b.val - a.val);
 
             rankPointsMap[m.key] = {};
@@ -205,6 +209,12 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
             const compVal = parseMetric(record.musteriSikayet);
             if (compVal !== null) finalScore += getComplaintScore(compVal);
 
+            const tdVal = parseMetric(record.teslimDusulen);
+            if (tdVal !== null) finalScore += getPenaltyScore(tdVal);
+
+            const tgVal = parseMetric(record.transferGecikme);
+            if (tgVal !== null) finalScore += getPenaltyScore(tgVal);
+
             const incoming = parseMetric(record.gelenKargo) || 0;
             if (regionalTotalIncoming > 0) finalScore += (incoming / regionalTotalIncoming) * 100;
 
@@ -216,11 +226,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         const rankIndex = finalList.findIndex(item => item.unit === selectedUnit);
         if (rankIndex === -1) return null;
 
-        return {
-            rank: rankIndex + 1,
-            totalUnits: finalList.length,
-            score: finalList[rankIndex].finalScore
-        };
+        return { rank: rankIndex + 1, totalUnits: finalList.length, score: finalList[rankIndex].finalScore };
     } catch(e) {
         console.error("Birim Sıralaması Hesaplanırken Hata:", e);
         return null;
@@ -246,7 +252,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     const averages = {};
     metricsList.forEach(field => {
       if (counts[field] > 0) {
-        if (["gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "musteriSikayet"].includes(field)) { 
+        if (["gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "olcumTartim", "musteriSikayet", "teslimDusulen", "transferGecikme"].includes(field)) { 
           averages[field] = Math.round(totals[field]); 
         } else { 
           averages[field] = (totals[field] / counts[field]).toFixed(2); 
@@ -261,6 +267,8 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
   const isTeslimBasarisiz = displayData && parseMetric(displayData.teslimPerformansi) < TARGETS.teslimPerformansi;
   const isAdresAlimBasarisiz = displayData && parseMetric(displayData.adresAlimOrani) < TARGETS.adresAlimOrani;
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
+  const isTeslimDusulenBasarisiz = displayData && parseMetric(displayData.teslimDusulen) > TARGETS.teslimDusulen;
+  const isTransferGecikmeBasarisiz = displayData && parseMetric(displayData.transferGecikme) > TARGETS.transferGecikme;
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
   const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
@@ -355,6 +363,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     });
   }, [fleetData, selectedUnit]);
 
+  // GÜNCELLENDİ: Yeni Metrikler PDF Analizine Eklendi
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
     const a = parseMetric(data.adresAlimOrani);
@@ -366,6 +375,8 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     const htf = parseMetric(data.htfOrani);
     const ks = parseMetric(data.kontrolSende);
     const ot = parseMetric(data.olcumTartim);
+    const td = parseMetric(data.teslimDusulen);
+    const tg = parseMetric(data.transferGecikme);
 
     let text = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıda tarafınıza sunulmuştur:\n\n";
 
@@ -378,6 +389,19 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       else if (a >= 80) text += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
       else text += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
     }
+    
+    if (td !== null) {
+      if (td === 0) text += "• Teslim düşülen kargo adetiniz 0 olarak gerçekleşmiş olup, başarılı operasyonunuz için teşekkür ederiz.\n";
+      else if (td <= 5) text += "• Teslim düşülen kargo sayınız 1-5 aralığında (kabul edilebilir seviyede) gerçekleşmiştir, dikkatle takip edilmelidir.\n";
+      else text += "• Teslim düşülen kargo sayınız hedeflerin çok uzağında olup tamamen başarısızdır. Şube içi kargo akışı acilen kontrol edilmelidir.\n";
+    }
+
+    if (tg !== null) {
+      if (tg === 0) text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiş olup, hatasız gönderiminiz için tebrik ederiz.\n";
+      else if (tg <= 5) text += "• Transferde gecikme sayınız 1-5 aralığında (kabul edilebilir seviyede) gerçekleşmiştir, şube/hat çıkışlarına özen gösterilmelidir.\n";
+      else text += "• Transferde gecikme sayınız kabul edilemez seviyededir (tamamen başarısız). Araç yüklemeleri ve aktarma işlemlerinde ivedilikle aksiyon alınmalıdır.\n";
+    }
+
     if (r !== null) {
       if (r >= TARGETS.rotaOrani) text += "• Rota oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (r >= 80) text += "• Rota oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
@@ -471,9 +495,12 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       doc.setFont("Roboto", "normal"); 
     }
     
+    // GÜNCELLENDİ: PDF Tablosuna Yeni Metrikler Eklendi
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, `%${TARGETS.adresAlimOrani}`],
+      ["Teslim Düşülen", formatDisplayMetric(targetData.teslimDusulen, false), `${TARGETS.teslimDusulen} Adet`],
+      ["Transfer Gecikme", formatDisplayMetric(targetData.transferGecikme, false), `${TARGETS.transferGecikme} Adet`],
       ["Rota Oranı", `%${formatDisplayMetric(targetData.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
       ["TVS Oranı", `%${formatDisplayMetric(targetData.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
       ["Check-in Oranı", `%${formatDisplayMetric(targetData.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
@@ -501,6 +528,8 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           const rVal = parseMetric(targetData[
             metricName === "Teslim Performansı" ? "teslimPerformansi" : 
             metricName === "Adres Alım Oranı" ? "adresAlimOrani" :
+            metricName === "Teslim Düşülen" ? "teslimDusulen" :
+            metricName === "Transfer Gecikme" ? "transferGecikme" :
             metricName === "Rota Oranı" ? "rotaOrani" : 
             metricName === "TVS Oranı" ? "tvsOrani" : 
             metricName === "Check-in Oranı" ? "checkInOrani" : 
@@ -512,6 +541,8 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           ]);
           if (metricName === "Teslim Performansı" && rVal !== null && rVal < TARGETS.teslimPerformansi) isFail = true;
           if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < TARGETS.adresAlimOrani) isFail = true;
+          if (metricName === "Teslim Düşülen" && rVal !== null && rVal > TARGETS.teslimDusulen) isFail = true;
+          if (metricName === "Transfer Gecikme" && rVal !== null && rVal > TARGETS.transferGecikme) isFail = true;
           if (metricName === "Rota Oranı" && rVal !== null && rVal < TARGETS.rotaOrani) isFail = true;
           if (metricName === "TVS Oranı" && rVal !== null && rVal < TARGETS.tvsOrani) isFail = true;
           if (metricName === "Check-in Oranı" && rVal !== null && rVal < TARGETS.checkInOrani) isFail = true;
@@ -1061,7 +1092,8 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mb-4">
+            {/* GÜNCELLENDİ: Üstteki 3'lü Kart Grubu */}
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-4">
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Teslim" : "Teslim"}</p>
@@ -1083,13 +1115,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                   <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.musteriSikayet}</span></div>
                 </div>
               </div>
-              <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white`}>
-                <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Pb D/O</p>
-                  <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
-                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Dağıtım Oranı</span></div>
-                </div>
-              </div>
             </div>
 
             <div>
@@ -1099,7 +1124,8 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                    <button onClick={() => setShowAllPersonnelModal(true)} className="text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm"><Users size={12}/> Personel İçin Tıkla</button>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              
+              <div className="grid grid-cols-3 gap-2 mb-2">
                 <KPICard title="Rota" value={formatDisplayMetric(displayData.rotaOrani, true)} target={TARGETS.rotaOrani} suffix="%" color={parseMetric(displayData.rotaOrani) < TARGETS.rotaOrani ? "red" : "green"} icon={TrendingUp} />
                 <KPICard title="TVS" value={formatDisplayMetric(displayData.tvsOrani, true)} target={TARGETS.tvsOrani} suffix="%" color={parseMetric(displayData.tvsOrani) < TARGETS.tvsOrani ? "red" : "green"} icon={Activity} />
                 <KPICard title="Check-in" value={formatDisplayMetric(displayData.checkInOrani, true)} target={TARGETS.checkInOrani} suffix="%" color={parseMetric(displayData.checkInOrani) < TARGETS.checkInOrani ? "red" : "green"} icon={CheckCircle2} />
@@ -1110,6 +1136,34 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                 <KPICard title="K. Sende" value={formatDisplayMetric(displayData.kontrolSende, true)} target={TARGETS.kontrolSende} suffix="%" color={parseMetric(displayData.kontrolSende) < TARGETS.kontrolSende ? "red" : "green"} icon={ShieldCheck} />
                 <KPICard title="Ölçüm Tartım" value={formatDisplayMetric(displayData.olcumTartim, false)} target={TARGETS.olcumTartim} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
               </div>
+
+              {/* YENİ: Alttaki Özel 3'lü Grup (Teslim Düşülen, Transfer Gecikme, Pb D/O) */}
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                  <div className={`rounded-xl sm:rounded-2xl shadow-sm relative overflow-hidden flex flex-col text-center ${isTeslimDusulenBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                    <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
+                      <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Düşülen" : "T. Düşülen"}</p>
+                      <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.teslimDusulen, false)}</h2>
+                      <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.teslimDusulen}</span></div>
+                    </div>
+                  </div>
+                  
+                  <div className={`rounded-xl sm:rounded-2xl shadow-sm relative overflow-hidden flex flex-col text-center ${isTransferGecikmeBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                    <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
+                      <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Gecikme" : "T. Gecikme"}</p>
+                      <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.transferGecikme, false)}</h2>
+                      <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.transferGecikme}</span></div>
+                    </div>
+                  </div>
+
+                  <div className={`rounded-xl sm:rounded-2xl shadow-sm relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white`}>
+                    <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
+                      <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Pb D/O</p>
+                      <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
+                      <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Dağıtım Oranı</span></div>
+                    </div>
+                  </div>
+              </div>
+
             </div>
           </>
         ) : (
