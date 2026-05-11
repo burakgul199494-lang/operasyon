@@ -1,3 +1,4 @@
+import FinalRankingPage from "./pages/FinalRankingPage"; // Bunu en üste ekle
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
@@ -15,6 +16,7 @@ import PersonnelDefensePage from "./pages/PersonnelDefensePage";
 import PersonnelQuantitiesPage from "./pages/PersonnelQuantitiesPage";
 import UserProfileModal from "./components/UserProfileModal";
 import { Lock } from "lucide-react";
+
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -162,7 +164,7 @@ export default function App() {
         
         {/* GÜNCELLENDİ: fleetData ve fleetKms buraya eklendi */}
         <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
-        
+        <Route path="/ranking" element={<FinalRankingPage allData={allData} onBack={() => navigate("/")} />} />
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
         <Route path="/fleet" element={<FleetPage fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/")} />} />
         <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
