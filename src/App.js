@@ -1,4 +1,4 @@
-import FinalRankingPage from "./pages/FinalRankingPage"; // Bunu en üste ekle
+import FinalRankingPage from "./pages/FinalRankingPage"; // Yeni sayfamızın importu
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
@@ -109,9 +109,11 @@ export default function App() {
     if (window.confirm("Çıkış?")) { await signOut(auth); navigate("/"); }
   };
 
+  // GÜNCELLENDİ: Sıralama sayfasına giden komut buraya eklendi
   const handleNavigateFromMenu = (target) => {
     if (target === "admin") setShowLoginModal(true);
     else if (target === "dashboard") navigate("/dashboard");
+    else if (target === "ranking") navigate("/ranking"); 
     else if (target === "notes") navigate("/notes");
     else if (target === "fleet") navigate("/fleet"); 
     else if (target === "personnelDefense") navigate("/personnel-defense"); 
@@ -162,7 +164,6 @@ export default function App() {
         <Route path="/" element={<LandingMenu user={user} onNavigate={handleNavigateFromMenu} onLogout={handleAppLogout} onProfile={() => setProfileOpen(true)} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />} />
         <Route path="/dashboard" element={<Dashboard onUnitClick={(unit) => navigate(`/detail/${unit}`)} onNavigateMenu={() => navigate("/")} />} />
         
-        {/* GÜNCELLENDİ: fleetData ve fleetKms buraya eklendi */}
         <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
         <Route path="/ranking" element={<FinalRankingPage allData={allData} onBack={() => navigate("/")} />} />
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
