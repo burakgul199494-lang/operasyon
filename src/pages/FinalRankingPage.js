@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { ArrowLeft, Calendar, FileDown, Trophy, Medal, AlertTriangle } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { ArrowLeft, Calendar, FileDown, Trophy, Medal, AlertTriangle, Loader2 } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -59,7 +59,6 @@ const formatScoreDisplay = (base, rp) => {
     );
 };
 
-// GÜNCELLENDİ: PDF çökmesini engellemek için extra korumalar eklendi
 const formatPdfScore = (base, rp) => {
     if (base === null || base === undefined) return "-";
     try {
@@ -81,6 +80,28 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+
+  // OTOMATİK TARİH BULUCU: İlk açılışta veritabanındaki en güncel ayı bulur
+  useEffect(() => {
+    if (allData && allData.length > 0 && !isInitialLoaded) {
+      // Sadece değerlendirmeye dahil olan birimlerin verilerini al
+      const validRecords = allData.filter(d => !EXCLUDED_UNITS.includes(d.unit));
+      
+      if (validRecords.length > 0) {
+        // Yıl ve aya göre büyükten küçüğe sırala
+        const sortedRecords = [...validRecords].sort((a, b) => {
+          if (a.year !== b.year) return b.year - a.year;
+          return b.month - a.month;
+        });
+
+        // En güncel kaydın tarihine odaklan
+        setSelectedYear(sortedRecords[0].year);
+        setSelectedMonth(sortedRecords[0].month);
+      }
+      setIsInitialLoaded(true);
+    }
+  }, [allData, isInitialLoaded]);
 
   const rankingData = useMemo(() => {
     if (!allData || allData.length === 0) return [];
@@ -172,7 +193,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
         doc.setFontSize(10);
         doc.setTextColor(60);
-        doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear} | Hariç Tutulan Birimler: Marmaris İrt, Urla, DDN'ler`, 14, 28);
+        doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear} | Analiz Günü: ${new Date().toLocaleDateString('tr-TR')}`, 14, 28);
 
         const tableHead = [[
             'Sıra', 'Birim Adı', 'Nihai Puan', 
@@ -216,27 +237,23 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
     } catch (error) { 
         console.error("PDF oluşturulurken hata oluştu:", error); 
     } finally { 
-        // GÜNCELLENDİ: Sistemi rahatlatmak için kısa bir mola verildi (Beyaz ekranı engeller)
         setTimeout(() => setIsGeneratingPdf(false), 300);
     }
   };
 
   return (
-    /* GÜNCELLENDİ: "h-screen overflow-hidden" eklenerek sayfa kaydırması tamamen engellendi */
     <div className="bg-slate-50 dark:bg-slate-900 h-screen flex flex-col transition-colors duration-300 overflow-hidden">
       
-      {/* ÜST MENÜ - ASLA KAYMAYACAK ALAN */}
+      {/* ÜST MENÜ */}
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-50 shadow-sm border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                   <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
                       <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
                   </button>
-                  <div>
-                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                          <Trophy className="text-amber-500" size={24} /> Nihai Başarı Sıralaması
-                      </h1>
-                  </div>
+                  <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                      <Trophy className="text-amber-500" size={24} /> Nihai Başarı Sıralaması
+                  </h1>
               </div>
 
               <button 
@@ -262,42 +279,31 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
           </div>
       </div>
 
-      {/* İÇERİK ALANI - SADECE BURASI KAYACAK */}
+      {/* İÇERİK ALANI */}
       <div className="p-4 sm:p-6 max-w-[1600px] mx-auto w-full flex-1 flex flex-col min-h-0">
           {rankingData.length > 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0 overflow-hidden">
                   <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap gap-2 justify-between items-center shrink-0">
-                      <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                          Genel Sıralama Tablosu
-                      </h3>
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-white">Genel Sıralama Tablosu</h3>
                       <span className="text-xs font-semibold text-slate-500 bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-600">
                           {rankingData.length} Birim Listelendi
                       </span>
                   </div>
                   
-                  {/* SADECE TABLONUN KAYDIRILABİLDİĞİ ÖZEL ALAN */}
                   <div className="overflow-auto relative no-scrollbar flex-1 w-full">
                       <table className="w-full text-left whitespace-nowrap border-separate border-spacing-0 text-[10px] sm:text-xs">
                           <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-40 shadow-sm">
                               <tr>
-                                  <th className={`p-2 sm:p-3 font-extrabold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 truncate ${COL1_WIDTH}`}>
-                                      Birim Adı
-                                  </th>
-                                  <th className={`p-2 sm:p-3 font-extrabold text-red-600 dark:text-red-400 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>
-                                      Nihai Puan
-                                  </th>
+                                  <th className={`p-2 sm:p-3 font-extrabold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 truncate ${COL1_WIDTH}`}>Birim Adı</th>
+                                  <th className={`p-2 sm:p-3 font-extrabold text-red-600 dark:text-red-400 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Nihai Puan</th>
                                   
                                   {RANK_METRICS.map(m => (
                                       <th key={m.key} className="p-2 sm:p-3 font-bold text-slate-600 dark:text-slate-400 text-center border-b border-slate-200 dark:border-slate-700">
                                           {m.label} <span className="text-[8px] text-slate-400 block">%{(m.weight*100).toFixed(0)}</span>
                                       </th>
                                   ))}
-                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">
-                                      Şikayet P.
-                                  </th>
-                                  <th className="p-2 sm:p-3 font-bold text-blue-600 dark:text-blue-400 text-center border-b border-slate-200 dark:border-slate-700">
-                                      Hacim P.
-                                  </th>
+                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Şikayet P.</th>
+                                  <th className="p-2 sm:p-3 font-bold text-blue-600 dark:text-blue-400 text-center border-b border-slate-200 dark:border-slate-700">Hacim P.</th>
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -309,16 +315,12 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
                                   return (
                                       <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                                          <td className={`p-2 sm:p-3 font-bold text-slate-800 dark:text-slate-200 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 truncate ${COL1_WIDTH}`} title={row.unit}>
-                                              <div className="flex items-center">
-                                                  {rankIcon}
-                                                  {row.unit}
-                                              </div>
+                                          <td className={`p-2 sm:p-3 font-bold text-slate-800 dark:text-slate-200 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 truncate ${COL1_WIDTH}`}>
+                                              <div className="flex items-center">{rankIcon} {row.unit}</div>
                                           </td>
                                           <td className={`p-2 sm:p-3 text-center font-black text-sm sm:text-base text-rose-600 dark:text-rose-400 sticky z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
                                               {row.finalScore != null ? row.finalScore.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
                                           </td>
-                                          
                                           {RANK_METRICS.map(m => (
                                               <td key={m.key} className="p-2 sm:p-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700/50">
                                                   {formatScoreDisplay(row.details[m.key].base, row.details[m.key].rp)}
