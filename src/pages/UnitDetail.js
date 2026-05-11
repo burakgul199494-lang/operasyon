@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck, Trophy } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
@@ -8,6 +8,31 @@ const TARGETS = {
   teslimPerformansi: 96, adresAlimOrani: 90, musteriSikayet: 0,
   rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70,
   eAtfOrani: 95, htfOrani: 90, kontrolSende: 90, olcumTartim: 20
+};
+
+// SIRALAMA İÇİN GEREKLİ SABİTLER
+const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN", "BÖLGE"];
+const RANK_METRICS = [
+  { key: "teslimPerformansi", label: "Teslim", weight: 0.20 },
+  { key: "adresAlimOrani", label: "Adres Alım", weight: 0.15 },
+  { key: "rotaOrani", label: "Rota", weight: 0.05 },
+  { key: "tvsOrani", label: "TVS", weight: 0.10 },
+  { key: "checkInOrani", label: "Check-in", weight: 0.05 },
+  { key: "smsOrani", label: "SMS", weight: 0.10 },
+  { key: "eAtfOrani", label: "E-ATF", weight: 0.05 },
+  { key: "htfOrani", label: "HTF", weight: 0.05 },
+  { key: "elektronikIhbar", label: "E-İhbar", weight: 0.05 },
+  { key: "kontrolSende", label: "K. Sende", weight: 0.05 },
+];
+
+const getComplaintScore = (val) => {
+    if (val === null || val === undefined) return 0;
+    if (val === 0) return 15;
+    if (val === 1) return 8;
+    if (val === 2) return 4;
+    if (val === 3) return 0;
+    if (val >= 4) return -(val - 2); 
+    return 0;
 };
 
 const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet"];
@@ -33,11 +58,7 @@ const formatDisplayMetric = (val, isPercent = true) => {
 
 const normalizeName = (name) => {
   if (!name) return "";
-  return name
-    .toString()
-    .trim()
-    .replace(/\s+/g, ' ') 
-    .toLocaleUpperCase('tr-TR'); 
+  return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR'); 
 };
 
 const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -62,11 +83,6 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const COL1_WIDTH = "w-[130px] min-w-[130px] max-w-[130px] sm:w-[160px] sm:min-w-[160px] sm:max-w-[160px]";
-const COL2_WIDTH = "w-[36px] min-w-[36px] max-w-[36px] sm:w-[46px] sm:min-w-[46px] sm:max-w-[46px]";
-const COL2_LEFT = "left-[130px] sm:left-[160px]";
-
-// GÜNCELLENDİ: Hataları engellemek için varsayılan boş listeler (= []) eklendi
 const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
@@ -94,20 +110,128 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     }
   }, [allData, selectedUnit]); 
 
-  const getIsSunday = (day) => {
-    const d = new Date(selectedYear, selectedMonth - 1, day);
-    return d.getDay() === 0;
-  };
+  // GÜNCELLENDİ: Birimin Sıralamasını Bulan Akıllı Motor
+  const currentUnitRankInfo = useMemo(() => {
+    try {
+        if (!allData || allData.length === 0 || EXCLUDED_UNITS.includes(selectedUnit)) return null;
+
+        let targetData = [];
+
+        if (showYearAvg) {
+            const yearData = allData.filter(d => d.year === parseInt(selectedYear) && !EXCLUDED_UNITS.includes(d.unit));
+            if (yearData.length === 0) return null;
+
+            const unitGroups = {};
+            yearData.forEach(d => {
+                if (!unitGroups[d.unit]) {
+                    unitGroups[d.unit] = { metrics: {}, musteriSikayet: { total: 0, count: 0 }, gelenKargo: { total: 0, count: 0 } };
+                    RANK_METRICS.forEach(m => unitGroups[d.unit].metrics[m.key] = { total: 0, count: 0 });
+                }
+                const g = unitGroups[d.unit];
+
+                RANK_METRICS.forEach(m => {
+                    const val = parseMetric(d[m.key]);
+                    if (val !== null) {
+                        g.metrics[m.key].total += val;
+                        g.metrics[m.key].count += 1;
+                    }
+                });
+
+                const sikayet = parseMetric(d.musteriSikayet);
+                if (sikayet !== null) {
+                    g.musteriSikayet.total += sikayet;
+                    g.musteriSikayet.count += 1;
+                }
+
+                const kargo = parseMetric(d.gelenKargo);
+                if (kargo !== null) {
+                    g.gelenKargo.total += kargo;
+                    g.gelenKargo.count += 1;
+                }
+            });
+
+            targetData = Object.keys(unitGroups).map(unit => {
+                const g = unitGroups[unit];
+                const res = { unit };
+                RANK_METRICS.forEach(m => {
+                    res[m.key] = g.metrics[m.key].count > 0 ? (g.metrics[m.key].total / g.metrics[m.key].count) : null;
+                });
+                res.musteriSikayet = g.musteriSikayet.count > 0 ? Math.round(g.musteriSikayet.total / g.musteriSikayet.count) : null;
+                res.gelenKargo = g.gelenKargo.count > 0 ? (g.gelenKargo.total / g.gelenKargo.count) : null;
+                return res;
+            });
+        } else {
+            targetData = allData.filter(d => 
+                d.year === parseInt(selectedYear) && 
+                d.month === parseInt(selectedMonth) &&
+                !EXCLUDED_UNITS.includes(d.unit)
+            );
+        }
+
+        if (targetData.length === 0) return null;
+
+        const regionalTotalIncoming = targetData.reduce((acc, curr) => acc + (parseMetric(curr.gelenKargo) || 0), 0);
+
+        const rankPointsMap = {};
+        RANK_METRICS.forEach(m => {
+            const validUnits = targetData
+                .filter(d => parseMetric(d[m.key]) !== null)
+                .map(d => ({ unit: d.unit, val: parseMetric(d[m.key]) }));
+            
+            validUnits.sort((a, b) => b.val - a.val);
+
+            rankPointsMap[m.key] = {};
+            validUnits.forEach((item, index) => {
+                let rp = 0;
+                if (item.val >= 100) rp = 1.0;
+                else if (index < 10) rp = (10 - index) / 10;
+                else {
+                    const reverseIndex = validUnits.length - 1 - index;
+                    if (reverseIndex < 10) rp = -((10 - reverseIndex) / 10);
+                }
+                rankPointsMap[m.key][item.unit] = rp;
+            });
+        });
+
+        const finalList = [];
+        targetData.forEach(record => {
+            let finalScore = 0;
+            RANK_METRICS.forEach(m => {
+                const val = parseMetric(record[m.key]);
+                const base = val !== null ? val * m.weight : null;
+                const rp = (rankPointsMap[m.key] && rankPointsMap[m.key][record.unit]) ? rankPointsMap[m.key][record.unit] : 0;
+                if (base !== null) finalScore += (base + rp);
+            });
+
+            const compVal = parseMetric(record.musteriSikayet);
+            if (compVal !== null) finalScore += getComplaintScore(compVal);
+
+            const incoming = parseMetric(record.gelenKargo) || 0;
+            if (regionalTotalIncoming > 0) finalScore += (incoming / regionalTotalIncoming) * 100;
+
+            finalList.push({ unit: record.unit, finalScore });
+        });
+
+        finalList.sort((a, b) => b.finalScore - a.finalScore);
+        
+        const rankIndex = finalList.findIndex(item => item.unit === selectedUnit);
+        if (rankIndex === -1) return null;
+
+        return {
+            rank: rankIndex + 1,
+            totalUnits: finalList.length,
+            score: finalList[rankIndex].finalScore
+        };
+    } catch(e) {
+        console.error("Birim Sıralaması Hesaplanırken Hata:", e);
+        return null;
+    }
+  }, [allData, selectedYear, selectedMonth, selectedUnit, showYearAvg]);
 
   const currentData = useMemo(() => {
     if (!selectedUnit) return null;
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [allData, selectedUnit, selectedYear, selectedMonth]);
-
-  const unitQuantities = useMemo(() => {
-    if (!quantitiesData || !selectedUnit) return null;
-    return quantitiesData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
-  }, [quantitiesData, selectedUnit, selectedYear, selectedMonth]);
 
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
@@ -141,67 +265,67 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
   const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
-    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-    const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+      const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+      const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    let pList = [];
-    let PbList = [];
-    let tPersonel = 0;
-    let tParca = 0;
-    let dTotals = {};
-    
-    daysArr.forEach(d => dTotals[d] = 0);
+      let pList = [];
+      let PbList = [];
+      let tPersonel = 0;
+      let tParca = 0;
+      let dTotals = {};
+      
+      daysArr.forEach(d => dTotals[d] = 0);
 
-    const safeQuantities = quantitiesData || []; // GÜVENLİK
-    const relevantQuantities = showYearAvg 
-        ? safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
-        : safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+      const safeQuantities = quantitiesData || [];
+      const relevantQuantities = showYearAvg 
+          ? safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
+          : safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
 
-    const map = {};
-    relevantQuantities.forEach(uq => {
-        if (uq.records && Array.isArray(uq.records)) {
-            uq.records.forEach(r => {
-                const safeName = normalizeName(r.name);
-                if(!map[safeName]) map[safeName] = { name: safeName, type: r.type, days: {} };
-                if (!map[safeName].days[r.day]) map[safeName].days[r.day] = 0;
-                
-                const countVal = r.count || 0;
-                map[safeName].days[r.day] += countVal;
-                
-                if (dTotals[r.day] !== undefined) dTotals[r.day] += countVal;
-            });
-        }
-    });
+      const map = {};
+      relevantQuantities.forEach(uq => {
+          if (uq.records && Array.isArray(uq.records)) {
+              uq.records.forEach(r => {
+                  const safeName = normalizeName(r.name);
+                  if(!map[safeName]) map[safeName] = { name: safeName, type: r.type, days: {} };
+                  if (!map[safeName].days[r.day]) map[safeName].days[r.day] = 0;
+                  
+                  const countVal = r.count || 0;
+                  map[safeName].days[r.day] += countVal;
+                  
+                  if (dTotals[r.day] !== undefined) dTotals[r.day] += countVal;
+              });
+          }
+      });
 
-    Object.values(map).forEach(p => {
-        const typeLower = (p.type || "").toLowerCase();
-        const shortType = typeLower.includes("parça") ? "Pb" : "Per"; 
-        
-        if (shortType === "Pb") {
-            PbList.push({ ...p, type: shortType });
-            Object.values(p.days).forEach(val => tParca += val);
-        } else {
-            pList.push({ ...p, type: shortType });
-            Object.values(p.days).forEach(val => tPersonel += val);
-        }
-    });
+      Object.values(map).forEach(p => {
+          const typeLower = (p.type || "").toLowerCase();
+          const shortType = typeLower.includes("parça") ? "Pb" : "Per"; 
+          
+          if (shortType === "Pb") {
+              PbList.push({ ...p, type: shortType });
+              Object.values(p.days).forEach(val => tParca += val);
+          } else {
+              pList.push({ ...p, type: shortType });
+              Object.values(p.days).forEach(val => tPersonel += val);
+          }
+      });
 
-    pList.sort((a,b) => a.name.localeCompare(b.name));
-    PbList.sort((a,b) => a.name.localeCompare(b.name));
+      pList.sort((a,b) => a.name.localeCompare(b.name, 'tr-TR'));
+      PbList.sort((a,b) => a.name.localeCompare(b.name, 'tr-TR'));
 
-    return { personelList: pList, parcabasiList: PbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
+      return { personelList: pList, parcabasiList: PbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
 
   const totalCount = totalPersonel + totalParca;
   const pbRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : null;
 
   const pbRatioData = useMemo(() => {
-    return { ratio: pbRatio };
+      return { ratio: pbRatio };
   }, [pbRatio]);
 
   const personnelTotals = useMemo(() => {
     const totals = {};
-    const safeQuantities = quantitiesData || []; // GÜVENLİK
+    const safeQuantities = quantitiesData || []; 
     const relevantQuantities = showYearAvg 
         ? safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
         : safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
@@ -219,7 +343,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
 
   const unitFleet = useMemo(() => {
-    const safeFleet = fleetData || []; // GÜVENLİK
+    const safeFleet = fleetData || []; 
     const filteredFleet = safeFleet.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
     return filteredFleet.sort((a, b) => {
       const typeA = String(a.operationType || "");
@@ -232,7 +356,72 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     });
   }, [fleetData, selectedUnit]);
 
-  // -------------- PDF OLUŞTURMA FONKSİYONLARI -------------- //
+  const generateDynamicAnalysis = (data) => {
+    const t = parseMetric(data.teslimPerformansi);
+    const a = parseMetric(data.adresAlimOrani);
+    const r = parseMetric(data.rotaOrani);
+    const tvs = parseMetric(data.tvsOrani);
+    const c = parseMetric(data.checkInOrani);
+    const s = parseMetric(data.smsOrani);
+    const eatf = parseMetric(data.eAtfOrani);
+    const htf = parseMetric(data.htfOrani);
+    const ks = parseMetric(data.kontrolSende);
+    const ot = parseMetric(data.olcumTartim);
+
+    let text = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıda tarafınıza sunulmuştur:\n\n";
+
+    if (t !== null) {
+      if (t >= TARGETS.teslimPerformansi) text += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
+      else text += "• Teslim performansınız ilgili ay içerisinde hedef altı kalmıştır, dağıtım planlamalarınızda mutlaka günlük kargolara öncelik verilmelidir.\n";
+    }
+    if (a !== null) {
+      if (a >= TARGETS.adresAlimOrani) text += "• Adres alım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (a >= 80) text += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
+      else text += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
+    }
+    if (r !== null) {
+      if (r >= TARGETS.rotaOrani) text += "• Rota oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (r >= 80) text += "• Rota oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• Rota oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
+    }
+    if (tvs !== null) {
+      if (tvs >= TARGETS.tvsOrani) text += "• TVS oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (tvs >= 90) text += "• TVS oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• TVS oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
+    }
+    if (c !== null) {
+      if (c >= TARGETS.checkInOrani) text += "• Check-in oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (c >= 85) text += "• Check-in oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• Check-in oranınız başarısızdır, kurye arkadaşlarımızın mutlaka her teslimat sonrası check-in yapması zorunludur.\n";
+    }
+    if (s !== null) {
+      if (s >= TARGETS.smsOrani) text += "• SMS ile teslimat oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (s >= 65) text += "• SMS ile teslimat oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
+      else text += "• SMS ile teslimat oranınız başarısızdır, kurye arkadaşlarımızın kargo tesliminde mutlaka sms ile teslimat yöntemine yönlendirilmesi gerekmektedir.\n";
+    }
+    if (eatf !== null) {
+      if (eatf >= TARGETS.eAtfOrani) text += "• E-atf oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (eatf >= 90) text += "• E-ATF oranınız hedeflenen orana yakındır, kurye arkadaşlarımızın mutlaka E-atf düzenlemesi, ve operatör arkadaşlarımızın mutlaka eşleme yapması gerekmektedir.\n";
+      else text += "• E-ATF oranınız başarısızdır, bu alanda mutlaka tüm kurye ve operatör arkadaşlarımıza eğitim planlaması yapılmalıdır.\n";
+    }
+    if (htf !== null) {
+      if (htf >= TARGETS.htfOrani) text += "• HTF oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (htf >= 85) text += "• HTF oranınız hedeflenen oranlara yakın gerçekleşmiştir, mutlaka operatör arkadaşlarımızın aktarma merkezlerinde tutulan HTF'lere karşılık HTF tutması gerekmektedir.\n";
+      else text += "• HTF oranınız başarısızdır, bu konuda ciddi bir sıkıntı mevcuttur, mutlaka kargo indirmelerinde HTF düzenlenmelidir.\n";
+    }
+    if (ks !== null) {
+      if (ks >= TARGETS.kontrolSende) text += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
+      else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız hedefe yakındır, konuyla ilgili alınacak küçük aksiyonlar hedefi gerçekleştirmemizi sağlayacaktır.\n";
+      else text += "• Kontrol Sende oranınız heedin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
+    }
+    if (ot !== null) {
+      if (ot <= TARGETS.olcumTartim) text += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
+      else if (ot <= 40) text += "• Ölçüm/Tartım farkı işlemleriniz ortalama seviyededir, artış eğilimine karşı dikkat edilmelidir.\n";
+      else text += "• Ölçüm/Tartım sayınız kritik seviyededir. Ölçüm tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
+    }
+    text += "\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm çalışma arkadaşlarımıza başarılar dileriz.";
+    return text;
+  };
 
   const createPdfDoc = async (type, targetUnit, targetData, year, month, isYearAvg, preloadedFont) => {
     const { jsPDF } = window.jspdf;
@@ -268,77 +457,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     if (type === 'report') {
       doc.setFontSize(9); 
       doc.setTextColor(60);
-      
-      const t = parseMetric(targetData.teslimPerformansi);
-      const a = parseMetric(targetData.adresAlimOrani);
-      const ms = parseMetric(targetData.musteriSikayet);
-      const r = parseMetric(targetData.rotaOrani);
-      const tvs = parseMetric(targetData.tvsOrani);
-      const c = parseMetric(targetData.checkInOrani);
-      const s = parseMetric(targetData.smsOrani);
-      const eatf = parseMetric(targetData.eAtfOrani);
-      const htf = parseMetric(targetData.htfOrani);
-      const ks = parseMetric(targetData.kontrolSende);
-      const ot = parseMetric(targetData.olcumTartim);
-
-      let introText = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıda tarafınıza sunulmuştur:\n\n";
-
-      if (t !== null) {
-        if (t >= TARGETS.teslimPerformansi) introText += "• Teslim performansınız hedef üstünde gerçekleşerek ilgili ay içinde güzel bir başarı sağlanmıştır.\n";
-        else introText += "• Teslim performansınız ilgili ay içerisinde hedef altı kalmıştır, dağıtım planlamalarınızda mutlaka günlük kargolara öncelik verilmelidir.\n";
-      }
-      if (a !== null) {
-        if (a >= TARGETS.adresAlimOrani) introText += "• Adres alım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (a >= 80) introText += "• Adres alım oranınız ortalama seviyelerde olup, ufak iyileştirmelerle hedefi yakalayabilirsiniz.\n";
-        else introText += "• Adres alım oranınız tamamen başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
-      }
-      if (ms !== null) {
-        if (ms === 0) introText += "• İlgili dönemde şubeye ait müşteri şikayeti bulunmamaktadır, çok iyi bir performans sergilenmiştir.\n";
-        else if (ms === 1) introText += "• İlgili dönemde 1 adet müşteri şikayetiniz bulunmaktadır, operasyonel süreçlerde dikkatli olunmalıdır.\n";
-        else introText += `• İlgili dönemde ${ms} adet müşteri şikayeti tespit edilmiştir. Bu durum ciddi uyarı gerektirmekte olup süreçlerinizi acilen gözden geçirmeniz şarttır.\n`;
-      }
-      if (r !== null) {
-        if (r >= TARGETS.rotaOrani) introText += "• Rota oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (r >= 80) introText += "• Rota oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-        else introText += "• Rota oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
-      }
-      if (tvs !== null) {
-        if (tvs >= TARGETS.tvsOrani) introText += "• TVS oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (tvs >= 90) introText += "• TVS oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-        else introText += "• TVS oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi şarttır.\n";
-      }
-      if (c !== null) {
-        if (c >= TARGETS.checkInOrani) introText += "• Check-in oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (c >= 85) introText += "• Check-in oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-        else introText += "• Check-in oranınız başarısızdır, kurye arkadaşlarımızın mutlaka her teslimat sonrası check-in yapması zorunludur.\n";
-      }
-      if (s !== null) {
-        if (s >= TARGETS.smsOrani) introText += "• SMS ile teslimat oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (s >= 65) introText += "• SMS ile teslimat oranınız hedeflenen orana yakın seviyede olup, ekip olarak biraz daha özen gösterildiğinde hedef orana ulaşılacaktır.\n";
-        else introText += "• SMS ile teslimat oranınız başarısızdır, kurye arkadaşlarımızın kargo tesliminde mutlaka sms ile teslimat yöntemine yönlendirilmesi gerekmektedir.\n";
-      }
-      if (eatf !== null) {
-        if (eatf >= TARGETS.eAtfOrani) introText += "• E-atf oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (eatf >= 90) introText += "• E-ATF oranınız hedeflenen orana yakındır, kurye arkadaşlarımızın mutlaka E-atf düzenlemesi, ve operatör arkadaşlarımızın mutlaka eşleme yapması gerekmektedir.\n";
-        else introText += "• E-ATF oranınız başarısızdır, bu alanda mutlaka tüm kurye ve operatör arkadaşlarımıza eğitim planlaması yapılmalıdır.\n";
-      }
-      if (htf !== null) {
-        if (htf >= TARGETS.htfOrani) introText += "• HTF oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (htf >= 85) introText += "• HTF oranınız hedeflenen oranlara yakın gerçekleşmiştir, mutlaka operatör arkadaşlarımızın aktarma merkezlerinde tutulan HTF'lere karşılık HTF tutması gerekmektedir.\n";
-        else introText += "• HTF oranınız başarısızdır, bu konuda ciddi bir sıkıntı mevcuttur, mutlaka kargo indirmelerinde HTF düzenlenmelidir.\n";
-      }
-      if (ks !== null) {
-        if (ks >= TARGETS.kontrolSende) introText += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
-        else if (ks >= 80) introText += "• Kontrol Sende kullanım oranınız hedefe yakındır, konuyla ilgili alınacak küçük aksiyonlar hedefi gerçekleştirmemizi sağlayacaktır.\n";
-        else introText += "• Kontrol Sende oranınız heedin çok altında kalmıştır, mutlaka önlem alınması gerekmektedir.\n";
-      }
-      if (ot !== null) {
-        if (ot <= TARGETS.olcumTartim) introText += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
-        else if (ot <= 40) introText += "• Ölçüm/Tartım farkı işlemleriniz ortalama seviyededir, artış eğilimine karşı dikkat edilmelidir.\n";
-        else introText += "• Ölçüm/Tartım sayınız kritik seviyededir. Ölçüm tartım işlemlerinin şubede titizlikle yapılması gerekmektedir.\n";
-      }
-      introText += "\nKarneniz üzerinde gerekli incelemeleri yaparak gelişime açık alanlara odaklanmanız ve performansınızı hedeflenen seviyeye yükseltmeniz beklenmektedir.\n\nTüm çalışma arkadaşlarımıza başarılar dileriz.";
-
+      const introText = generateDynamicAnalysis(targetData);
       const splitIntro = doc.splitTextToSize(introText, 182);
       doc.text(splitIntro, 14, 50);
 
@@ -356,7 +475,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, `%${TARGETS.adresAlimOrani}`],
-      ["Operasyonel Kaynaklı Müşteri Şikayet", formatDisplayMetric(targetData.musteriSikayet, false), `${TARGETS.musteriSikayet}`],
       ["Rota Oranı", `%${formatDisplayMetric(targetData.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
       ["TVS Oranı", `%${formatDisplayMetric(targetData.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
       ["Check-in Oranı", `%${formatDisplayMetric(targetData.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
@@ -384,7 +502,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           const rVal = parseMetric(targetData[
             metricName === "Teslim Performansı" ? "teslimPerformansi" : 
             metricName === "Adres Alım Oranı" ? "adresAlimOrani" :
-            metricName === "Operasyonel Kaynaklı Müşteri Şikayet" ? "musteriSikayet" :
             metricName === "Rota Oranı" ? "rotaOrani" : 
             metricName === "TVS Oranı" ? "tvsOrani" : 
             metricName === "Check-in Oranı" ? "checkInOrani" : 
@@ -396,7 +513,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           ]);
           if (metricName === "Teslim Performansı" && rVal !== null && rVal < TARGETS.teslimPerformansi) isFail = true;
           if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < TARGETS.adresAlimOrani) isFail = true;
-          if (metricName === "Operasyonel Kaynaklı Müşteri Şikayet" && rVal !== null && rVal > TARGETS.musteriSikayet) isFail = true;
           if (metricName === "Rota Oranı" && rVal !== null && rVal < TARGETS.rotaOrani) isFail = true;
           if (metricName === "TVS Oranı" && rVal !== null && rVal < TARGETS.tvsOrani) isFail = true;
           if (metricName === "Check-in Oranı" && rVal !== null && rVal < TARGETS.checkInOrani) isFail = true;
@@ -405,6 +521,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           if (metricName === "HTF Oranı" && rVal !== null && rVal < TARGETS.htfOrani) isFail = true;
           if (metricName === "Kontrol Sende" && rVal !== null && rVal < TARGETS.kontrolSende) isFail = true;
           if (metricName === "Ölçüm Tartım" && rVal !== null && rVal > TARGETS.olcumTartim) isFail = true;
+          
           if (isFail) { 
             data.cell.styles.fillColor = [254, 226, 226]; 
             data.cell.styles.textColor = [185, 28, 28]; 
@@ -431,7 +548,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       doc.text("İmza:", 140, finalY);
     }
     
-    // GÜNCELLENDİ: Hataları engellemek için array kopyalaması [...array] eklendi
     if (type === 'report' && targetData.personnel && targetData.personnel.length > 0) {
       doc.addPage();
       doc.setFontSize(16);
@@ -443,10 +559,9 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       
       const targetTotals = {};
       const targetTypes = {};
-      const safeQuantities = quantitiesData || []; // GÜVENLİK
       const rq = isYearAvg 
-          ? safeQuantities.filter(d => d.unit === targetUnit && d.year === parseInt(year))
-          : safeQuantities.filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
+          ? (quantitiesData || []).filter(d => d.unit === targetUnit && d.year === parseInt(year))
+          : (quantitiesData || []).filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
 
       rq.forEach(uq => {
           if (uq.records && Array.isArray(uq.records)) {
@@ -460,7 +575,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           }
       });
       
-      // GÜNCELLENDİ: [...targetData.personnel] yaparak React'i kilitlenmeden kurtarıyoruz
       const personnelRows = [...(targetData.personnel || [])]
         .sort((a, b) => {
             const safeNameA = normalizeName(a.name);
@@ -544,6 +658,9 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
             console.warn("Font indirilemedi.");
         }
 
+        const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+        const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
         doc.setFontSize(16);
         doc.setTextColor(30, 58, 138); 
         doc.text("PERSONEL ADET ANALİZ RAPORU", 14, 20);
@@ -552,27 +669,26 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         doc.setTextColor(60);
         doc.text(`Birim: ${selectedUnit}`, 14, 28);
         doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 33);
-        doc.text(`Genel Toplam: ${totalCount}  |  Pb: ${totalParca}  |  Per: ${totalPersonel}  |  Pb Oranı: %${pbRatio !== null ? pbRatio.toLocaleString('tr-TR',{maximumFractionDigits:2}) : "0"}`, 14, 38);
 
-        const tableHead = [['Personel Adı', 'Tür', 'TOPLAM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
+        const tableHead = [['Personel Adı', 'Tür', 'TOPLAM', ...daysArr.map(d => String(d).padStart(2, '0'))]];
         const tableBody = [];
 
         personelList.forEach(p => {
             const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
             const rowData = [p.name, p.type, rowTotal];
-            daysArray.forEach(d => rowData.push(p.days[d] || "-"));
+            daysArr.forEach(d => rowData.push(p.days[d] || "-"));
             tableBody.push(rowData);
         });
 
         parcabasiList.forEach(p => {
             const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
             const rowData = [p.name, p.type, rowTotal];
-            daysArray.forEach(d => rowData.push(p.days[d] || "-"));
+            daysArr.forEach(d => rowData.push(p.days[d] || "-"));
             tableBody.push(rowData);
         });
 
         const totalRow = ["GÜNLÜK ALT TOPLAM", "", totalCount];
-        daysArray.forEach(d => totalRow.push(dailyTotals[d] || "-"));
+        daysArr.forEach(d => totalRow.push(dailyTotals[d] || "-"));
         tableBody.push(totalRow);
 
         doc.autoTable({
@@ -590,7 +706,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
             didParseCell: function(data) {
                 if (data.section === 'body') {
                     const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
-                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArr[data.column.index - 3]);
                     
                     if (isTotalRow) {
                         data.cell.styles.fillColor = isSundayCol ? [254, 202, 202] : [226, 232, 240]; 
@@ -606,7 +722,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                         data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [159, 18, 57];
                     }
                 } else if (data.section === 'head') {
-                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArray[data.column.index - 3]);
+                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArr[data.column.index - 3]);
                     if(isSundayCol) {
                         data.cell.styles.fillColor = [220, 38, 38]; 
                     }
@@ -617,7 +733,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         doc.save(`${selectedUnit}_Adet_Analizi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.pdf`);
     } catch (error) {
         console.error("PDF oluşturulurken hata:", error);
-        alert("PDF dışa aktarılırken bir sorun oluştu.");
     } finally {
         setIsGeneratingPdf(false);
         setShowPdfModal(false);
@@ -864,6 +979,29 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       <div className="p-4 space-y-4">
         {hasValidData ? (
           <>
+            {/* GÜNCELLENDİ: Birim Sıralama Afişi */}
+            {currentUnitRankInfo && (
+                <div className="mb-4">
+                    <div className="bg-gradient-to-r from-amber-500 to-amber-600 dark:from-amber-600 dark:to-amber-800 rounded-xl p-4 shadow-lg text-white flex items-center justify-between transition-transform hover:-translate-y-1">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-white/20 p-2 rounded-lg">
+                                <Trophy size={24} className="text-white drop-shadow-sm" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] sm:text-xs font-bold text-amber-100 uppercase tracking-widest mb-0.5">Nihai Başarı Sıralaması</p>
+                                <h2 className="text-sm sm:text-lg font-black leading-tight drop-shadow-sm">
+                                    {showYearAvg ? `${selectedYear} Yılı Genel Ortalamasında` : `${MONTH_NAMES[selectedMonth]} ${selectedYear} Döneminde`} <span className="text-yellow-200">{currentUnitRankInfo.rank}. Sırada</span> tamamlamıştır.
+                                </h2>
+                            </div>
+                        </div>
+                        <div className="text-right hidden sm:block shrink-0 pl-4 border-l border-white/20 ml-2">
+                            <p className="text-[10px] font-bold text-amber-100 uppercase tracking-widest mb-0.5">Nihai Puan</p>
+                            <p className="text-xl font-black drop-shadow-sm">{currentUnitRankInfo.score.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2 pl-1">
                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Filo Durumu</h3>
@@ -984,7 +1122,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         )}
       </div>
 
-      {/* TÜM PERSONELLER LİSTESİ MODAL PENCERESİ */}
       {showAllPersonnelModal && displayData?.personnel && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowAllPersonnelModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -996,7 +1133,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
               <table className="w-full text-left whitespace-nowrap border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                   <tr>
-                    <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Ad Soyad</th>
+                    <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Personel (Tür)</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-indigo-600 dark:text-indigo-400 text-center">Adet</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Rota</th>
                     <th className="p-1 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">TVS</th>
@@ -1006,14 +1143,13 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                  {/* GÜNCELLENDİ: [KOPYA ALINARAK] React kilitlenmesi engellendi ve Türüne Göre Sıralandı */}
                   {[...(displayData.personnel || [])]
                     .sort((a, b) => {
                       const safeNameA = normalizeName(a.name);
                       const safeNameB = normalizeName(b.name);
                       const tA = personelList.some(x=> normalizeName(x.name)===safeNameA) ? "Per" : (parcabasiList.some(x=> normalizeName(x.name)===safeNameA) ? "Pb" : "Per");
                       const tB = personelList.some(x=> normalizeName(x.name)===safeNameB) ? "Per" : (parcabasiList.some(x=> normalizeName(x.name)===safeNameB) ? "Pb" : "Per");
-                      if (tA !== tB) return tA === "Per" ? -1 : 1; // Önce Per Sonra Pb
+                      if (tA !== tB) return tA === "Per" ? -1 : 1;
                       return (a.name || "").localeCompare(b.name || "", 'tr-TR');
                     })
                     .map((person, idx) => {
@@ -1057,7 +1193,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         </div>
       )}
 
-      {/* FİLO DETAYLARI MODAL PENCERESİ */}
       {showFleetModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm" onClick={() => setShowFleetModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -1107,7 +1242,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
         </div>
       )}
 
-      {/* BELGE (PDF) İNDİRME MODAL PENCERESİ */}
       {showPdfModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setShowPdfModal(false)}>
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm sm:max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
@@ -1153,4 +1287,3 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
 };
 
 export default UnitDetail;
-
