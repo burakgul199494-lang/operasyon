@@ -110,7 +110,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     }
   }, [allData, selectedUnit]); 
 
-  // GÜNCELLENDİ: Birimin Sıralamasını Bulan Akıllı Motor
   const currentUnitRankInfo = useMemo(() => {
     try {
         if (!allData || allData.length === 0 || EXCLUDED_UNITS.includes(selectedUnit)) return null;
@@ -979,24 +978,23 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       <div className="p-4 space-y-4">
         {hasValidData ? (
           <>
-            {/* GÜNCELLENDİ: Birim Sıralama Afişi */}
             {currentUnitRankInfo && (
                 <div className="mb-4">
-                    <div className="bg-gradient-to-r from-amber-500 to-amber-600 dark:from-amber-600 dark:to-amber-800 rounded-xl p-4 shadow-lg text-white flex items-center justify-between transition-transform hover:-translate-y-1">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-white/20 p-2 rounded-lg">
-                                <Trophy size={24} className="text-white drop-shadow-sm" />
+                    <div className="bg-gradient-to-r from-amber-500 to-amber-600 dark:from-amber-600 dark:to-amber-800 rounded-xl p-3 sm:p-4 shadow-lg text-white flex items-center justify-between transition-transform hover:-translate-y-1 gap-2">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                            <div className="bg-white/20 p-2 rounded-lg shrink-0">
+                                <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow-sm" />
                             </div>
-                            <div>
-                                <p className="text-[10px] sm:text-xs font-bold text-amber-100 uppercase tracking-widest mb-0.5">Nihai Başarı Sıralaması</p>
-                                <h2 className="text-sm sm:text-lg font-black leading-tight drop-shadow-sm">
-                                    {showYearAvg ? `${selectedYear} Yılı Genel Ortalamasında` : `${MONTH_NAMES[selectedMonth]} ${selectedYear} Döneminde`} <span className="text-yellow-200">{currentUnitRankInfo.rank}. Sırada</span> tamamlamıştır.
+                            <div className="min-w-0">
+                                <p className="text-[8px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-widest mb-0.5 truncate">Nihai Başarı Sıralaması</p>
+                                <h2 className="text-xs sm:text-lg font-black leading-tight drop-shadow-sm truncate whitespace-normal">
+                                    {showYearAvg ? `${selectedYear} Yılında` : `${MONTH_NAMES[selectedMonth]} ${selectedYear} Döneminde`} <span className="text-yellow-200">{currentUnitRankInfo.rank}. Sırada</span>
                                 </h2>
                             </div>
                         </div>
-                        <div className="text-right hidden sm:block shrink-0 pl-4 border-l border-white/20 ml-2">
-                            <p className="text-[10px] font-bold text-amber-100 uppercase tracking-widest mb-0.5">Nihai Puan</p>
-                            <p className="text-xl font-black drop-shadow-sm">{currentUnitRankInfo.score.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <div className="text-right shrink-0 pl-3 border-l border-white/20">
+                            <p className="text-[8px] sm:text-[10px] font-bold text-amber-100 uppercase tracking-widest mb-0.5">Nihai Puan</p>
+                            <p className="text-sm sm:text-xl font-black drop-shadow-sm">{currentUnitRankInfo.score.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         </div>
                     </div>
                 </div>
@@ -1085,7 +1083,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                   <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.musteriSikayet}</span></div>
                 </div>
               </div>
-              <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-800 text-white`}>
+              <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-emerald-500 to-green-600 dark:from-emerald-600 dark:to-green-800 text-white`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Pb D/O</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
