@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, Calendar, FileDown, Trophy, Medal, AlertTriangle, Loader2, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Calendar, FileDown, Trophy, Medal, AlertTriangle, Loader2, FileSpreadsheet, TrendingUp } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -93,6 +93,10 @@ const COL2_LEFT = "left-[120px] sm:left-[150px]";
 const FinalRankingPage = ({ allData = [], onBack }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  
+  // YENİ: Yıllık Ortalama Modu State'i
+  const [isShowYearAvg, setIsShowYearAvg] = useState(false);
+  
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const [isInitialLoaded, setIsInitialLoaded] = useState(false);
@@ -112,25 +116,80 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
     }
   }, [allData, isInitialLoaded]);
 
+  // GÜNCELLENDİ: Hem Aylık Hem de "Yıllık Ortalama" yı hesaplayabilen ana motor
   const rankingData = useMemo(() => {
     try {
         if (!allData || allData.length === 0) return [];
         
-        const monthData = allData.filter(d => 
-            d.year === parseInt(selectedYear) && 
-            d.month === parseInt(selectedMonth) &&
-            !EXCLUDED_UNITS.includes(d.unit)
-        );
-        
-        if (monthData.length === 0) return [];
+        let targetData = [];
 
-        const regionalTotalIncoming = monthData.reduce((acc, curr) => {
+        if (isShowYearAvg) {
+            // YIL ORTALAMASI MODU
+            const yearData = allData.filter(d => d.year === parseInt(selectedYear) && !EXCLUDED_UNITS.includes(d.unit));
+            if (yearData.length === 0) return [];
+
+            const unitGroups = {};
+            yearData.forEach(d => {
+                if (!unitGroups[d.unit]) {
+                    unitGroups[d.unit] = { metrics: {}, musteriSikayet: { total: 0, count: 0 }, gelenKargo: { total: 0, count: 0 } };
+                    RANK_METRICS.forEach(m => unitGroups[d.unit].metrics[m.key] = { total: 0, count: 0 });
+                }
+                const g = unitGroups[d.unit];
+
+                RANK_METRICS.forEach(m => {
+                    const val = parseMetric(d[m.key]);
+                    if (val !== null) {
+                        g.metrics[m.key].total += val;
+                        g.metrics[m.key].count += 1;
+                    }
+                });
+
+                const sikayet = parseMetric(d.musteriSikayet);
+                if (sikayet !== null) {
+                    g.musteriSikayet.total += sikayet;
+                    g.musteriSikayet.count += 1;
+                }
+
+                const kargo = parseMetric(d.gelenKargo);
+                if (kargo !== null) {
+                    g.gelenKargo.total += kargo;
+                    g.gelenKargo.count += 1;
+                }
+            });
+
+            targetData = Object.keys(unitGroups).map(unit => {
+                const g = unitGroups[unit];
+                const res = { unit };
+
+                RANK_METRICS.forEach(m => {
+                    res[m.key] = g.metrics[m.key].count > 0 ? (g.metrics[m.key].total / g.metrics[m.key].count) : null;
+                });
+
+                // Şikayet puanı için en yakın tam sayıya yuvarlanır
+                res.musteriSikayet = g.musteriSikayet.count > 0 ? Math.round(g.musteriSikayet.total / g.musteriSikayet.count) : null;
+                res.gelenKargo = g.gelenKargo.count > 0 ? (g.gelenKargo.total / g.gelenKargo.count) : null;
+
+                return res;
+            });
+
+        } else {
+            // NORMAL AYLIK MOD
+            targetData = allData.filter(d => 
+                d.year === parseInt(selectedYear) && 
+                d.month === parseInt(selectedMonth) &&
+                !EXCLUDED_UNITS.includes(d.unit)
+            );
+        }
+        
+        if (targetData.length === 0) return [];
+
+        const regionalTotalIncoming = targetData.reduce((acc, curr) => {
             return acc + (parseMetric(curr.gelenKargo) || 0);
         }, 0);
 
         const rankPointsMap = {};
         RANK_METRICS.forEach(m => {
-            const validUnits = monthData
+            const validUnits = targetData
                 .filter(d => parseMetric(d[m.key]) !== null)
                 .map(d => ({ unit: d.unit, val: parseMetric(d[m.key]) }));
             
@@ -147,7 +206,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         });
 
         const finalList = [];
-        monthData.forEach(record => {
+        targetData.forEach(record => {
             let finalScore = 0;
             let totalRankBonus = 0; 
             const details = {};
@@ -182,7 +241,11 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         console.error("Sıralama hesaplanırken hata:", e);
         return [];
     }
-  }, [allData, selectedYear, selectedMonth]);
+  }, [allData, selectedYear, selectedMonth, isShowYearAvg]);
+
+  const reportTitleStr = isShowYearAvg ? "YILLIK ORTALAMA BAŞARI SIRALAMASI" : "NİHAİ BAŞARI SIRALAMASI";
+  const donemTextStr = isShowYearAvg ? `Yıllık Ortalama (${selectedYear})` : `${MONTH_NAMES[selectedMonth]} ${selectedYear}`;
+  const fileNameSuffix = isShowYearAvg ? `Yillik_Ortalama_${selectedYear}` : `${MONTH_NAMES[selectedMonth]}_${selectedYear}`;
 
   // PDF ÇIKTISI
   const generatePDF = async () => {
@@ -203,11 +266,11 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
         doc.setFontSize(16);
         doc.setTextColor(30, 58, 138); 
-        doc.text(`NİHAİ BAŞARI SIRALAMASI (${rankingData.length} BİRİM)`, 14, 20);
+        doc.text(`${reportTitleStr} (61 BİRİM)`, 14, 20);
 
         doc.setFontSize(10);
         doc.setTextColor(60);
-        doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear} | Analiz Günü: ${new Date().toLocaleDateString('tr-TR')}`, 14, 28);
+        doc.text(`Dönem: ${donemTextStr} | Analiz Günü: ${new Date().toLocaleDateString('tr-TR')}`, 14, 28);
 
         const tableHead = [[
             'Sıra', 'Birim Adı', 'Nihai Puan', 'Ek Puan',
@@ -251,7 +314,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             alternateRowStyles: { fillColor: [248, 250, 252] }
         });
 
-        doc.save(`Nihai_Basari_Siralamasi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.pdf`);
+        doc.save(`Nihai_Basari_Siralamasi_${fileNameSuffix}.pdf`);
     } catch (error) { 
         console.error("PDF oluşturulurken hata oluştu:", error); 
     } finally { 
@@ -259,7 +322,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
     }
   };
 
-  // GÜNCELLENDİ: EXCEL ÇIKTISI (PDF formatı ile aynı: 20,23 (+1) stilinde)
+  // EXCEL ÇIKTISI
   const generateExcel = async () => {
     setIsGeneratingExcel(true);
     try {
@@ -282,7 +345,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             ];
 
             RANK_METRICS.forEach(m => {
-                // PDF'teki formatlayıcının birebir aynısını kullanıyoruz (örn: "20,23 (+1)")
                 rowData.push(formatPdfScore(row.details[m.key]?.base, row.details[m.key]?.rp));
             });
 
@@ -294,22 +356,21 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
         const worksheet = XLSXLib.utils.aoa_to_sheet([headers, ...dataRows]);
         
-        // Excel Sütun Genişlikleri (Hücrelere tam oturması ve şık görünmesi için)
         const wscols = [
-            { wch: 6 },   // Sıra
-            { wch: 22 },  // Birim Adı
-            { wch: 12 },  // Nihai Puan
-            { wch: 10 },  // Ek Puan
-            ...RANK_METRICS.map(() => ({ wch: 14 })), // Metrikler
-            { wch: 12 },  // Şikayet P.
-            { wch: 12 }   // Hacim P.
+            { wch: 6 },   
+            { wch: 22 },  
+            { wch: 12 },  
+            { wch: 10 },  
+            ...RANK_METRICS.map(() => ({ wch: 14 })), 
+            { wch: 12 },  
+            { wch: 12 }   
         ];
         worksheet['!cols'] = wscols;
 
         const workbook = XLSXLib.utils.book_new();
         XLSXLib.utils.book_append_sheet(workbook, worksheet, "Başarı Sıralaması");
 
-        XLSXLib.writeFile(workbook, `Nihai_Basari_Siralamasi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`);
+        XLSXLib.writeFile(workbook, `Nihai_Basari_Siralamasi_${fileNameSuffix}.xlsx`);
 
     } catch (error) {
         console.error("Excel oluşturulurken hata:", error);
@@ -335,7 +396,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
               </div>
 
               <div className="flex items-center gap-2">
-                  {/* EXCEL BUTONU */}
                   <button 
                       onClick={generateExcel} 
                       disabled={isGeneratingExcel || rankingData.length === 0}
@@ -345,7 +405,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                       <span className="hidden sm:inline">Excel Aktar</span>
                   </button>
 
-                  {/* PDF BUTONU */}
                   <button 
                       onClick={generatePDF} 
                       disabled={isGeneratingPdf || rankingData.length === 0}
@@ -361,12 +420,26 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
               <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 px-3 rounded-lg border-none outline-none">
                   {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
+              
+              {/* YENİ: Yıl Ortalaması Butonu ve Dinamik Ay Gösterimi */}
+              <button onClick={() => setIsShowYearAvg(!isShowYearAvg)} className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ml-1 ${isShowYearAvg ? "bg-purple-600 dark:bg-purple-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"}`}>
+                  <TrendingUp size={14} className="mb-0.5" />
+                  {isShowYearAvg ? "Aylara Dön" : "Yıl Ort."}
+              </button>
+
               <div className="w-[1px] h-8 bg-slate-200 dark:bg-slate-700 shrink-0 mx-1"></div>
-              {MONTH_NAMES.map((m, i) => i !== 0 && (
-                  <button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all snap-center border ${i === selectedMonth ? "bg-slate-800 dark:bg-blue-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300"}`}>
-                      {m}
-                  </button>
-              ))}
+              
+              {!isShowYearAvg ? (
+                  MONTH_NAMES.map((m, i) => i !== 0 && (
+                      <button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all snap-center border ${i === selectedMonth ? "bg-slate-800 dark:bg-blue-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300"}`}>
+                          {m}
+                      </button>
+                  ))
+              ) : (
+                  <span className="text-purple-600 dark:text-purple-400 font-bold bg-purple-50 dark:bg-purple-900/40 px-4 py-1.5 rounded-full text-sm shrink-0 border border-purple-100 dark:border-purple-800">
+                      {selectedYear} YILI GENEL ORTALAMASI
+                  </span>
+              )}
           </div>
       </div>
 
@@ -375,7 +448,9 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
           {rankingData.length > 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0 overflow-hidden">
                   <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap gap-2 justify-between items-center shrink-0">
-                      <h3 className="text-sm font-bold text-slate-800 dark:text-white">Genel Sıralama Tablosu</h3>
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                          {isShowYearAvg ? "Yıllık Ortalama Sıralama Tablosu" : "Aylık Sıralama Tablosu"}
+                      </h3>
                       <span className="text-xs font-semibold text-slate-500 bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-600">
                           {rankingData.length} Birim Listelendi
                       </span>
