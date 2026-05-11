@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, ShieldCheck, Truck, FileText, Settings, LogOut, Moon, Sun, User, BarChart2 } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Truck, FileText, Settings, LogOut, Moon, Sun, User, BarChart2, Trophy } from "lucide-react";
 
 const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggleDarkMode }) => {
   
@@ -11,6 +11,14 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
       icon: LayoutDashboard,
       color: "text-blue-600 dark:text-blue-400",
       route: "dashboard"
+    },
+    {
+      id: "ranking",
+      title: "Nihai Başarı Sıralaması",
+      desc: "11 Metrik üzerinden tüm birimlerin karşılaştırmalı puan tablosunu ve sıralamasını inceleyin.",
+      icon: Trophy,
+      color: "text-amber-600 dark:text-amber-400",
+      route: "ranking"
     },
     {
       id: "personnelDefense",
