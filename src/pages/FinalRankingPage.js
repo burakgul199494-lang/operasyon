@@ -79,7 +79,9 @@ const formatPdfScore = (base, rp) => {
         const total = Number(base) + Number(rp || 0);
         const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         if (!rp) return totalStr;
-        const rpStr = rp > 0 ? `+${rp.toLocaleString('tr-TR')}` : rp.toLocaleString('tr-TR');
+        
+        const rpNum = Number(rp);
+        const rpStr = rpNum > 0 ? `+${rpNum.toLocaleString('tr-TR')}` : rpNum.toLocaleString('tr-TR');
         return `${totalStr} (${rpStr})`;
     } catch(e) { return "-"; }
 };
@@ -257,45 +259,56 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
     }
   };
 
-  // YENİ: EXCEL ÇIKTISI (Birebir PDF Formatı)
+  // GÜNCELLENDİ: EXCEL ÇIKTISI (PDF formatı ile aynı: 20,23 (+1) stilinde)
   const generateExcel = async () => {
     setIsGeneratingExcel(true);
     try {
         const XLSXLib = await loadXlsxLibrary();
         
-        // Başlıklar
         const headers = [
-            'Sıra', 'Birim Adı', 'Nihai Puan', 'Toplam Ek Puan',
-            ...RANK_METRICS.map(m => `${m.label} Puanı (%${(m.weight*100).toFixed(0)})`),
-            'Şikayet Puanı', 'Hacim Puanı'
+            'Sıra', 'Birim Adı', 'Nihai Puan', 'Ek Puan',
+            ...RANK_METRICS.map(m => `${m.label} %${(m.weight*100).toFixed(0)}`),
+            'Şikayet P.', 'Hacim P.'
         ];
 
-        // Veriler
         const dataRows = rankingData.map((row, idx) => {
             const rowData = [
                 idx + 1,
                 row.unit || "-",
-                Number(row.finalScore?.toFixed(2) || 0),
-                Number(row.totalRankBonus?.toFixed(2) || 0)
+                row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-",
+                row.totalRankBonus > 0 
+                  ? `+${row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                  : row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
             ];
 
             RANK_METRICS.forEach(m => {
-                const base = row.details[m.key]?.base || 0;
-                const rp = row.details[m.key]?.rp || 0;
-                rowData.push(Number((base + rp).toFixed(2)));
+                // PDF'teki formatlayıcının birebir aynısını kullanıyoruz (örn: "20,23 (+1)")
+                rowData.push(formatPdfScore(row.details[m.key]?.base, row.details[m.key]?.rp));
             });
 
-            rowData.push(Number(row.details.musteriSikayet?.score || 0));
-            rowData.push(Number(row.details.volume?.toFixed(2) || 0));
+            rowData.push(row.details.musteriSikayet?.val !== null ? `${row.details.musteriSikayet?.score} P.` : "-");
+            rowData.push(row.details.volume != null ? Number(row.details.volume).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-");
 
             return rowData;
         });
 
         const worksheet = XLSXLib.utils.aoa_to_sheet([headers, ...dataRows]);
+        
+        // Excel Sütun Genişlikleri (Hücrelere tam oturması ve şık görünmesi için)
+        const wscols = [
+            { wch: 6 },   // Sıra
+            { wch: 22 },  // Birim Adı
+            { wch: 12 },  // Nihai Puan
+            { wch: 10 },  // Ek Puan
+            ...RANK_METRICS.map(() => ({ wch: 14 })), // Metrikler
+            { wch: 12 },  // Şikayet P.
+            { wch: 12 }   // Hacim P.
+        ];
+        worksheet['!cols'] = wscols;
+
         const workbook = XLSXLib.utils.book_new();
         XLSXLib.utils.book_append_sheet(workbook, worksheet, "Başarı Sıralaması");
 
-        // Dosyayı İndir
         XLSXLib.writeFile(workbook, `Nihai_Basari_Siralamasi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`);
 
     } catch (error) {
@@ -329,7 +342,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                       className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50"
                   >
                       {isGeneratingExcel ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
-                      Excel Aktar
+                      <span className="hidden sm:inline">Excel Aktar</span>
                   </button>
 
                   {/* PDF BUTONU */}
@@ -339,7 +352,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                       className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50"
                   >
                       {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
-                      PDF Aktar
+                      <span className="hidden sm:inline">PDF Aktar</span>
                   </button>
               </div>
           </div>
