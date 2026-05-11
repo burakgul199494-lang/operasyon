@@ -33,11 +33,7 @@ const formatDisplayMetric = (val, isPercent = true) => {
 
 const normalizeName = (name) => {
   if (!name) return "";
-  return name
-    .toString()
-    .trim()
-    .replace(/\s+/g, ' ') 
-    .toLocaleUpperCase('tr-TR'); 
+  return name.toString().trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR'); 
 };
 
 const getBase64 = (blob) => new Promise((resolve, reject) => {
@@ -62,7 +58,7 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
+const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
   const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
@@ -89,15 +85,15 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     }
   }, [allData, selectedUnit]); 
 
+  const getIsSunday = (day) => {
+      const d = new Date(selectedYear, selectedMonth - 1, day);
+      return d.getDay() === 0;
+  };
+
   const currentData = useMemo(() => {
     if (!selectedUnit) return null;
     return allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [allData, selectedUnit, selectedYear, selectedMonth]);
-
-  const unitFleet = useMemo(() => {
-    if (!fleetData || !selectedUnit) return [];
-    return fleetData.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
-  }, [fleetData, selectedUnit]);
 
   const calculateYearlyAverage = (targetUnit) => {
     const yearRecords = allData.filter(d => d.unit === targetUnit && d.year === parseInt(selectedYear));
@@ -130,40 +126,72 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
-  const pbRatioData = useMemo(() => {
-    let tPb = 0;
-    let tGenel = 0;
+  // ADET VE TÜR HESAPLAMA MOTORU (Adet PDF'i ve Modallar için Gereklidir)
+  const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
+      const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+      const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    if (!quantitiesData || quantitiesData.length === 0) return { ratio: null };
+      let pList = [];
+      let PbList = [];
+      let tPersonel = 0;
+      let tParca = 0;
+      let dTotals = {};
+      
+      daysArr.forEach(d => dTotals[d] = 0);
 
-    const relevantQuantities = showYearAvg 
-        ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
-        : quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+      const safeQuantities = quantitiesData || [];
+      const relevantQuantities = showYearAvg 
+          ? safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
+          : safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
 
-    relevantQuantities.forEach(uq => {
-        if (uq.records && Array.isArray(uq.records)) {
-            uq.records.forEach(r => {
-                const countVal = r.count || 0;
-                tGenel += countVal;
-                const typeLower = (r.type || "").toLowerCase();
-                if (typeLower.includes("parça")) {
-                    tPb += countVal;
-                }
-            });
-        }
-    });
+      const map = {};
+      relevantQuantities.forEach(uq => {
+          if (uq.records && Array.isArray(uq.records)) {
+              uq.records.forEach(r => {
+                  const safeName = normalizeName(r.name);
+                  if(!map[safeName]) map[safeName] = { name: safeName, type: r.type, days: {} };
+                  if (!map[safeName].days[r.day]) map[safeName].days[r.day] = 0;
+                  
+                  const countVal = r.count || 0;
+                  map[safeName].days[r.day] += countVal;
+                  
+                  if (dTotals[r.day] !== undefined) dTotals[r.day] += countVal;
+              });
+          }
+      });
 
-    const ratio = tGenel > 0 ? (tPb / tGenel) * 100 : null;
-    return { ratio };
+      Object.values(map).forEach(p => {
+          const typeLower = (p.type || "").toLowerCase();
+          const shortType = typeLower.includes("parça") ? "Pb" : "Per"; 
+          
+          if (shortType === "Pb") {
+              PbList.push({ ...p, type: shortType });
+              Object.values(p.days).forEach(val => tParca += val);
+          } else {
+              pList.push({ ...p, type: shortType });
+              Object.values(p.days).forEach(val => tPersonel += val);
+          }
+      });
+
+      pList.sort((a,b) => a.name.localeCompare(b.name, 'tr-TR'));
+      PbList.sort((a,b) => a.name.localeCompare(b.name, 'tr-TR'));
+
+      return { personelList: pList, parcabasiList: PbList, totalPersonel: tPersonel, totalParca: tParca, daysArray: daysArr, dailyTotals: dTotals };
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
+
+  const totalCount = totalPersonel + totalParca;
+  const pbRatio = totalCount > 0 ? (totalParca / totalCount) * 100 : null;
+
+  const pbRatioData = useMemo(() => {
+      return { ratio: pbRatio };
+  }, [pbRatio]);
 
   const personnelTotals = useMemo(() => {
     const totals = {};
-    if (!quantitiesData || quantitiesData.length === 0) return totals;
-
+    const safeQuantities = quantitiesData || []; 
     const relevantQuantities = showYearAvg 
-        ? quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
-        : quantitiesData.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+        ? safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear))
+        : safeQuantities.filter(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
 
     relevantQuantities.forEach(uq => {
         if (uq.records && Array.isArray(uq.records)) {
@@ -177,7 +205,21 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     return totals;
   }, [quantitiesData, selectedUnit, selectedYear, selectedMonth, showYearAvg]);
 
-  // GÜNCELLENDİ: Dinamik analizden "Müşteri Şikayet" kısmı çıkarıldı.
+  const unitFleet = useMemo(() => {
+    const safeFleet = fleetData || []; 
+    const filteredFleet = safeFleet.filter(v => String(v.unit) === String(selectedUnit) || normalizeName(v.unit) === normalizeName(selectedUnit));
+    return filteredFleet.sort((a, b) => {
+      const typeA = String(a.operationType || "");
+      const typeB = String(b.operationType || "");
+      const typeCompare = typeA.localeCompare(typeB, 'tr-TR');
+      if (typeCompare !== 0) return typeCompare;
+      const plateA = String(a.plate || "");
+      const plateB = String(b.plate || "");
+      return plateA.localeCompare(plateB, 'tr-TR');
+    });
+  }, [fleetData, selectedUnit]);
+
+  // GÜNCELLENDİ: Dinamik analiz metninden müşteri şikayeti tamamen çıkarıldı
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
     const a = parseMetric(data.adresAlimOrani);
@@ -275,6 +317,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
     doc.text(`Dönem: ${donemText}`, 14, 35);
     doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 40);
     let startY = 45;
+    
     if (type === 'report') {
       doc.setFontSize(9); 
       doc.setTextColor(60);
@@ -293,7 +336,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       doc.setFont("Roboto", "normal"); 
     }
     
-    // GÜNCELLENDİ: Tablodan "Operasyonel Kaynaklı Müşteri Şikayet" satırı çıkarıldı
+    // GÜNCELLENDİ: PDF tablosundan "Operasyonel Kaynaklı Müşteri Şikayet" çıkarıldı
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, `%${TARGETS.adresAlimOrani}`],
@@ -343,7 +386,6 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
           if (metricName === "HTF Oranı" && rVal !== null && rVal < TARGETS.htfOrani) isFail = true;
           if (metricName === "Kontrol Sende" && rVal !== null && rVal < TARGETS.kontrolSende) isFail = true;
           if (metricName === "Ölçüm Tartım" && rVal !== null && rVal > TARGETS.olcumTartim) isFail = true;
-          
           if (isFail) { 
             data.cell.styles.fillColor = [254, 226, 226]; 
             data.cell.styles.textColor = [185, 28, 28]; 
@@ -370,6 +412,7 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       doc.text("İmza:", 140, finalY);
     }
     
+    // GÜNCELLENDİ: React Çökme Koruması [...targetData.personnel]
     if (type === 'report' && targetData.personnel && targetData.personnel.length > 0) {
       doc.addPage();
       doc.setFontSize(16);
@@ -382,8 +425,8 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       const targetTotals = {};
       const targetTypes = {};
       const rq = isYearAvg 
-          ? quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year))
-          : quantitiesData.filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
+          ? (quantitiesData || []).filter(d => d.unit === targetUnit && d.year === parseInt(year))
+          : (quantitiesData || []).filter(d => d.unit === targetUnit && d.year === parseInt(year) && d.month === parseInt(month));
 
       rq.forEach(uq => {
           if (uq.records && Array.isArray(uq.records)) {
@@ -495,12 +538,61 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
         const tableHead = [['Personel Adı', 'Tür', 'TOPLAM', ...daysArr.map(d => String(d).padStart(2, '0'))]];
         const tableBody = [];
 
+        personelList.forEach(p => {
+            const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+            const rowData = [p.name, p.type, rowTotal];
+            daysArr.forEach(d => rowData.push(p.days[d] || "-"));
+            tableBody.push(rowData);
+        });
+
+        parcabasiList.forEach(p => {
+            const rowTotal = Object.values(p.days).reduce((acc, val) => acc + val, 0);
+            const rowData = [p.name, p.type, rowTotal];
+            daysArr.forEach(d => rowData.push(p.days[d] || "-"));
+            tableBody.push(rowData);
+        });
+
+        const totalRow = ["GÜNLÜK ALT TOPLAM", "", totalCount];
+        daysArr.forEach(d => totalRow.push(dailyTotals[d] || "-"));
+        tableBody.push(totalRow);
+
         doc.autoTable({
             startY: 45,
             head: tableHead,
             body: tableBody,
             theme: 'grid',
-            styles: { font: 'Roboto', fontSize: 6, cellPadding: 1, halign: 'center' }
+            styles: { font: 'Roboto', fontSize: 6, cellPadding: 1, halign: 'center' },
+            headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255] },
+            columnStyles: {
+                0: { halign: 'left', cellWidth: 35, fontStyle: 'bold' },
+                1: { cellWidth: 10 },
+                2: { fontStyle: 'bold', textColor: [30, 58, 138] }
+            },
+            didParseCell: function(data) {
+                if (data.section === 'body') {
+                    const isTotalRow = data.row.raw[0] === "GÜNLÜK ALT TOPLAM";
+                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArr[data.column.index - 3]);
+                    
+                    if (isTotalRow) {
+                        data.cell.styles.fillColor = isSundayCol ? [254, 202, 202] : [226, 232, 240]; 
+                        data.cell.styles.textColor = isSundayCol ? [153, 27, 27] : [15, 23, 42];
+                        data.cell.styles.fontStyle = 'bold';
+                    }
+                    else if (data.row.index < personelList.length) {
+                        data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [240, 248, 255]; 
+                        data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [30, 58, 138];
+                    } 
+                    else {
+                        data.cell.styles.fillColor = isSundayCol ? [254, 226, 226] : [255, 241, 242]; 
+                        data.cell.styles.textColor = isSundayCol ? [185, 28, 28] : [159, 18, 57];
+                    }
+                } else if (data.section === 'head') {
+                    const isSundayCol = data.column.index >= 3 && getIsSunday(daysArr[data.column.index - 3]);
+                    if(isSundayCol) {
+                        data.cell.styles.fillColor = [220, 38, 38]; 
+                    }
+                }
+            }
         });
 
         doc.save(`${selectedUnit}_Adet_Analizi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.pdf`);
@@ -566,6 +658,125 @@ const UnitDetail = ({ allData, unitInfo, quantitiesData, fleetData = [], fleetKm
       setIsGeneratingPdf(false);
       setShowPdfModal(false);
     }
+  };
+
+  const generatePersonnelPDF = async (person) => {
+    setIsGeneratingPdf(true);
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+        const blob = await response.blob();
+        const base64Font = await getBase64(blob);
+        doc.addFileToVFS("Roboto.ttf", base64Font);
+        doc.addFont("Roboto.ttf", "Roboto", "normal");
+        doc.addFont("Roboto.ttf", "Roboto", "bold");
+        doc.setFont("Roboto");
+      } catch (e) { console.warn("Font indirilemedi."); }
+      const r = parseMetric(person.rotaOrani);
+      const t = parseMetric(person.tvsOrani);
+      const c = parseMetric(person.checkInOrani);
+      const s = parseMetric(person.smsOrani);
+      doc.setFontSize(18);
+      doc.setTextColor(220, 38, 38);
+      doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Personel: ${person.name}`, 14, 30);
+      doc.text(`Birim: ${selectedUnit}`, 14, 35);
+      doc.text(`Dönem: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 40);
+      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
+      const tableRows = [
+        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani, true)}`, `%${TARGETS.smsOrani}`]
+      ];
+      doc.autoTable({
+        startY: 50,
+        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
+        body: tableRows,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 10 },
+        headStyles: { fillColor: [220, 38, 38], halign: 'center', font: 'Roboto' },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
+        didParseCell: function(data) {
+          if (data.section === 'body') {
+            const metricName = data.row.raw[0];
+            let isFail = false;
+            if (metricName === "Rota Oranı" && r !== null && r < TARGETS.rotaOrani) isFail = true;
+            if (metricName === "TVS Oranı" && t !== null && t < TARGETS.tvsOrani) isFail = true;
+            if (metricName === "Check-in Oranı" && c !== null && c < TARGETS.checkInOrani) isFail = true;
+            if (metricName === "SMS Oranı" && s !== null && s < TARGETS.smsOrani) isFail = true;
+            if (isFail) { data.cell.styles.fillColor = [254, 226, 226]; data.cell.styles.textColor = [185, 28, 28]; data.cell.styles.fontStyle = 'bold'; }
+          }
+        }
+      });
+      let finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setTextColor(40);
+      const defenseText = `Sayın ${person.name},\n\nYukarıdaki tabloda koyu arka plan ile işaretlenmiş olan satırlarda kişisel performansınızın şirket kalite hedeflerinin altında kaldığı tespit edilmiştir. Söz konusu hedeflere ulaşılamama nedenlerini ve bu oranları standartlar üzerine çıkarmak için planladığınız aksiyonları aşağıya detaylı olarak açıklamanızı rica ederiz.`;
+      const splitText = doc.splitTextToSize(defenseText, 180);
+      doc.text(splitText, 14, finalY);
+      finalY += splitText.length * 5 + 10;
+      doc.setFontSize(11);
+      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
+      doc.setDrawColor(200);
+      for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
+      finalY += 75;
+      doc.setFontSize(10);
+      doc.text("Personel Ad / Soyad:", 14, finalY);
+      doc.text("İmza:", 140, finalY);
+      doc.save(`${person.name.replace(/\s+/g, '_')}_Savunma.pdf`);
+    } catch (error) { console.error("PDF oluşturulurken hata:", error); } finally { setIsGeneratingPdf(false); }
+  };
+
+  const generateTebrikPDF = async (person) => {
+    setIsGeneratingPdf(true);
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      try {
+        const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+        const blob = await response.blob();
+        const base64Font = await getBase64(blob);
+        doc.addFileToVFS("Roboto.ttf", base64Font);
+        doc.addFont("Roboto.ttf", "Roboto", "normal");
+        doc.setFont("Roboto");
+      } catch (e) { console.warn("Font indirilemedi."); }
+      doc.setFontSize(18);
+      doc.setTextColor(22, 163, 74); 
+      doc.text("PERSONEL PERFORMANS TEBRİK BELGESİ", 14, 22);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Personel: ${person.name}`, 14, 30);
+      doc.text(`Birim: ${selectedUnit}`, 14, 35);
+      doc.text(`Dönem: ${selectedYear} - ${MONTH_NAMES[selectedMonth]}`, 14, 40);
+      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 45);
+      const tableRows = [
+        ["Rota Oranı", `%${formatDisplayMetric(person.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
+        ["TVS Oranı", `%${formatDisplayMetric(person.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
+        ["Check-in Oranı", `%${formatDisplayMetric(person.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
+        ["SMS Oranı", `%${formatDisplayMetric(person.smsOrani, true)}`, `%${TARGETS.smsOrani}`]
+      ];
+      doc.autoTable({
+        startY: 50,
+        head: [['KPI Metriği', 'Personel Değeri', 'Hedef']],
+        body: tableRows,
+        theme: 'grid',
+        styles: { font: 'Roboto', fontSize: 10 },
+        headStyles: { fillColor: [22, 163, 74], halign: 'center', font: 'Roboto' },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } }
+      });
+      let finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setTextColor(40);
+      const tebrikText = `Sayın ${person.name},\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz yukarıdaki tabloda bilgilerinize sunulmuştur.\n\nŞirket kalite hedeflerimizin tümüne ulaşarak göstermiş olduğunuz bu üstün başarıdan dolayı sizi tebrik eder, özverili ve başarılı çalışmalarınızın devamını dileriz.`;
+      const splitText = doc.splitTextToSize(tebrikText, 180);
+      doc.text(splitText, 14, finalY);
+      doc.save(`${selectedUnit}_${person.name.replace(/\s+/g, '_')}_Tebrik.pdf`);
+    } catch (error) { console.error("PDF oluşturulurken hata:", error); } finally { setIsGeneratingPdf(false); }
   };
 
   const generateBulkZIP = async () => {
