@@ -46,7 +46,7 @@ const getComplaintScore = (val) => {
 };
 
 const formatScoreDisplay = (base, rp) => {
-    if (base === null) return "-";
+    if (base === null || base === undefined) return "-";
     const total = base + rp;
     const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     if (rp === 0) return totalStr;
@@ -59,13 +59,18 @@ const formatScoreDisplay = (base, rp) => {
     );
 };
 
+// GÜNCELLENDİ: PDF çökmesini engellemek için extra korumalar eklendi
 const formatPdfScore = (base, rp) => {
-    if (base === null) return "-";
-    const total = base + rp;
-    const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (rp === 0) return totalStr;
-    const rpStr = rp > 0 ? `+${rp.toLocaleString('tr-TR')}` : rp.toLocaleString('tr-TR');
-    return `${totalStr} (${rpStr})`;
+    if (base === null || base === undefined) return "-";
+    try {
+        const total = base + rp;
+        const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (rp === 0) return totalStr;
+        const rpStr = rp > 0 ? `+${rp.toLocaleString('tr-TR')}` : rp.toLocaleString('tr-TR');
+        return `${totalStr} (${rpStr})`;
+    } catch(e) {
+        return "-";
+    }
 };
 
 const COL1_WIDTH = "w-[120px] min-w-[120px] max-w-[120px] sm:w-[150px] sm:min-w-[150px] sm:max-w-[150px]";
@@ -78,9 +83,8 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const rankingData = useMemo(() => {
-    if (!allData) return [];
+    if (!allData || allData.length === 0) return [];
     
-    // 1. İstenmeyen birimleri filtrele
     const monthData = allData.filter(d => 
         d.year === parseInt(selectedYear) && 
         d.month === parseInt(selectedMonth) &&
@@ -89,12 +93,10 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
     
     if (monthData.length === 0) return [];
 
-    // 2. Bölge Toplam Gelen Kargo Hesapla (Hacim puanı için)
     const regionalTotalIncoming = monthData.reduce((acc, curr) => {
         return acc + (parseMetric(curr.gelenKargo) || 0);
     }, 0);
 
-    // 3. İlk 10 / Son 10 Puanlarını Hesapla
     const rankPointsMap = {};
     RANK_METRICS.forEach(m => {
         const validUnits = monthData
@@ -117,13 +119,11 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         });
     });
 
-    // 4. Nihai Puanlama
     const finalList = [];
     monthData.forEach(record => {
         let finalScore = 0;
         const details = {};
 
-        // Temel Metrikler + Sıralama Ek Puanları
         RANK_METRICS.forEach(m => {
             const val = parseMetric(record[m.key]);
             const base = val !== null ? val * m.weight : null;
@@ -133,13 +133,11 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             details[m.key] = { base, rp };
         });
 
-        // Şikayet Puanı
         const compVal = parseMetric(record.musteriSikayet);
         const compScore = getComplaintScore(compVal);
         if (compVal !== null) finalScore += compScore;
         details.musteriSikayet = { val: compVal, score: compScore };
 
-        // Hacim Puanı (Yeni): (Birim Gelen / Bölge Toplam) * 100
         const incoming = parseMetric(record.gelenKargo) || 0;
         const volumeScore = regionalTotalIncoming > 0 ? (incoming / regionalTotalIncoming) * 100 : 0;
         finalScore += volumeScore;
@@ -187,7 +185,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             return [
                 idx + 1,
                 row.unit,
-                row.finalScore.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                row.finalScore != null ? row.finalScore.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-",
                 formatPdfScore(row.details.teslimPerformansi.base, row.details.teslimPerformansi.rp),
                 formatPdfScore(row.details.adresAlimOrani.base, row.details.adresAlimOrani.rp),
                 row.details.musteriSikayet.val !== null ? `${row.details.musteriSikayet.score} P.` : "-",
@@ -195,7 +193,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                 formatPdfScore(row.details.tvsOrani.base, row.details.tvsOrani.rp),
                 formatPdfScore(row.details.checkInOrani.base, row.details.checkInOrani.rp),
                 formatPdfScore(row.details.smsOrani.base, row.details.smsOrani.rp),
-                row.details.volume.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                row.details.volume != null ? row.details.volume.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"
             ];
         });
 
@@ -215,31 +213,43 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         });
 
         doc.save(`Nihai_Basari_Siralamasi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.pdf`);
-    } catch (error) { console.error(error); } finally { setIsGeneratingPdf(false); }
+    } catch (error) { 
+        console.error("PDF oluşturulurken hata oluştu:", error); 
+    } finally { 
+        // GÜNCELLENDİ: Sistemi rahatlatmak için kısa bir mola verildi (Beyaz ekranı engeller)
+        setTimeout(() => setIsGeneratingPdf(false), 300);
+    }
   };
 
   return (
-    <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 shadow-sm border-b border-slate-200 dark:border-slate-800 sticky top-0">
+    /* GÜNCELLENDİ: "h-screen overflow-hidden" eklenerek sayfa kaydırması tamamen engellendi */
+    <div className="bg-slate-50 dark:bg-slate-900 h-screen flex flex-col transition-colors duration-300 overflow-hidden">
+      
+      {/* ÜST MENÜ - ASLA KAYMAYACAK ALAN */}
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-50 shadow-sm border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                   <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
                       <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
                   </button>
-                  <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <Trophy className="text-amber-500" size={24} /> Nihai Başarı Sıralaması
-                  </h1>
+                  <div>
+                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                          <Trophy className="text-amber-500" size={24} /> Nihai Başarı Sıralaması
+                      </h1>
+                  </div>
               </div>
+
               <button 
                   onClick={generatePDF} 
                   disabled={isGeneratingPdf || rankingData.length === 0}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors"
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50"
               >
                   {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
                   PDF Aktar
               </button>
           </div>
-          <div className="pl-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
+
+          <div className="px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
               <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 px-3 rounded-lg border-none outline-none">
                   {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
@@ -252,23 +262,42 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
           </div>
       </div>
 
-      <div className="p-4 sm:p-6 max-w-[1600px] mx-auto">
+      {/* İÇERİK ALANI - SADECE BURASI KAYACAK */}
+      <div className="p-4 sm:p-6 max-w-[1600px] mx-auto w-full flex-1 flex flex-col min-h-0">
           {rankingData.length > 0 ? (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                  <div className="overflow-x-auto relative no-scrollbar block w-full">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0 overflow-hidden">
+                  <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap gap-2 justify-between items-center shrink-0">
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                          Genel Sıralama Tablosu
+                      </h3>
+                      <span className="text-xs font-semibold text-slate-500 bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-600">
+                          {rankingData.length} Birim Listelendi
+                      </span>
+                  </div>
+                  
+                  {/* SADECE TABLONUN KAYDIRILABİLDİĞİ ÖZEL ALAN */}
+                  <div className="overflow-auto relative no-scrollbar flex-1 w-full">
                       <table className="w-full text-left whitespace-nowrap border-separate border-spacing-0 text-[10px] sm:text-xs">
-                          <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-30 shadow-sm">
+                          <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-40 shadow-sm">
                               <tr>
-                                  <th className={`p-2 sm:p-3 font-extrabold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-40 border-b border-slate-200 dark:border-slate-700 truncate ${COL1_WIDTH}`}>Birim Adı</th>
-                                  <th className={`p-2 sm:p-3 font-extrabold text-red-600 dark:text-red-400 text-center sticky bg-slate-100 dark:bg-slate-900 z-40 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Nihai Puan</th>
+                                  <th className={`p-2 sm:p-3 font-extrabold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 truncate ${COL1_WIDTH}`}>
+                                      Birim Adı
+                                  </th>
+                                  <th className={`p-2 sm:p-3 font-extrabold text-red-600 dark:text-red-400 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                      Nihai Puan
+                                  </th>
                                   
                                   {RANK_METRICS.map(m => (
                                       <th key={m.key} className="p-2 sm:p-3 font-bold text-slate-600 dark:text-slate-400 text-center border-b border-slate-200 dark:border-slate-700">
                                           {m.label} <span className="text-[8px] text-slate-400 block">%{(m.weight*100).toFixed(0)}</span>
                                       </th>
                                   ))}
-                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Şikayet P.</th>
-                                  <th className="p-2 sm:p-3 font-bold text-blue-600 dark:text-blue-400 text-center border-b border-slate-200 dark:border-slate-700">Hacim P.</th>
+                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">
+                                      Şikayet P.
+                                  </th>
+                                  <th className="p-2 sm:p-3 font-bold text-blue-600 dark:text-blue-400 text-center border-b border-slate-200 dark:border-slate-700">
+                                      Hacim P.
+                                  </th>
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -280,12 +309,16 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
                                   return (
                                       <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                                          <td className={`p-2 sm:p-3 font-bold text-slate-800 dark:text-slate-200 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 truncate ${COL1_WIDTH}`}>
-                                              <div className="flex items-center">{rankIcon} {row.unit}</div>
+                                          <td className={`p-2 sm:p-3 font-bold text-slate-800 dark:text-slate-200 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 truncate ${COL1_WIDTH}`} title={row.unit}>
+                                              <div className="flex items-center">
+                                                  {rankIcon}
+                                                  {row.unit}
+                                              </div>
                                           </td>
                                           <td className={`p-2 sm:p-3 text-center font-black text-sm sm:text-base text-rose-600 dark:text-rose-400 sticky z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
-                                              {row.finalScore.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                              {row.finalScore != null ? row.finalScore.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
                                           </td>
+                                          
                                           {RANK_METRICS.map(m => (
                                               <td key={m.key} className="p-2 sm:p-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700/50">
                                                   {formatScoreDisplay(row.details[m.key].base, row.details[m.key].rp)}
@@ -295,7 +328,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                               {row.details.musteriSikayet.val !== null ? `${row.details.musteriSikayet.score} P.` : "-"}
                                           </td>
                                           <td className="p-2 sm:p-3 text-center font-black text-blue-600 dark:text-blue-400 border-b border-slate-100 dark:border-slate-700/50">
-                                              {row.details.volume.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                              {row.details.volume != null ? row.details.volume.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
                                           </td>
                                       </tr>
                                   );
@@ -305,7 +338,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                   </div>
               </div>
           ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex-1">
                   <AlertTriangle size={48} className="mb-4 opacity-20" />
                   <p className="text-sm font-medium">Seçili döneme ait değerlendirilecek veri bulunamadı.</p>
               </div>
