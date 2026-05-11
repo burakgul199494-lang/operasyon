@@ -162,6 +162,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                 res.gelenKargo = g.gelenKargo.count > 0 ? (g.gelenKargo.total / g.gelenKargo.count) : null;
                 return res;
             });
+
         } else {
             targetData = allData.filter(d => 
                 d.year === parseInt(selectedYear) && 
@@ -185,9 +186,19 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             rankPointsMap[m.key] = {};
             validUnits.forEach((item, index) => {
                 let rp = 0;
-                if (index < 10) rp = (10 - index) / 10;
-                const reverseIndex = validUnits.length - 1 - index;
-                if (reverseIndex < 10) rp = -((10 - reverseIndex) / 10);
+                
+                // GÜNCELLENDİ: Adalet Kuralı -> Oran tam olarak %100 (veya üzeri) ise sırasına bakılmaksızın tam 1.0 puan.
+                if (item.val >= 100) {
+                    rp = 1.0;
+                } else if (index < 10) {
+                    rp = (10 - index) / 10;
+                } else {
+                    const reverseIndex = validUnits.length - 1 - index;
+                    if (reverseIndex < 10) {
+                        rp = -((10 - reverseIndex) / 10);
+                    }
+                }
+                
                 rankPointsMap[m.key][item.unit] = rp;
             });
         });
@@ -202,6 +213,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                 const val = parseMetric(record[m.key]);
                 const base = val !== null ? val * m.weight : null;
                 const rp = (rankPointsMap[m.key] && rankPointsMap[m.key][record.unit]) ? rankPointsMap[m.key][record.unit] : 0;
+                
                 if (base !== null) {
                     finalScore += (base + rp);
                     totalRankBonus += rp;
@@ -233,7 +245,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   const donemTextStr = isShowYearAvg ? `Yıllık Ortalama (${selectedYear})` : `${MONTH_NAMES[selectedMonth]} ${selectedYear}`;
   const fileNameSuffix = isShowYearAvg ? `Yillik_Ortalama_${selectedYear}` : `${MONTH_NAMES[selectedMonth]}_${selectedYear}`;
 
-  // PDF ÇIKTISI (61 Birim Sığdırma Ayarlı)
   const generatePDF = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -289,7 +300,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             head: tableHead,
             body: tableBody,
             theme: 'grid',
-            // GÜNCELLENDİ: Yazı boyutu ve hücre içi boşluk düşürülerek 61 satırın sığması sağlandı
             styles: { font: 'Roboto', fontSize: 5.8, cellPadding: 1.1, halign: 'center' },
             headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontSize: 6 },
             columnStyles: {
@@ -373,6 +383,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
               <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 px-3 rounded-lg border-none outline-none">
                   {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
+              
               <button onClick={() => setIsShowYearAvg(!isShowYearAvg)} className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold leading-tight flex-shrink-0 h-10 ml-1 ${isShowYearAvg ? "bg-purple-600 dark:bg-purple-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"}`}>
                   <TrendingUp size={14} className="mb-0.5" />
                   {isShowYearAvg ? "Aylara Dön" : "Yıl Ort."}
