@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, Calendar, FileDown, Trophy, Medal, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, FileDown, Trophy, Medal, AlertTriangle, Loader2, FileSpreadsheet } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-// GÜNCELLENDİ: KALABAK DDN listeye eklendi (Toplam 61 Birim kaldı)
+// HESAPLAMA DIŞI BIRAKILAN BİRİMLER (61 Birim Kalacak)
 const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN", "BÖLGE"];
 
 const parseMetric = (val) => {
@@ -20,6 +20,16 @@ const getBase64 = (blob) => new Promise((resolve, reject) => {
   reader.onloadend = () => resolve(reader.result.split(',')[1]);
   reader.onerror = reject;
   reader.readAsDataURL(blob);
+});
+
+// Excel Kütüphanesini Dinamik Yükleme Yardımcısı
+const loadXlsxLibrary = () => new Promise((resolve, reject) => {
+    if (window.XLSX) return resolve(window.XLSX);
+    const script = document.createElement('script');
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    script.onload = () => resolve(window.XLSX);
+    script.onerror = reject;
+    document.head.appendChild(script);
 });
 
 const RANK_METRICS = [
@@ -69,9 +79,7 @@ const formatPdfScore = (base, rp) => {
         const total = Number(base) + Number(rp || 0);
         const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         if (!rp) return totalStr;
-        
-        const rpNum = Number(rp);
-        const rpStr = rpNum > 0 ? `+${rpNum.toLocaleString('tr-TR')}` : rpNum.toLocaleString('tr-TR');
+        const rpStr = rp > 0 ? `+${rp.toLocaleString('tr-TR')}` : rp.toLocaleString('tr-TR');
         return `${totalStr} (${rpStr})`;
     } catch(e) { return "-"; }
 };
@@ -84,6 +92,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
   useEffect(() => {
@@ -138,7 +147,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         const finalList = [];
         monthData.forEach(record => {
             let finalScore = 0;
-            let totalRankBonus = 0; // GÜNCELLENDİ: Sıralamalardan alınan toplam ek puanı tutar
+            let totalRankBonus = 0; 
             const details = {};
 
             RANK_METRICS.forEach(m => {
@@ -173,6 +182,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
     }
   }, [allData, selectedYear, selectedMonth]);
 
+  // PDF ÇIKTISI
   const generatePDF = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -197,7 +207,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         doc.setTextColor(60);
         doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear} | Analiz Günü: ${new Date().toLocaleDateString('tr-TR')}`, 14, 28);
 
-        // GÜNCELLENDİ: PDF Sütunlarına "Ek Puan" eklendi
         const tableHead = [[
             'Sıra', 'Birim Adı', 'Nihai Puan', 'Ek Puan',
             ...RANK_METRICS.map(m => `${m.label} %${(m.weight*100).toFixed(0)}`),
@@ -235,7 +244,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                 0: { fontStyle: 'bold', cellWidth: 8 },
                 1: { halign: 'left', fontStyle: 'bold', cellWidth: 22 },
                 2: { fontStyle: 'bold', textColor: [220, 38, 38] },
-                3: { fontStyle: 'bold', textColor: [79, 70, 229] } // Ek Puan Sütunu Rengi
+                3: { fontStyle: 'bold', textColor: [79, 70, 229] } 
             },
             alternateRowStyles: { fillColor: [248, 250, 252] }
         });
@@ -248,9 +257,59 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
     }
   };
 
+  // YENİ: EXCEL ÇIKTISI (Birebir PDF Formatı)
+  const generateExcel = async () => {
+    setIsGeneratingExcel(true);
+    try {
+        const XLSXLib = await loadXlsxLibrary();
+        
+        // Başlıklar
+        const headers = [
+            'Sıra', 'Birim Adı', 'Nihai Puan', 'Toplam Ek Puan',
+            ...RANK_METRICS.map(m => `${m.label} Puanı (%${(m.weight*100).toFixed(0)})`),
+            'Şikayet Puanı', 'Hacim Puanı'
+        ];
+
+        // Veriler
+        const dataRows = rankingData.map((row, idx) => {
+            const rowData = [
+                idx + 1,
+                row.unit || "-",
+                Number(row.finalScore?.toFixed(2) || 0),
+                Number(row.totalRankBonus?.toFixed(2) || 0)
+            ];
+
+            RANK_METRICS.forEach(m => {
+                const base = row.details[m.key]?.base || 0;
+                const rp = row.details[m.key]?.rp || 0;
+                rowData.push(Number((base + rp).toFixed(2)));
+            });
+
+            rowData.push(Number(row.details.musteriSikayet?.score || 0));
+            rowData.push(Number(row.details.volume?.toFixed(2) || 0));
+
+            return rowData;
+        });
+
+        const worksheet = XLSXLib.utils.aoa_to_sheet([headers, ...dataRows]);
+        const workbook = XLSXLib.utils.book_new();
+        XLSXLib.utils.book_append_sheet(workbook, worksheet, "Başarı Sıralaması");
+
+        // Dosyayı İndir
+        XLSXLib.writeFile(workbook, `Nihai_Basari_Siralamasi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`);
+
+    } catch (error) {
+        console.error("Excel oluşturulurken hata:", error);
+        alert("Excel dışa aktarılırken bir sorun oluştu.");
+    } finally {
+        setIsGeneratingExcel(false);
+    }
+  };
+
   return (
     <div className="bg-slate-50 dark:bg-slate-900 h-screen flex flex-col transition-colors duration-300 overflow-hidden">
       
+      {/* ÜST MENÜ */}
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-50 shadow-sm border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -262,14 +321,27 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                   </h1>
               </div>
 
-              <button 
-                  onClick={generatePDF} 
-                  disabled={isGeneratingPdf || rankingData.length === 0}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50"
-              >
-                  {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
-                  PDF Aktar
-              </button>
+              <div className="flex items-center gap-2">
+                  {/* EXCEL BUTONU */}
+                  <button 
+                      onClick={generateExcel} 
+                      disabled={isGeneratingExcel || rankingData.length === 0}
+                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50"
+                  >
+                      {isGeneratingExcel ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
+                      Excel Aktar
+                  </button>
+
+                  {/* PDF BUTONU */}
+                  <button 
+                      onClick={generatePDF} 
+                      disabled={isGeneratingPdf || rankingData.length === 0}
+                      className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50"
+                  >
+                      {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
+                      PDF Aktar
+                  </button>
+              </div>
           </div>
 
           <div className="px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar snap-x items-center">
@@ -285,6 +357,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
           </div>
       </div>
 
+      {/* İÇERİK ALANI */}
       <div className="p-4 sm:p-6 max-w-[1600px] mx-auto w-full flex-1 flex flex-col min-h-0">
           {rankingData.length > 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -302,7 +375,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                   <th className={`p-2 sm:p-3 font-extrabold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 truncate ${COL1_WIDTH}`}>Birim Adı</th>
                                   <th className={`p-2 sm:p-3 font-extrabold text-red-600 dark:text-red-400 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Nihai Puan</th>
                                   
-                                  {/* GÜNCELLENDİ: Ek Puanlar Sütunu Eklendi */}
                                   <th className="p-2 sm:p-3 font-bold text-indigo-600 dark:text-indigo-400 text-center border-b border-slate-200 dark:border-slate-700">Ek Puanlar</th>
 
                                   {RANK_METRICS.map(m => (
@@ -330,7 +402,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                               {row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
                                           </td>
                                           
-                                          {/* GÜNCELLENDİ: Ek Puanların Gösterimi */}
                                           <td className={`p-2 sm:p-3 text-center font-bold text-sm sm:text-base border-b border-slate-100 dark:border-slate-700/50 ${row.totalRankBonus > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>
                                               {row.totalRankBonus > 0 ? "+" : ""}{row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                           </td>
