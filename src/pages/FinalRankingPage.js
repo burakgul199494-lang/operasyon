@@ -5,8 +5,8 @@ import { UNITS, MONTH_NAMES } from "../utils/helpers";
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-// ÇIKARILACAK BİRİMLER LİSTESİ
-const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "BÖLGE"];
+// GÜNCELLENDİ: KALABAK DDN listeye eklendi (Toplam 61 Birim kaldı)
+const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN", "BÖLGE"];
 
 const parseMetric = (val) => {
   if (val === undefined || val === null || val === "") return null;
@@ -46,30 +46,34 @@ const getComplaintScore = (val) => {
 };
 
 const formatScoreDisplay = (base, rp) => {
-    if (base === null || base === undefined) return "-";
-    const total = base + rp;
-    const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (rp === 0) return totalStr;
-    const rpStr = rp > 0 ? `+${rp.toLocaleString('tr-TR')}` : rp.toLocaleString('tr-TR');
-    const colorClass = rp > 0 ? 'text-emerald-500' : 'text-rose-500';
-    return (
-        <span>
-            {totalStr} <span className={`text-[9px] sm:text-[10px] font-bold ${colorClass}`}>({rpStr})</span>
-        </span>
-    );
+    try {
+        if (base === null || base === undefined) return "-";
+        const total = Number(base) + Number(rp || 0);
+        const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (!rp) return totalStr;
+        
+        const rpNum = Number(rp);
+        const rpStr = rpNum > 0 ? `+${rpNum.toLocaleString('tr-TR')}` : rpNum.toLocaleString('tr-TR');
+        const colorClass = rpNum > 0 ? 'text-emerald-500' : 'text-rose-500';
+        return (
+            <span>
+                {totalStr} <span className={`text-[9px] sm:text-[10px] font-bold ${colorClass}`}>({rpStr})</span>
+            </span>
+        );
+    } catch (e) { return "-"; }
 };
 
 const formatPdfScore = (base, rp) => {
-    if (base === null || base === undefined) return "-";
     try {
-        const total = base + rp;
+        if (base === null || base === undefined) return "-";
+        const total = Number(base) + Number(rp || 0);
         const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        if (rp === 0) return totalStr;
-        const rpStr = rp > 0 ? `+${rp.toLocaleString('tr-TR')}` : rp.toLocaleString('tr-TR');
+        if (!rp) return totalStr;
+        
+        const rpNum = Number(rp);
+        const rpStr = rpNum > 0 ? `+${rpNum.toLocaleString('tr-TR')}` : rpNum.toLocaleString('tr-TR');
         return `${totalStr} (${rpStr})`;
-    } catch(e) {
-        return "-";
-    }
+    } catch(e) { return "-"; }
 };
 
 const COL1_WIDTH = "w-[120px] min-w-[120px] max-w-[120px] sm:w-[150px] sm:min-w-[150px] sm:max-w-[150px]";
@@ -82,20 +86,14 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-  // OTOMATİK TARİH BULUCU: İlk açılışta veritabanındaki en güncel ayı bulur
   useEffect(() => {
     if (allData && allData.length > 0 && !isInitialLoaded) {
-      // Sadece değerlendirmeye dahil olan birimlerin verilerini al
       const validRecords = allData.filter(d => !EXCLUDED_UNITS.includes(d.unit));
-      
       if (validRecords.length > 0) {
-        // Yıl ve aya göre büyükten küçüğe sırala
         const sortedRecords = [...validRecords].sort((a, b) => {
           if (a.year !== b.year) return b.year - a.year;
           return b.month - a.month;
         });
-
-        // En güncel kaydın tarihine odaklan
         setSelectedYear(sortedRecords[0].year);
         setSelectedMonth(sortedRecords[0].month);
       }
@@ -104,71 +102,75 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   }, [allData, isInitialLoaded]);
 
   const rankingData = useMemo(() => {
-    if (!allData || allData.length === 0) return [];
-    
-    const monthData = allData.filter(d => 
-        d.year === parseInt(selectedYear) && 
-        d.month === parseInt(selectedMonth) &&
-        !EXCLUDED_UNITS.includes(d.unit)
-    );
-    
-    if (monthData.length === 0) return [];
-
-    const regionalTotalIncoming = monthData.reduce((acc, curr) => {
-        return acc + (parseMetric(curr.gelenKargo) || 0);
-    }, 0);
-
-    const rankPointsMap = {};
-    RANK_METRICS.forEach(m => {
-        const validUnits = monthData
-            .filter(d => parseMetric(d[m.key]) !== null)
-            .map(d => ({ unit: d.unit, val: parseMetric(d[m.key]) }));
+    try {
+        if (!allData || allData.length === 0) return [];
         
-        validUnits.sort((a, b) => b.val - a.val);
+        const monthData = allData.filter(d => 
+            d.year === parseInt(selectedYear) && 
+            d.month === parseInt(selectedMonth) &&
+            !EXCLUDED_UNITS.includes(d.unit)
+        );
+        
+        if (monthData.length === 0) return [];
 
-        rankPointsMap[m.key] = {};
-        validUnits.forEach((item, index) => {
-            let rp = 0;
-            if (index < 10) {
-                rp = (10 - index) / 10;
-            }
-            const reverseIndex = validUnits.length - 1 - index;
-            if (reverseIndex < 10) {
-                rp = -((10 - reverseIndex) / 10);
-            }
-            rankPointsMap[m.key][item.unit] = rp;
-        });
-    });
+        const regionalTotalIncoming = monthData.reduce((acc, curr) => {
+            return acc + (parseMetric(curr.gelenKargo) || 0);
+        }, 0);
 
-    const finalList = [];
-    monthData.forEach(record => {
-        let finalScore = 0;
-        const details = {};
-
+        const rankPointsMap = {};
         RANK_METRICS.forEach(m => {
-            const val = parseMetric(record[m.key]);
-            const base = val !== null ? val * m.weight : null;
-            const rp = (rankPointsMap[m.key] && rankPointsMap[m.key][record.unit]) ? rankPointsMap[m.key][record.unit] : 0;
+            const validUnits = monthData
+                .filter(d => parseMetric(d[m.key]) !== null)
+                .map(d => ({ unit: d.unit, val: parseMetric(d[m.key]) }));
             
-            if (base !== null) finalScore += (base + rp);
-            details[m.key] = { base, rp };
+            validUnits.sort((a, b) => b.val - a.val);
+
+            rankPointsMap[m.key] = {};
+            validUnits.forEach((item, index) => {
+                let rp = 0;
+                if (index < 10) rp = (10 - index) / 10;
+                const reverseIndex = validUnits.length - 1 - index;
+                if (reverseIndex < 10) rp = -((10 - reverseIndex) / 10);
+                rankPointsMap[m.key][item.unit] = rp;
+            });
         });
 
-        const compVal = parseMetric(record.musteriSikayet);
-        const compScore = getComplaintScore(compVal);
-        if (compVal !== null) finalScore += compScore;
-        details.musteriSikayet = { val: compVal, score: compScore };
+        const finalList = [];
+        monthData.forEach(record => {
+            let finalScore = 0;
+            let totalRankBonus = 0; // GÜNCELLENDİ: Sıralamalardan alınan toplam ek puanı tutar
+            const details = {};
 
-        const incoming = parseMetric(record.gelenKargo) || 0;
-        const volumeScore = regionalTotalIncoming > 0 ? (incoming / regionalTotalIncoming) * 100 : 0;
-        finalScore += volumeScore;
-        details.volume = volumeScore;
+            RANK_METRICS.forEach(m => {
+                const val = parseMetric(record[m.key]);
+                const base = val !== null ? val * m.weight : null;
+                const rp = (rankPointsMap[m.key] && rankPointsMap[m.key][record.unit]) ? rankPointsMap[m.key][record.unit] : 0;
+                
+                if (base !== null) {
+                    finalScore += (base + rp);
+                    totalRankBonus += rp;
+                }
+                details[m.key] = { base, rp };
+            });
 
-        finalList.push({ unit: record.unit, finalScore, details });
-    });
+            const compVal = parseMetric(record.musteriSikayet);
+            const compScore = getComplaintScore(compVal);
+            if (compVal !== null) finalScore += compScore;
+            details.musteriSikayet = { val: compVal, score: compScore };
 
-    return finalList.sort((a, b) => b.finalScore - a.finalScore);
+            const incoming = parseMetric(record.gelenKargo) || 0;
+            const volumeScore = regionalTotalIncoming > 0 ? (incoming / regionalTotalIncoming) * 100 : 0;
+            finalScore += volumeScore;
+            details.volume = volumeScore;
 
+            finalList.push({ unit: record.unit, finalScore, totalRankBonus, details });
+        });
+
+        return finalList.sort((a, b) => b.finalScore - a.finalScore);
+    } catch(e) {
+        console.error("Sıralama hesaplanırken hata:", e);
+        return [];
+    }
   }, [allData, selectedYear, selectedMonth]);
 
   const generatePDF = async () => {
@@ -189,33 +191,37 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
         doc.setFontSize(16);
         doc.setTextColor(30, 58, 138); 
-        doc.text("NİHAİ BAŞARI SIRALAMASI (62 BİRİM)", 14, 20);
+        doc.text(`NİHAİ BAŞARI SIRALAMASI (${rankingData.length} BİRİM)`, 14, 20);
 
         doc.setFontSize(10);
         doc.setTextColor(60);
         doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear} | Analiz Günü: ${new Date().toLocaleDateString('tr-TR')}`, 14, 28);
 
+        // GÜNCELLENDİ: PDF Sütunlarına "Ek Puan" eklendi
         const tableHead = [[
-            'Sıra', 'Birim Adı', 'Nihai Puan', 
-            'Teslim %20', 'Adres %15', 'Şikayet P.', 
-            'Rota %5', 'TVS %10', 'Check-in %5', 
-            'SMS %10', 'Hacim P.'
+            'Sıra', 'Birim Adı', 'Nihai Puan', 'Ek Puan',
+            ...RANK_METRICS.map(m => `${m.label} %${(m.weight*100).toFixed(0)}`),
+            'Şikayet P.', 'Hacim P.'
         ]];
 
         const tableBody = rankingData.map((row, idx) => {
-            return [
+            const rowData = [
                 idx + 1,
-                row.unit,
-                row.finalScore != null ? row.finalScore.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-",
-                formatPdfScore(row.details.teslimPerformansi.base, row.details.teslimPerformansi.rp),
-                formatPdfScore(row.details.adresAlimOrani.base, row.details.adresAlimOrani.rp),
-                row.details.musteriSikayet.val !== null ? `${row.details.musteriSikayet.score} P.` : "-",
-                formatPdfScore(row.details.rotaOrani.base, row.details.rotaOrani.rp),
-                formatPdfScore(row.details.tvsOrani.base, row.details.tvsOrani.rp),
-                formatPdfScore(row.details.checkInOrani.base, row.details.checkInOrani.rp),
-                formatPdfScore(row.details.smsOrani.base, row.details.smsOrani.rp),
-                row.details.volume != null ? row.details.volume.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"
+                row.unit || "-",
+                row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-",
+                row.totalRankBonus > 0 
+                  ? `+${row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                  : row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
             ];
+
+            RANK_METRICS.forEach(m => {
+                rowData.push(formatPdfScore(row.details[m.key]?.base, row.details[m.key]?.rp));
+            });
+
+            rowData.push(row.details.musteriSikayet?.val !== null ? `${row.details.musteriSikayet?.score} P.` : "-");
+            rowData.push(row.details.volume != null ? Number(row.details.volume).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-");
+
+            return rowData;
         });
 
         doc.autoTable({
@@ -226,9 +232,10 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             styles: { font: 'Roboto', fontSize: 6, cellPadding: 1.5, halign: 'center' },
             headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255] },
             columnStyles: {
-                0: { fontStyle: 'bold', cellWidth: 10 },
-                1: { halign: 'left', fontStyle: 'bold', cellWidth: 30 },
-                2: { fontStyle: 'bold', textColor: [220, 38, 38], cellWidth: 18 }
+                0: { fontStyle: 'bold', cellWidth: 8 },
+                1: { halign: 'left', fontStyle: 'bold', cellWidth: 22 },
+                2: { fontStyle: 'bold', textColor: [220, 38, 38] },
+                3: { fontStyle: 'bold', textColor: [79, 70, 229] } // Ek Puan Sütunu Rengi
             },
             alternateRowStyles: { fillColor: [248, 250, 252] }
         });
@@ -244,7 +251,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   return (
     <div className="bg-slate-50 dark:bg-slate-900 h-screen flex flex-col transition-colors duration-300 overflow-hidden">
       
-      {/* ÜST MENÜ */}
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-50 shadow-sm border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -272,14 +278,13 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
               </select>
               <div className="w-[1px] h-8 bg-slate-200 dark:bg-slate-700 shrink-0 mx-1"></div>
               {MONTH_NAMES.map((m, i) => i !== 0 && (
-                  <button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all snap-center border ${i === selectedMonth ? "bg-slate-800 dark:bg-blue-500 text-white border-transparent" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300"}`}>
+                  <button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all snap-center border ${i === selectedMonth ? "bg-slate-800 dark:bg-blue-500 text-white border-transparent shadow-md" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300"}`}>
                       {m}
                   </button>
               ))}
           </div>
       </div>
 
-      {/* İÇERİK ALANI */}
       <div className="p-4 sm:p-6 max-w-[1600px] mx-auto w-full flex-1 flex flex-col min-h-0">
           {rankingData.length > 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -297,6 +302,9 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                   <th className={`p-2 sm:p-3 font-extrabold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 truncate ${COL1_WIDTH}`}>Birim Adı</th>
                                   <th className={`p-2 sm:p-3 font-extrabold text-red-600 dark:text-red-400 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Nihai Puan</th>
                                   
+                                  {/* GÜNCELLENDİ: Ek Puanlar Sütunu Eklendi */}
+                                  <th className="p-2 sm:p-3 font-bold text-indigo-600 dark:text-indigo-400 text-center border-b border-slate-200 dark:border-slate-700">Ek Puanlar</th>
+
                                   {RANK_METRICS.map(m => (
                                       <th key={m.key} className="p-2 sm:p-3 font-bold text-slate-600 dark:text-slate-400 text-center border-b border-slate-200 dark:border-slate-700">
                                           {m.label} <span className="text-[8px] text-slate-400 block">%{(m.weight*100).toFixed(0)}</span>
@@ -319,18 +327,24 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                               <div className="flex items-center">{rankIcon} {row.unit}</div>
                                           </td>
                                           <td className={`p-2 sm:p-3 text-center font-black text-sm sm:text-base text-rose-600 dark:text-rose-400 sticky z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
-                                              {row.finalScore != null ? row.finalScore.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
+                                              {row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
                                           </td>
+                                          
+                                          {/* GÜNCELLENDİ: Ek Puanların Gösterimi */}
+                                          <td className={`p-2 sm:p-3 text-center font-bold text-sm sm:text-base border-b border-slate-100 dark:border-slate-700/50 ${row.totalRankBonus > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>
+                                              {row.totalRankBonus > 0 ? "+" : ""}{row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                          </td>
+
                                           {RANK_METRICS.map(m => (
                                               <td key={m.key} className="p-2 sm:p-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700/50">
-                                                  {formatScoreDisplay(row.details[m.key].base, row.details[m.key].rp)}
+                                                  {formatScoreDisplay(row.details[m.key]?.base, row.details[m.key]?.rp)}
                                               </td>
                                           ))}
                                           <td className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
-                                              {row.details.musteriSikayet.val !== null ? `${row.details.musteriSikayet.score} P.` : "-"}
+                                              {row.details.musteriSikayet?.val !== null ? `${row.details.musteriSikayet?.score} P.` : "-"}
                                           </td>
                                           <td className="p-2 sm:p-3 text-center font-black text-blue-600 dark:text-blue-400 border-b border-slate-100 dark:border-slate-700/50">
-                                              {row.details.volume != null ? row.details.volume.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
+                                              {row.details.volume != null ? Number(row.details.volume).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
                                           </td>
                                       </tr>
                                   );
