@@ -33,16 +33,27 @@ const parseMetric = (val) => {
   return isNaN(num) ? null : num;
 };
 
-const CustomTooltip = ({ active, payload, label, isPercent }) => {
+// GÜNCELLENDİ: Karşılaştırmalı Tooltip (Aynı anda iki yılı gösterir)
+const CustomTooltip = ({ active, payload, label, isPercent, selectedYear }) => {
   if (active && payload && payload.length) {
-    const val = payload[0].value;
     return (
-      <div className="bg-slate-900/90 backdrop-blur-sm text-white p-3 rounded-lg shadow-xl border border-slate-700">
-        <p className="font-bold text-sm mb-1 text-slate-300">{label}</p>
-        <p className="text-lg font-black" style={{ color: payload[0].color }}>
-          {val.toLocaleString('tr-TR', { minimumFractionDigits: isPercent ? 2 : 0, maximumFractionDigits: isPercent ? 2 : 0 })}
-          {isPercent ? "%" : ""}
-        </p>
+      <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-lg shadow-xl border border-slate-700 min-w-[140px]">
+        <p className="font-bold text-sm mb-2 text-slate-300 border-b border-slate-700 pb-1">{label} Ayı</p>
+        
+        {payload.map((entry, index) => (
+          <div key={index} className="flex items-center justify-between gap-4 mb-1.5">
+             <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></div>
+                <span className="text-xs font-medium text-slate-300">
+                  {entry.dataKey === 'current' ? selectedYear : selectedYear - 1}
+                </span>
+             </div>
+             <span className="text-sm font-black" style={{ color: entry.color }}>
+               {entry.value !== null && entry.value !== undefined ? entry.value.toLocaleString('tr-TR', { minimumFractionDigits: isPercent ? 2 : 0, maximumFractionDigits: isPercent ? 2 : 0 }) : "-"}
+               {isPercent && entry.value !== null && entry.value !== undefined ? "%" : ""}
+             </span>
+          </div>
+        ))}
       </div>
     );
   }
@@ -56,44 +67,58 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const pdfContainerRef = useRef(null);
 
+  // GÜNCELLENDİ: Çift Yıllı (Karşılaştırmalı) Veri Motoru
   const trendData = useMemo(() => {
     if (!allData || allData.length === 0) return {};
 
     const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     const dataByMetric = {};
+    const prevYear = selectedYear - 1;
     
-    METRICS.forEach(m => dataByMetric[m.key] = []);
-
-    months.forEach(month => {
-      let validRecords = [];
-      
-      if (selectedUnit === "BÖLGE ORTALAMASI") {
-        validRecords = allData.filter(d => d.year === parseInt(selectedYear) && d.month === month && !EXCLUDED_UNITS.includes(d.unit));
-      } else {
-        validRecords = allData.filter(d => d.year === parseInt(selectedYear) && d.month === month && d.unit === selectedUnit);
-      }
-
-      const monthNameShort = MONTH_NAMES[month].substring(0, 3);
-
-      if (validRecords.length > 0) {
-        METRICS.forEach(m => {
-          let total = 0;
-          let count = 0;
-
-          validRecords.forEach(rec => {
-            const val = parseMetric(rec[m.key]);
-            if (val !== null) {
-              total += val;
-              count += 1;
+    METRICS.forEach(m => {
+        dataByMetric[m.key] = months.map(month => {
+            let currentRecords = [];
+            let previousRecords = [];
+            
+            if (selectedUnit === "BÖLGE ORTALAMASI") {
+              currentRecords = allData.filter(d => d.year === parseInt(selectedYear) && d.month === month && !EXCLUDED_UNITS.includes(d.unit));
+              previousRecords = allData.filter(d => d.year === prevYear && d.month === month && !EXCLUDED_UNITS.includes(d.unit));
+            } else {
+              currentRecords = allData.filter(d => d.year === parseInt(selectedYear) && d.month === month && d.unit === selectedUnit);
+              previousRecords = allData.filter(d => d.year === prevYear && d.month === month && d.unit === selectedUnit);
             }
-          });
 
-          if (count > 0) {
-             const avg = m.isPercent ? (total / count) : Math.round(total / count);
-             dataByMetric[m.key].push({ monthName: monthNameShort, value: Number(avg.toFixed(2)) });
-          }
+            let currTotal = 0, currCount = 0;
+            let prevTotal = 0, prevCount = 0;
+
+            currentRecords.forEach(rec => {
+              const val = parseMetric(rec[m.key]);
+              if (val !== null) { currTotal += val; currCount += 1; }
+            });
+
+            previousRecords.forEach(rec => {
+              const val = parseMetric(rec[m.key]);
+              if (val !== null) { prevTotal += val; prevCount += 1; }
+            });
+
+            let currAvg = null;
+            if (currCount > 0) {
+               currAvg = m.isPercent ? (currTotal / currCount) : Math.round(currTotal / currCount);
+               currAvg = Number(currAvg.toFixed(2));
+            }
+
+            let prevAvg = null;
+            if (prevCount > 0) {
+               prevAvg = m.isPercent ? (prevTotal / prevCount) : Math.round(prevTotal / prevCount);
+               prevAvg = Number(prevAvg.toFixed(2));
+            }
+
+            return {
+                monthName: MONTH_NAMES[month].substring(0, 3),
+                current: currAvg,
+                previous: prevAvg
+            };
         });
-      }
     });
 
     return dataByMetric;
@@ -105,7 +130,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
         const element = pdfContainerRef.current;
         if (!element) return;
 
-        // PDF Alırken Görünümü Düzenle
         element.classList.remove('hidden');
         element.classList.add('grid');
         element.style.width = '1600px'; 
@@ -114,7 +138,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
 
         const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
         
-        // Stilleri Geri Al
         element.style.width = '';
         element.style.padding = '';
         element.style.background = '';
@@ -131,11 +154,11 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
 
         pdf.setFontSize(16);
         pdf.setTextColor(30, 58, 138); 
-        pdf.text(`YIL İÇİ TREND ANALİZİ: ${selectedUnit}`, 14, 15);
+        pdf.text(`KARŞILAŞTIRMALI YIL İÇİ TREND ANALİZİ: ${selectedUnit}`, 14, 15);
         
         pdf.setFontSize(10);
         pdf.setTextColor(100);
-        pdf.text(`Dönem: ${selectedYear} Yılı | Analiz Günü: ${new Date().toLocaleDateString('tr-TR')}`, 14, 21);
+        pdf.text(`Dönem: ${selectedYear} ve ${selectedYear - 1} Yılı | Analiz Günü: ${new Date().toLocaleDateString('tr-TR')}`, 14, 21);
 
         pdf.addImage(imgData, 'JPEG', 5, 25, pdfWidth - 10, pdfHeight - 10);
         pdf.save(`${selectedUnit}_Trend_Analizi_${selectedYear}.pdf`);
@@ -148,8 +171,14 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
     }
   };
 
+  const hasAnyData = (dataArray) => {
+      return dataArray.some(d => d.current !== null || d.previous !== null);
+  };
+
   return (
     <div className="bg-slate-50 dark:bg-slate-900 min-h-screen flex flex-col transition-colors duration-300">
+      
+      {/* ÜST MENÜ */}
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-50 shadow-sm border-b border-slate-200 dark:border-slate-800 shrink-0 sticky top-0">
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -185,7 +214,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-600 pointer-events-none" />
               </div>
 
-              {/* MOBİL GÖRÜNÜM İÇİN SEÇİCİ */}
+              {/* MOBİL İÇİN METRİK SEÇİCİ */}
               <div className="w-full sm:hidden mt-2 relative">
                   <select value={mobileSelectedMetric} onChange={(e) => setMobileSelectedMetric(e.target.value)} className="appearance-none w-full bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-2 pl-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
                       {METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
@@ -197,31 +226,40 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
 
       <div className="p-4 sm:p-6 max-w-[1800px] mx-auto w-full">
           
-          {/* MOBİL GÖRÜNÜM KARTLARI */}
+          {/* MOBİL GÖRÜNÜM */}
           <div className="block md:hidden">
               {METRICS.filter(m => m.key === mobileSelectedMetric).map((metric) => (
                   <div key={metric.key} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: metric.color }}></div>
-                      <div className="flex justify-between items-center mb-6 pl-2">
+                      <div className="flex justify-between items-center mb-4 pl-2">
                           <div>
                              <h3 className="font-bold text-slate-800 dark:text-white text-base">{metric.label}</h3>
-                             <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Yıl İçi Değişim Grafiği</p>
+                             {/* Mini Legend */}
+                             <div className="flex gap-3 mt-1.5">
+                                 <div className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300 font-bold"><div className="w-2 h-2 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
+                                 <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><div className="w-2 h-2 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>
+                             </div>
                           </div>
                           <div className="bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded text-xs font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                              Hedef: {metric.target}{metric.isPercent ? "%" : ""}
                           </div>
                       </div>
                       
-                      <div className="h-[250px] w-full">
-                          {trendData[metric.key] && trendData[metric.key].length > 0 ? (
+                      <div className="h-[250px] w-full mt-2">
+                          {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <LineChart data={trendData[metric.key]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
                                       <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dy={10} />
                                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
-                                      <Tooltip content={<CustomTooltip isPercent={metric.isPercent} />} />
-                                      <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.3} />
-                                      <Line type="monotone" dataKey="value" stroke={metric.color} strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6, strokeWidth: 0 }} animationDuration={1000} />
+                                      <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
+                                      <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />
+                                      
+                                      {/* Geçen Yıl (Kesik, Gri) */}
+                                      <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />
+                                      
+                                      {/* Bu Yıl (Solid, Renkli) */}
+                                      <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={4} dot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 7, strokeWidth: 0, fill: metric.color }} animationDuration={1000} />
                                   </LineChart>
                               </ResponsiveContainer>
                           ) : (
@@ -232,7 +270,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               ))}
           </div>
 
-          {/* MASAÜSTÜ GÖRÜNÜM VE PDF İÇİN KARTLAR */}
+          {/* MASAÜSTÜ GÖRÜNÜM & PDF KAPSAYICISI */}
           <div ref={pdfContainerRef} className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {METRICS.map((metric) => (
                   <div key={metric.key} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-5 relative overflow-hidden transition-transform hover:-translate-y-1">
@@ -241,23 +279,32 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                       <div className="flex justify-between items-center mb-6 pl-2">
                           <div>
                              <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{metric.label}</h3>
-                             <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase mt-0.5">Yıl İçi Değişim Grafiği</p>
+                             {/* Mini Legend */}
+                             <div className="flex gap-4 mt-2">
+                                 <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-bold"><div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
+                                 <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold"><div className="w-2.5 h-2.5 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>
+                             </div>
                           </div>
                           <div className="bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shadow-sm">
                              Hedef: <span style={{ color: metric.color }}>{metric.target}{metric.isPercent ? "%" : ""}</span>
                           </div>
                       </div>
                       
-                      <div className="h-[220px] w-full">
-                          {trendData[metric.key] && trendData[metric.key].length > 0 ? (
+                      <div className="h-[220px] w-full mt-2">
+                          {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <LineChart data={trendData[metric.key]} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
                                       <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} dy={10} />
                                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} domain={['auto', 'auto']} />
-                                      <Tooltip content={<CustomTooltip isPercent={metric.isPercent} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
-                                      <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.3} />
-                                      <Line type="monotone" dataKey="value" stroke={metric.color} strokeWidth={4} dot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 7, strokeWidth: 0, fill: metric.color }} animationDuration={1000} />
+                                      <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
+                                      <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />
+                                      
+                                      {/* Geçen Yıl (Kesik, Gri) */}
+                                      <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 6, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />
+                                      
+                                      {/* Bu Yıl (Solid, Renkli) */}
+                                      <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={4} dot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 7, strokeWidth: 0, fill: metric.color }} animationDuration={1000} />
                                   </LineChart>
                               </ResponsiveContainer>
                           ) : (
