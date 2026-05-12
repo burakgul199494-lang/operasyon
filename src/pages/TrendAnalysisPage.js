@@ -34,13 +34,11 @@ const parseMetric = (val) => {
   return isNaN(num) ? null : num;
 };
 
-// YENİ: Yıl İçi Eğim (Trend) Hesaplama Algoritması
 const getTrendStatus = (dataArray, metricKey) => {
     if (!dataArray) return null;
     const validData = dataArray.filter(d => d.current !== null && d.current !== undefined);
-    if (validData.length < 2) return null; // Trend için en az 2 ay veri lazım
+    if (validData.length < 2) return null; 
 
-    // Basit Doğrusal Regresyon (Linear Regression Slope)
     let n = validData.length;
     let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
     
@@ -55,7 +53,6 @@ const getTrendStatus = (dataArray, metricKey) => {
     
     const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
     
-    // Metriğin doğası (Tersi Kötü Olanlar vs. Hacim Verileri)
     const isReverseMetric = ["musteriSikayet", "teslimDusulen", "transferGecikme", "olcumTartim"].includes(metricKey);
     const isVolumeMetric = ["gelenKargo", "gidenKargo"].includes(metricKey);
 
@@ -175,8 +172,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
 
             element.className = 'grid grid-cols-4 gap-4';
             element.style.width = '1600px'; 
-            // GÜNCELLENDİ: Alt bilgi eklendiği için PDF alanı 900px'e esnetildi
-            element.style.height = '900px'; 
+            element.style.height = '850px'; 
             element.style.padding = '25px';
             element.style.background = '#f8fafc';
             
@@ -278,7 +274,8 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   </div>
               </div>
               
-              <div className="flex-1 w-full mt-auto min-h-[160px] sm:min-h-[170px]">
+              {/* GÜNCELLENDİ: Grafiğin yüksekliği mobil için "180px", PC için "200px" olarak sabitlendi (çökmeyi önler) */}
+              <div className="w-full mt-auto h-[180px] sm:h-[200px] shrink-0">
                   {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                       <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
@@ -319,7 +316,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   )}
               </div>
 
-              {/* YENİ: YAPAY ZEKA TREND ÖZET NOTU */}
               {trendStatus && (
                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between shrink-0">
                     <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">Yıl İçi Eğilim:</span>
