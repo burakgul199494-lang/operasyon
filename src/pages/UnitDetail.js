@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck, Trophy, AlertCircle } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck, Trophy } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import KPICard from "../components/KPICard";
 
@@ -8,7 +8,7 @@ const TARGETS = {
   teslimPerformansi: 96, adresAlimOrani: 90, musteriSikayet: 0,
   rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70,
   eAtfOrani: 95, htfOrani: 90, kontrolSende: 90, olcumTartim: 20,
-  teslimDusulen: 0, transferGecikme: 0 // YENİ HEDEFLER
+  teslimDusulen: 0, transferGecikme: 0 
 };
 
 const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN", "BÖLGE"];
@@ -47,7 +47,6 @@ const getPenaltyScore = (val) => {
     return 0;
 };
 
-// YENİ METRİKLER EKLENDİ
 const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "teslimDusulen", "transferGecikme"];
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
@@ -108,6 +107,13 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
   const [showFleetModal, setShowFleetModal] = useState(false);
+
+  // GÜNCELLENDİ: PDF çökmesini engelleyen pazar günü bulucu fonksiyon geri eklendi!
+  const getIsSunday = (day) => {
+      if (!selectedYear || !selectedMonth || !day) return false;
+      const d = new Date(selectedYear, selectedMonth - 1, day);
+      return d.getDay() === 0;
+  };
 
   useEffect(() => {
     if (!allData || allData.length === 0 || !selectedUnit) return;
@@ -363,7 +369,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     });
   }, [fleetData, selectedUnit]);
 
-  // GÜNCELLENDİ: Yeni Metrikler PDF Analizine Eklendi
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
     const a = parseMetric(data.adresAlimOrani);
@@ -495,12 +500,10 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       doc.setFont("Roboto", "normal"); 
     }
     
-    // GÜNCELLENDİ: PDF Tablosuna Yeni Metrikler Eklendi
+    // GÜNCELLENDİ: Oranlar Üstte, Adetler (Ölçüm Tartım, Düşülen, Gecikme) Altta!
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, `%${TARGETS.adresAlimOrani}`],
-      ["Teslim Düşülen", formatDisplayMetric(targetData.teslimDusulen, false), `${TARGETS.teslimDusulen} Adet`],
-      ["Transfer Gecikme", formatDisplayMetric(targetData.transferGecikme, false), `${TARGETS.transferGecikme} Adet`],
       ["Rota Oranı", `%${formatDisplayMetric(targetData.rotaOrani, true)}`, `%${TARGETS.rotaOrani}`],
       ["TVS Oranı", `%${formatDisplayMetric(targetData.tvsOrani, true)}`, `%${TARGETS.tvsOrani}`],
       ["Check-in Oranı", `%${formatDisplayMetric(targetData.checkInOrani, true)}`, `%${TARGETS.checkInOrani}`],
@@ -508,7 +511,9 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       ["E-ATF Oranı", `%${formatDisplayMetric(targetData.eAtfOrani, true)}`, `%${TARGETS.eAtfOrani}`],
       ["HTF Oranı", `%${formatDisplayMetric(targetData.htfOrani, true)}`, `%${TARGETS.htfOrani}`],
       ["Kontrol Sende", `%${formatDisplayMetric(targetData.kontrolSende, true)}`, `%${TARGETS.kontrolSende}`],
-      ["Ölçüm Tartım", formatDisplayMetric(targetData.olcumTartim, false), `${TARGETS.olcumTartim}`],
+      ["Ölçüm Tartım", formatDisplayMetric(targetData.olcumTartim, false), `${TARGETS.olcumTartim} Adet`],
+      ["Teslim Düşülen", formatDisplayMetric(targetData.teslimDusulen, false), `${TARGETS.teslimDusulen} Adet`],
+      ["Transfer Gecikme", formatDisplayMetric(targetData.transferGecikme, false), `${TARGETS.transferGecikme} Adet`],
       ["Gelen Kargo (Belge)", formatDisplayMetric(targetData.gelenKargo, false), "-"],
       ["Giden Kargo (Belge)", formatDisplayMetric(targetData.gidenKargo, false), "-"],
     ];
@@ -1092,7 +1097,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
               </div>
             </div>
 
-            {/* GÜNCELLENDİ: Üstteki 3'lü Kart Grubu */}
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-4">
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
@@ -1134,16 +1138,17 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                 <KPICard title="HTF" value={formatDisplayMetric(displayData.htfOrani, true)} target={TARGETS.htfOrani} suffix="%" color={parseMetric(displayData.htfOrani) < TARGETS.htfOrani ? "red" : "green"} icon={Activity} />
                 <KPICard title="E-İhbar" value={formatDisplayMetric(displayData.elektronikIhbar, true)} target={90} suffix="%" color={parseMetric(displayData.elektronikIhbar) < 90 ? "red" : "green"} icon={Mail} />
                 <KPICard title="K. Sende" value={formatDisplayMetric(displayData.kontrolSende, true)} target={TARGETS.kontrolSende} suffix="%" color={parseMetric(displayData.kontrolSende) < TARGETS.kontrolSende ? "red" : "green"} icon={ShieldCheck} />
-                <KPICard title="Ölçüm Tartım" value={formatDisplayMetric(displayData.olcumTartim, false)} target={TARGETS.olcumTartim} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
+                {/* GÜNCELLENDİ: Ölçüm Tartım da "Adet" olarak hedeflendi */}
+                <KPICard title="Ölçüm Tartım" value={formatDisplayMetric(displayData.olcumTartim, false)} target={`${TARGETS.olcumTartim} Adet`} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
               </div>
 
-              {/* YENİ: Alttaki Özel 3'lü Grup (Teslim Düşülen, Transfer Gecikme, Pb D/O) */}
               <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   <div className={`rounded-xl sm:rounded-2xl shadow-sm relative overflow-hidden flex flex-col text-center ${isTeslimDusulenBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                     <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                       <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Düşülen" : "T. Düşülen"}</p>
                       <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.teslimDusulen, false)}</h2>
-                      <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.teslimDusulen}</span></div>
+                      {/* GÜNCELLENDİ: Adet */}
+                      <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.teslimDusulen} Adet</span></div>
                     </div>
                   </div>
                   
@@ -1151,7 +1156,8 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                     <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                       <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Gecikme" : "T. Gecikme"}</p>
                       <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.transferGecikme, false)}</h2>
-                      <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.transferGecikme}</span></div>
+                      {/* GÜNCELLENDİ: Adet */}
+                      <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.transferGecikme} Adet</span></div>
                     </div>
                   </div>
 
