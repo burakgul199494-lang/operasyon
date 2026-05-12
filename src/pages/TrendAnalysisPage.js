@@ -282,7 +282,8 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   </div>
               </div>
               
-              <div className="flex-1 w-full mt-auto h-[200px] sm:h-[220px]">
+              {/* GÜNCELLENDİ: min-h eklendi, shrink-0 ile ezilmesi tamamen önlendi */}
+              <div className="w-full mt-auto min-h-[200px] sm:min-h-[220px] shrink-0">
                   {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                       <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
@@ -412,10 +413,10 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                     </div>
                  </div>
 
-                 <div className="p-5 sm:p-8 h-[400px] sm:h-[500px] w-full">
+                 {/* GÜNCELLENDİ: Büyük Ekranda aylar kesilmesin diye bottom: 25 ve dy={10} */}
+                 <div className="p-5 sm:p-8 h-[400px] sm:h-[500px] w-full shrink-0">
                      {trendData[expandedMetric.key] && hasAnyData(trendData[expandedMetric.key]) ? (
                         <ResponsiveContainer width="100%" height="100%">
-                            {/* GÜNCELLENDİ: Alt boşluk (bottom) 0'dan 25'e çıkarıldı, dy=10 yapıldı */}
                             <LineChart data={trendData[expandedMetric.key]} margin={{ top: 20, right: 20, left: -10, bottom: 25 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.7} />
                                 <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 'bold' }} dy={10} />
