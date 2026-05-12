@@ -386,7 +386,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                       </th>
                                   ))}
                                   <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Şikayet P.</th>
-                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Düşülen P.</th>
+                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Tes. Düş. P.</th>
                                   <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Gecikme P.</th>
                                   <th className="p-2 sm:p-3 font-bold text-blue-600 dark:text-blue-400 text-center border-b border-slate-200 dark:border-slate-700">Hacim P.</th>
                               </tr>
