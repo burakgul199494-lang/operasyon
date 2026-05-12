@@ -396,12 +396,12 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     
     if (td !== null) {
       if (td === 0) text += "• Teslim düşülen kargo adetiniz 0 olarak gerçekleşmiş olup, başarılı operasyonunuz için teşekkür ederiz.\n";
-      else if (td <= 5) text += "• Teslim düşülen kargo sayınız 1-5 aralığında (kabul edilebilir seviyede) gerçekleşmiştir, dikkatle takip edilmelidir.\n";
+      else if (td <= 5) text += "• Teslim düşülen kargo sayınız 1-5 aralığında gerçekleşmiştir, süreç konusunda daha dikkatli olunması önemle rica olunur.\n";
       else text += "• Teslim düşülen kargo sayınız hedeflerin çok uzağında olup tamamen başarısızdır. Şube içi kargo akışı acilen kontrol edilmelidir.\n";
     }
 
     if (tg !== null) {
-      if (tg === 0) text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiş olup, hatasız gönderiminiz için tebrik ederiz.\n";
+      if (tg === 0) text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiş olup, zamanında teslimatlarınız için tebrik ederiz.\n";
       else if (tg <= 5) text += "• Transferde gecikme sayınız 1-5 aralığında (kabul edilebilir seviyede) gerçekleşmiştir, şube/hat çıkışlarına özen gösterilmelidir.\n";
       else text += "• Transferde gecikme sayınız kabul edilemez seviyededir (tamamen başarısız). Araç yüklemeleri ve aktarma işlemlerinde ivedilikle aksiyon alınmalıdır.\n";
     }
