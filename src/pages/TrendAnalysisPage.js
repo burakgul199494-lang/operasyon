@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { ArrowLeft, FileDown, TrendingUp, BarChart2, Loader2, Calendar, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LabelList } from "recharts";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
@@ -32,6 +32,16 @@ const parseMetric = (val) => {
   const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
   const num = parseFloat(cleanStr);
   return isNaN(num) ? null : num;
+};
+
+const formatDisplayMetric = (val, isPercent = true) => {
+  if (val === undefined || val === null || val === "") return "-";
+  let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
+  let num = parseFloat(strVal);
+  if (!isNaN(num)) {
+    return num.toLocaleString('tr-TR', { minimumFractionDigits: isPercent ? 2 : 0, maximumFractionDigits: isPercent ? 2 : 0 });
+  }
+  return val;
 };
 
 const CustomTooltip = ({ active, payload, label, isPercent, selectedYear, isComparisonMode }) => {
@@ -82,39 +92,30 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
         dataByMetric[m.key] = months.map(month => {
             const currentRec = allData.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === month);
             const previousRec = allData.find(d => d.unit === selectedUnit && d.year === prevYear && d.month === month);
-
             const currVal = currentRec ? parseMetric(currentRec[m.key]) : null;
             const prevVal = previousRec ? parseMetric(previousRec[m.key]) : null;
-
-            return {
-                monthName: MONTH_NAMES[month].substring(0, 3),
-                current: currVal,
-                previous: isComparisonMode ? prevVal : null
-            };
+            return { monthName: MONTH_NAMES[month].substring(0, 3), current: currVal, previous: isComparisonMode ? prevVal : null };
         });
     });
     return dataByMetric;
   }, [allData, selectedYear, selectedUnit, isComparisonMode]);
 
   const generatePDF = async () => {
-    setIsGeneratingPdf(true);
+    setIsGeneratingPdf(true); // Animasyonları kapatmak ve Label (sayıları) göstermek için tetikleyici
     try {
         window.scrollTo(0, 0); 
         const pdf = new jsPDF('landscape', 'mm', 'a4');
         
-        // Türkçe Karakter (Roboto Font) Entegrasyonu
         try {
             const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
             const blob = await response.blob();
             const base64Font = await getBase64(blob);
             pdf.addFileToVFS("Roboto.ttf", base64Font);
             pdf.addFont("Roboto.ttf", "Roboto", "normal");
+            pdf.addFont("Roboto.ttf", "Roboto", "bold");
             pdf.setFont("Roboto");
-        } catch (e) {
-            console.warn("Font indirilemedi, Türkçe karakterler hatalı görünebilir.");
-        }
+        } catch (e) { console.warn("Font error"); }
 
-        // Sayfa Fotoğrafını Çekme Motoru
         const capturePage = async (elementId, pageNum) => {
             const element = document.getElementById(elementId);
             if (!element) return;
@@ -125,24 +126,22 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
             const originalPadding = element.style.padding;
             const originalBackground = element.style.background;
 
-            // Kartların A4'e tam sığması için 4x2 grid ve sabit oran zorlaması
             element.className = 'grid grid-cols-4 gap-4';
-            element.style.width = '1480px'; 
-            element.style.height = '820px'; 
-            element.style.padding = '20px';
+            element.style.width = '1600px'; 
+            element.style.height = '850px'; 
+            element.style.padding = '25px';
             element.style.background = '#f8fafc';
             
-            // Recharts'ın ekranı yeniden hesaplaması için minik bir bekleme süresi
-            await new Promise(r => setTimeout(r, 150));
+            // GÜNCELLENDİ: React'ın sayıları çizmesi ve animasyonları durdurması için yeterli bekleme süresi
+            await new Promise(r => setTimeout(r, 400));
 
             const canvas = await html2canvas(element, { 
                 scale: 2, 
                 useCORS: true, 
                 logging: false,
-                windowWidth: 1480 
+                windowWidth: 1600 
             });
             
-            // Kullanıcının ekranını eski haline getir
             element.className = originalClass;
             element.style.width = originalWidth; 
             element.style.height = originalHeight; 
@@ -150,26 +149,21 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
             element.style.background = originalBackground;
             
             const imgData = canvas.toDataURL('image/jpeg', 1.0);
-            
-            // İlk sayfadan sonra yeni sayfa ekle
             if (pageNum > 1) pdf.addPage();
 
             const pageWidth = pdf.internal.pageSize.getWidth();
             const pageHeight = pdf.internal.pageSize.getHeight();
-            
             const marginX = 8;
-            const marginTop = 22;
+            const marginTop = 25; 
             const marginBottom = 8;
             
             const maxImgWidth = pageWidth - (marginX * 2);
             const maxImgHeight = pageHeight - marginTop - marginBottom;
-            
             const canvasRatio = canvas.width / canvas.height;
             
             let finalImgWidth = maxImgWidth;
             let finalImgHeight = maxImgWidth / canvasRatio;
             
-            // Akıllı Ölçeklendirme: Eğer dışarı taşıyorsa ufalt
             if (finalImgHeight > maxImgHeight) {
                 finalImgHeight = maxImgHeight;
                 finalImgWidth = maxImgHeight * canvasRatio;
@@ -177,26 +171,27 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
             
             const xOffset = marginX + (maxImgWidth - finalImgWidth) / 2;
             
+            pdf.setFont("Roboto", "bold");
             pdf.setFontSize(16);
             pdf.setTextColor(30, 58, 138); 
-            pdf.text(`TREND ANALİZ RAPORU: ${selectedUnit} (${isComparisonMode ? 'Kıyaslamalı' : 'Tek Yıl'}) - Sayfa ${pageNum}`, 14, 12);
+            pdf.text(`TREND ANALİZ RAPORU: ${selectedUnit} - Sayfa ${pageNum}`, 14, 12);
             
+            pdf.setFont("Roboto", "normal");
             pdf.setFontSize(10);
             pdf.setTextColor(100);
-            pdf.text(`Dönem: ${selectedYear} ${isComparisonMode ? '& ' + (selectedYear-1) : ''} | Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 18);
+            pdf.text(`Dönem: ${selectedYear} ${isComparisonMode ? 've ' + (selectedYear-1) : ''} Yılı | Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 18);
             
             pdf.addImage(imgData, 'JPEG', xOffset, marginTop, finalImgWidth, finalImgHeight);
         };
 
-        // 1. ve 2. Sayfayı sırayla PDF'e yazdır
         await capturePage('pdf-page-1', 1);
         await capturePage('pdf-page-2', 2);
 
-        pdf.save(`${selectedUnit}_Trend_${selectedYear}.pdf`);
+        pdf.save(`${selectedUnit}_Trend_Analizi_${selectedYear}.pdf`);
         
     } catch (error) { 
         console.error(error); 
-        alert("PDF oluşturulurken bir hata oluştu.");
+        alert("PDF oluşturulamadı.");
     } finally { 
         setIsGeneratingPdf(false); 
     }
@@ -212,28 +207,27 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
     });
   }, []);
 
-  // Kartı Render Eden Ortak Fonksiyon
   const renderCard = (metric) => (
       <div key={metric.key} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-transform hover:-translate-y-1 flex flex-col h-full">
           <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: metric.color }}></div>
           
-          <div className="flex justify-between items-center mb-4 sm:mb-6 pl-2 shrink-0">
-              <div className="min-w-0 pr-2">
-                 <h3 className="font-bold text-slate-800 dark:text-white text-base sm:text-lg leading-tight truncate">{metric.label}</h3>
-                 <div className="flex gap-3 sm:gap-4 mt-2">
-                     <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-bold"><div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
-                     {isComparisonMode && <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold"><div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
+          <div className="flex justify-between items-start mb-4 sm:mb-6 pl-2 shrink-0 gap-2">
+              <div className="min-w-0 flex-1">
+                 <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base leading-tight whitespace-normal break-words">{metric.label}</h3>
+                 <div className="flex gap-3 mt-2">
+                     <div className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300 font-bold"><div className="w-2 h-2 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
+                     {isComparisonMode && <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><div className="w-2 h-2 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
                  </div>
               </div>
-              <div className="bg-slate-900/90 backdrop-blur-sm px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold text-white shadow-lg border border-white/10 shrink-0">
-                 Hedef: <span style={{ color: '#fff' }}>{metric.target !== null ? `${metric.target}${metric.isPercent ? "%" : " Adet"}` : "-"}</span>
+              <div className="bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold text-white shadow-md border border-white/10 shrink-0 text-center">
+                 Hedef<br/><span style={{ color: '#fff' }}>{metric.target !== null ? `${metric.target}${metric.isPercent ? "%" : " Adet"}` : "-"}</span>
               </div>
           </div>
           
-          <div className="flex-1 w-full mt-2 min-h-[200px]">
+          <div className="flex-1 w-full mt-auto min-h-[180px]">
               {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                   <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={trendData[metric.key]} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                      <LineChart data={trendData[metric.key]} margin={{ top: 20, right: 10, left: -25, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
                           <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dy={10} />
                           <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
@@ -241,8 +235,23 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                           
                           {metric.target !== null && <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />}
                           
-                          {isComparisonMode && <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />}
-                          <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} animationDuration={1000} />
+                          {/* GÜNCELLENDİ: isAnimationActive dinamik yapıldı. PDF alınırken animasyon durur. */}
+                          {isComparisonMode && (
+                            <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} isAnimationActive={!isGeneratingPdf} />
+                          )}
+                          
+                          <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={3} dot={{ r: 4.5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} isAnimationActive={!isGeneratingPdf}>
+                              {/* GÜNCELLENDİ: PDF modundayken ayların üzerine tam sayıları yazdıran özellik */}
+                              {isGeneratingPdf && (
+                                <LabelList 
+                                    dataKey="current" 
+                                    position="top" 
+                                    offset={10}
+                                    style={{ fontSize: '10px', fontWeight: 'bold', fill: metric.color }} 
+                                    formatter={(val) => val !== null ? `${formatDisplayMetric(val, metric.isPercent)}${metric.isPercent ? '%' : ''}` : ""}
+                                />
+                              )}
+                          </Line>
                       </LineChart>
                   </ResponsiveContainer>
               ) : (
@@ -257,7 +266,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
 
   return (
     <div className="bg-slate-50 dark:bg-slate-900 min-h-screen flex flex-col transition-colors duration-300">
-      
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-50 shadow-sm border-b border-slate-200 dark:border-slate-800 shrink-0 sticky top-0">
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -265,13 +273,10 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                       <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
                   </button>
                   <div className="flex items-center gap-2">
-                      <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-                          <TrendingUp className="text-blue-600 dark:text-blue-400" size={20} />
-                      </div>
+                      <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg"><TrendingUp className="text-blue-600 dark:text-blue-400" size={20} /></div>
                       <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight hidden sm:block">Trend Analizi</h1>
                   </div>
               </div>
-
               <div className="flex items-center gap-2">
                   <button onClick={() => setIsComparisonMode(!isComparisonMode)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-all ${isComparisonMode ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
                       {isComparisonMode ? <EyeOff size={16}/> : <Eye size={16}/>}
@@ -283,7 +288,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   </button>
               </div>
           </div>
-
           <div className="px-4 pb-3 flex flex-wrap gap-3 items-center mt-2 sm:mt-0">
               <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-3 border border-slate-200 dark:border-slate-700">
                   <Calendar size={14} className="text-slate-500 dark:text-slate-400 mr-2" />
@@ -291,7 +295,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                       {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
                   </select>
               </div>
-
               <div className="relative flex-1 max-w-[300px]">
                   <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="appearance-none w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold text-sm py-1.5 pl-3 pr-8 rounded-lg border border-blue-200 dark:border-blue-800 outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
                       {sortedUnits.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -300,27 +303,18 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               </div>
           </div>
       </div>
-
       <div className="p-4 sm:p-6 max-w-[1800px] mx-auto w-full">
-          
-          {/* MOBİL GÖRÜNÜM (Açılır menü yok, hepsi alt alta listelenir) */}
           <div className="flex flex-col gap-4 md:hidden">
               {METRICS.map(renderCard)}
           </div>
-
-          {/* MASAÜSTÜ & PDF GÖRÜNÜMÜ (4'lü Grid - İki Sayfa) */}
           <div className="hidden md:block">
-              {/* Sayfa 1: İlk 8 Grafik */}
               <div id="pdf-page-1" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-4 sm:mb-6">
                   {METRICS.slice(0, 8).map(renderCard)}
               </div>
-              
-              {/* Sayfa 2: İkinci 8 Grafik */}
               <div id="pdf-page-2" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                   {METRICS.slice(8, 16).map(renderCard)}
               </div>
           </div>
-          
       </div>
     </div>
   );
