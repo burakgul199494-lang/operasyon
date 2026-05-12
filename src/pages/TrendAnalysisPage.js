@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { ArrowLeft, FileDown, TrendingUp, BarChart2, Loader2, Calendar, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
@@ -32,16 +32,6 @@ const parseMetric = (val) => {
   const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
   const num = parseFloat(cleanStr);
   return isNaN(num) ? null : num;
-};
-
-const formatDisplayMetric = (val, isPercent = true) => {
-  if (val === undefined || val === null || val === "") return "-";
-  let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
-  let num = parseFloat(strVal);
-  if (!isNaN(num)) {
-    return num.toLocaleString('tr-TR', { minimumFractionDigits: isPercent ? 2 : 0, maximumFractionDigits: isPercent ? 2 : 0 });
-  }
-  return val;
 };
 
 const CustomTooltip = ({ active, payload, label, isPercent, selectedYear, isComparisonMode }) => {
@@ -101,13 +91,12 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   }, [allData, selectedYear, selectedUnit, isComparisonMode]);
 
   const generatePDF = async () => {
-    setIsGeneratingPdf(true);
+    setIsGeneratingPdf(true); // GÜNCELLENDİ: Bu true olunca grafik animasyonları duracak
     const desktopWrapper = document.getElementById('desktop-wrapper');
     
     try {
         window.scrollTo(0, 0); 
         
-        // Mobilden PDF alınıyorsa masaüstü kapsayıcısını geçici olarak görünür yap
         if (desktopWrapper) {
             desktopWrapper.classList.remove('hidden', 'md:block');
             desktopWrapper.classList.add('block');
@@ -141,7 +130,8 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
             element.style.padding = '25px';
             element.style.background = '#f8fafc';
             
-            await new Promise(r => setTimeout(r, 300));
+            // Recharts'ın animasyonsuz haliyle noktaları tam çizmesi için bekleme süresi
+            await new Promise(r => setTimeout(r, 400));
 
             const canvas = await html2canvas(element, { 
                 scale: 2, 
@@ -201,12 +191,11 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
         console.error(error); 
         alert("PDF oluşturulamadı.");
     } finally { 
-        // Mobildeki gizleme sınıflarını geri getir
         if (desktopWrapper) {
             desktopWrapper.classList.remove('block');
             desktopWrapper.classList.add('hidden', 'md:block');
         }
-        setIsGeneratingPdf(false); 
+        setIsGeneratingPdf(false); // Animasyonlar tekrar aktif
     }
   };
 
@@ -237,8 +226,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               </div>
           </div>
           
-          {/* GÜNCELLENDİ: Mobilde 0 piksele çökmemesi için yükseklik 'h-[200px]' olarak sabitlendi */}
-          <div className="w-full mt-auto h-[200px] sm:h-[180px]">
+          <div className="flex-1 w-full mt-auto h-[200px] sm:h-[180px]">
               {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                   <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
@@ -247,8 +235,29 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                           <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
                           <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
                           {metric.target !== null && <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />}
-                          {isComparisonMode && <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />}
-                          <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} animationDuration={1000} />
+                          
+                          {/* GÜNCELLENDİ: isAnimationActive dinamik eklendi, noktaların kalınlığı korundu */}
+                          {isComparisonMode && (
+                            <Line 
+                              type="monotone" 
+                              dataKey="previous" 
+                              stroke="#94a3b8" 
+                              strokeWidth={2} 
+                              strokeDasharray="4 4" 
+                              dot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} 
+                              activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} 
+                              isAnimationActive={!isGeneratingPdf} 
+                            />
+                          )}
+                          <Line 
+                            type="monotone" 
+                            dataKey="current" 
+                            stroke={metric.color} 
+                            strokeWidth={3} 
+                            dot={{ r: 4.5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} 
+                            activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} 
+                            isAnimationActive={!isGeneratingPdf} 
+                          />
                       </LineChart>
                   </ResponsiveContainer>
               ) : (
@@ -301,13 +310,9 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
           </div>
       </div>
       <div className="p-4 sm:p-6 max-w-[1800px] mx-auto w-full">
-          
-          {/* MOBİL GÖRÜNÜM (Alt alta 16 grafik) */}
           <div className="flex flex-col gap-4 md:hidden">
               {METRICS.map(renderCard)}
           </div>
-          
-          {/* MASAÜSTÜ GÖRÜNÜM VE MOBİL PDF MOTORU */}
           <div id="desktop-wrapper" className="hidden md:block">
               <div id="pdf-page-1" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-4 sm:mb-6">
                   {METRICS.slice(0, 8).map(renderCard)}
@@ -316,7 +321,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   {METRICS.slice(8, 16).map(renderCard)}
               </div>
           </div>
-
       </div>
     </div>
   );
