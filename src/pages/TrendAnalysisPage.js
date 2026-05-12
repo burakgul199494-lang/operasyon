@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
-import { ArrowLeft, FileDown, TrendingUp, TrendingDown, Minus, BarChart2, Loader2, Calendar, ChevronDown, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, FileDown, TrendingUp, TrendingDown, Minus, BarChart2, Loader2, Calendar, ChevronDown, Eye, EyeOff, Maximize2, X } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import html2canvas from "html2canvas";
@@ -83,7 +83,7 @@ const getTrendStatus = (dataArray, metricKey) => {
 const CustomTooltip = ({ active, payload, label, isPercent, selectedYear, isComparisonMode }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-lg shadow-xl border border-slate-700 min-w-[140px]">
+      <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-lg shadow-xl border border-slate-700 min-w-[140px] z-50">
         <p className="font-bold text-sm mb-2 text-slate-300 border-b border-slate-700 pb-1">{label} Ayı</p>
         {payload.map((entry, index) => (
           <div key={index} className="flex items-center justify-between gap-4 mb-1.5">
@@ -117,6 +117,9 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   const [selectedUnit, setSelectedUnit] = useState("BÖLGE"); 
   const [isComparisonMode, setIsComparisonMode] = useState(true); 
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  
+  // YENİ: Genişletilmiş Ekran (Modal) Durumu
+  const [expandedMetric, setExpandedMetric] = useState(null);
 
   const trendData = useMemo(() => {
     if (!allData || allData.length === 0) return {};
@@ -258,10 +261,19 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
       const trendStatus = getTrendStatus(trendData[metric.key], metric.key);
 
       return (
-          <div key={metric.key} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-transform hover:-translate-y-1 flex flex-col h-full">
+          <div 
+              key={metric.key} 
+              onClick={() => setExpandedMetric(metric)} // Tıklanınca modülü aç
+              className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl flex flex-col h-full cursor-pointer group"
+          >
               <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: metric.color }}></div>
               
-              <div className="flex justify-between items-start mb-4 sm:mb-6 pl-2 shrink-0 gap-2">
+              {/* Şık Büyütme İkonu (Hover olunca görünür) */}
+              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-100 dark:bg-slate-700 p-1.5 rounded-md text-slate-500 dark:text-slate-300">
+                 <Maximize2 size={14} />
+              </div>
+              
+              <div className="flex justify-between items-start mb-4 sm:mb-6 pl-2 shrink-0 gap-2 pr-8">
                   <div className="min-w-0 flex-1">
                      <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base leading-tight whitespace-normal break-words">{metric.label}</h3>
                      <div className="flex gap-3 mt-2">
@@ -274,8 +286,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   </div>
               </div>
               
-              {/* GÜNCELLENDİ: Grafiğin yüksekliği mobil için "180px", PC için "200px" olarak sabitlendi (çökmeyi önler) */}
-              <div className="w-full mt-auto h-[180px] sm:h-[200px] shrink-0">
+              <div className="flex-1 w-full mt-auto h-[180px] sm:h-[200px] shrink-0">
                   {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                       <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
@@ -284,28 +295,8 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                               <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
                               <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
                               {metric.target !== null && <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />}
-                              
-                              {isComparisonMode && (
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="previous" 
-                                  stroke="#94a3b8" 
-                                  strokeWidth={2} 
-                                  strokeDasharray="4 4" 
-                                  dot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} 
-                                  activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} 
-                                  isAnimationActive={!isGeneratingPdf} 
-                                />
-                              )}
-                              <Line 
-                                type="monotone" 
-                                dataKey="current" 
-                                stroke={metric.color} 
-                                strokeWidth={3} 
-                                dot={{ r: 4.5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} 
-                                activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} 
-                                isAnimationActive={!isGeneratingPdf} 
-                              />
+                              {isComparisonMode && <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} isAnimationActive={!isGeneratingPdf} />}
+                              <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={3} dot={{ r: 4.5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} isAnimationActive={!isGeneratingPdf} />
                           </LineChart>
                       </ResponsiveContainer>
                   ) : (
@@ -370,6 +361,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               </div>
           </div>
       </div>
+      
       <div className="p-4 sm:p-6 max-w-[1800px] mx-auto w-full">
           <div className="flex flex-col gap-4 md:hidden">
               {METRICS.map(renderCard)}
@@ -383,6 +375,80 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               </div>
           </div>
       </div>
+
+      {/* YENİ: GENİŞLETİLMİŞ GRAFİK EKRANI (MODAL) */}
+      {expandedMetric && (
+          <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[70] p-4 sm:p-8 backdrop-blur-sm" onClick={() => setExpandedMetric(null)}>
+              <div className="bg-white dark:bg-slate-900 w-full max-w-6xl rounded-3xl shadow-2xl flex flex-col relative animate-in zoom-in duration-200 overflow-hidden border border-slate-200 dark:border-slate-700" onClick={(e) => e.stopPropagation()}>
+                 
+                 {/* Modal Üst Başlık */}
+                 <div className="p-5 sm:p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start gap-4 bg-slate-50/50 dark:bg-slate-800/50">
+                    <div>
+                       <h2 className="text-xl sm:text-3xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+                          <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full" style={{ backgroundColor: expandedMetric.color }}></div>
+                          {expandedMetric.label}
+                       </h2>
+                       <div className="flex gap-4 mt-3 sm:mt-4">
+                          <div className="flex items-center gap-2 text-sm sm:text-base text-slate-700 dark:text-slate-300 font-bold">
+                             <div className="w-3 h-3 rounded-full" style={{backgroundColor: expandedMetric.color}}></div> {selectedYear}
+                          </div>
+                          {isComparisonMode && (
+                             <div className="flex items-center gap-2 text-sm sm:text-base text-slate-500 font-bold">
+                                <div className="w-3 h-3 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}
+                             </div>
+                          )}
+                       </div>
+                    </div>
+                    <div className="flex items-start gap-3 sm:gap-4">
+                       <div className="bg-slate-900/90 backdrop-blur-sm px-4 py-2 sm:py-3 rounded-xl text-sm sm:text-base font-bold text-white shadow-md border border-white/10 text-center">
+                          Hedef<br/><span style={{ color: '#fff' }}>{expandedMetric.target !== null ? `${expandedMetric.target}${expandedMetric.isPercent ? "%" : " Adet"}` : "-"}</span>
+                       </div>
+                       <button onClick={() => setExpandedMetric(null)} className="p-2 sm:p-3 bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-xl transition-colors">
+                          <X size={24} />
+                       </button>
+                    </div>
+                 </div>
+
+                 {/* Modal Dev Grafik */}
+                 <div className="p-5 sm:p-8 h-[400px] sm:h-[600px] w-full">
+                     {trendData[expandedMetric.key] && hasAnyData(trendData[expandedMetric.key]) ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={trendData[expandedMetric.key]} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.7} />
+                                <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 'bold' }} dy={15} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 'bold' }} domain={['auto', 'auto']} />
+                                <Tooltip content={<CustomTooltip isPercent={expandedMetric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 2, strokeDasharray: '5 5' }} />
+                                {expandedMetric.target !== null && <ReferenceLine y={expandedMetric.target} stroke={expandedMetric.color} strokeDasharray="3 3" strokeOpacity={0.3} />}
+                                
+                                {isComparisonMode && (
+                                  <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={3} strokeDasharray="6 6" dot={{ r: 5, strokeWidth: 3, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 8, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />
+                                )}
+                                <Line type="monotone" dataKey="current" stroke={expandedMetric.color} strokeWidth={5} dot={{ r: 7, strokeWidth: 3, fill: '#fff', stroke: expandedMetric.color }} activeDot={{ r: 10, strokeWidth: 0, fill: expandedMetric.color }} animationDuration={1000} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                     ) : (
+                        <div className="h-full flex items-center justify-center text-slate-400 text-lg font-medium flex-col gap-3">
+                            <BarChart2 className="opacity-20" size={48} />
+                            Veri Bekleniyor
+                        </div>
+                     )}
+                 </div>
+
+                 {/* Modal Alt Bilgi (Yapay Zeka Yorumu) */}
+                 {getTrendStatus(trendData[expandedMetric.key], expandedMetric.key) && (
+                    <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center">
+                       <div className={`flex items-center gap-3 px-5 py-2.5 rounded-xl font-bold text-sm sm:text-base ${getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).bg} ${getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).color}`}>
+                          {getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).icon === 'up' && <TrendingUp size={20} />}
+                          {getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).icon === 'down' && <TrendingDown size={20} />}
+                          {getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).icon === 'stable' && <Minus size={20} />}
+                          Bu Metrik Yıl İçerisinde {getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).text}
+                       </div>
+                    </div>
+                 )}
+              </div>
+          </div>
+      )}
+
     </div>
   );
 };
