@@ -61,7 +61,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedUnit, setSelectedUnit] = useState("BÖLGE"); 
   const [isComparisonMode, setIsComparisonMode] = useState(true); 
-  const [mobileSelectedMetric, setMobileSelectedMetric] = useState(METRICS[0].key);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const pdfContainerRef = useRef(null);
 
@@ -89,44 +88,34 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
     return dataByMetric;
   }, [allData, selectedYear, selectedUnit, isComparisonMode]);
 
-  // GÜNCELLENDİ: Akıllı Ölçeklendirmeli (Smart Scaling) Kusursuz PDF Motoru
   const generatePDF = async () => {
     setIsGeneratingPdf(true);
     try {
         const element = pdfContainerRef.current;
         if (!element) return;
 
-        // Görünüm kaymalarını önlemek için sayfayı en üste sabitle
-        window.scrollTo(0, 0);
+        window.scrollTo(0, 0); // Görünüm kaymalarını önle
         
-        // Orijinal stilleri koru
         const originalWidth = element.style.width;
         const originalPadding = element.style.padding;
         const originalBackground = element.style.background;
 
-        // PDF kalitesi için container'ı geçici olarak optimize et
-        element.classList.remove('hidden');
-        element.classList.add('grid');
+        // PDF için kapsayıcıyı masaüstü (1600px genişlik) çözünürlüğünde sabitle
         element.style.width = '1600px'; 
         element.style.padding = '20px';
         element.style.background = '#f8fafc';
         
-        // Canvas oluştur (yüksek çözünürlük)
         const canvas = await html2canvas(element, { 
             scale: 2, 
             useCORS: true, 
             logging: false,
-            windowWidth: 1600 // HTML2Canvas'ın ekranı dar görmesini engelle
+            windowWidth: 1600 
         });
         
         // Stilleri geri yükle
         element.style.width = originalWidth; 
         element.style.padding = originalPadding; 
         element.style.background = originalBackground;
-        if (window.innerWidth < 768) { 
-            element.classList.add('hidden'); 
-            element.classList.remove('grid'); 
-        }
         
         const imgData = canvas.toDataURL('image/jpeg', 1.0);
         const pdf = new jsPDF('landscape', 'mm', 'a4');
@@ -134,12 +123,11 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
         
-        // Kenar boşlukları ve başlık alanı
-        const marginX = 10;
-        const marginTop = 25;
-        const marginBottom = 10;
+        // Üst başlık alanı için boşluk
+        const marginX = 8;
+        const marginTop = 22;
+        const marginBottom = 8;
         
-        // Resmin sığabileceği MAKSİMUM alan
         const maxImgWidth = pageWidth - (marginX * 2);
         const maxImgHeight = pageHeight - marginTop - marginBottom;
         
@@ -148,24 +136,24 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
         let finalImgWidth = maxImgWidth;
         let finalImgHeight = maxImgWidth / canvasRatio;
         
-        // AKILLI ÖLÇEKLENDİRME: Eğer hesaplanan yükseklik sayfaya sığmıyorsa, yüksekliğe göre küçült
+        // Eğer yükseklik taşıyorsa, yüksekliğe göre daralt (Akıllı Ölçeklendirme)
         if (finalImgHeight > maxImgHeight) {
             finalImgHeight = maxImgHeight;
             finalImgWidth = maxImgHeight * canvasRatio;
         }
         
-        // Sayfayı yatayda tam ortalamak için X eksenini kaydır
         const xOffset = marginX + (maxImgWidth - finalImgWidth) / 2;
         
-        // Başlıklar
+        // PDF Başlıkları
         pdf.setFontSize(16);
         pdf.setTextColor(30, 58, 138); 
-        pdf.text(`TREND ANALİZ RAPORU: ${selectedUnit} (${isComparisonMode ? 'Kıyaslamalı' : 'Tek Yıl'})`, 14, 15);
+        pdf.text(`TREND ANALİZ RAPORU: ${selectedUnit} (${isComparisonMode ? 'Kıyaslamalı' : 'Tek Yıl'})`, 14, 12);
+        
         pdf.setFontSize(10);
         pdf.setTextColor(100);
-        pdf.text(`Dönem: ${selectedYear} ${isComparisonMode ? '& ' + (selectedYear-1) : ''} | Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 21);
+        pdf.text(`Dönem: ${selectedYear} ${isComparisonMode ? '& ' + (selectedYear-1) : ''} | Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 18);
         
-        // Resmi ölçeklendirilmiş boyutlarıyla bas
+        // Resmi ortalanmış bir şekilde sayfaya bas
         pdf.addImage(imgData, 'JPEG', xOffset, marginTop, finalImgWidth, finalImgHeight);
         pdf.save(`${selectedUnit}_Trend_${selectedYear}.pdf`);
         
@@ -190,6 +178,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   return (
     <div className="bg-slate-50 dark:bg-slate-900 min-h-screen flex flex-col transition-colors duration-300">
       
+      {/* ÜST MENÜ VE FİLTRELER */}
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-50 shadow-sm border-b border-slate-200 dark:border-slate-800 shrink-0 sticky top-0">
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -216,101 +205,55 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               </div>
           </div>
 
-          <div className="px-4 pb-3 flex flex-wrap gap-2 items-center">
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-3">
+          <div className="px-4 pb-3 flex flex-wrap gap-3 items-center">
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-3 border border-slate-200 dark:border-slate-700">
                   <Calendar size={14} className="text-slate-500 dark:text-slate-400 mr-2" />
                   <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-transparent text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 border-none outline-none focus:ring-0">
                       {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
                   </select>
               </div>
 
-              <div className="relative">
-                  <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="appearance-none bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold text-sm py-1.5 pl-3 pr-8 rounded-lg border border-blue-200 dark:border-blue-800 outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+              <div className="relative flex-1 max-w-[300px]">
+                  <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="appearance-none w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold text-sm py-1.5 pl-3 pr-8 rounded-lg border border-blue-200 dark:border-blue-800 outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
                       {sortedUnits.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
                   <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-600 pointer-events-none" />
-              </div>
-
-              <div className="w-full sm:hidden mt-2 relative">
-                  <select value={mobileSelectedMetric} onChange={(e) => setMobileSelectedMetric(e.target.value)} className="appearance-none w-full bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-2 pl-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 outline-none shadow-sm">
-                      {METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-                  </select>
-                  <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>
           </div>
       </div>
 
       <div className="p-4 sm:p-6 max-w-[1800px] mx-auto w-full">
           
-          {/* MOBİL GÖRÜNÜM */}
-          <div className="block md:hidden">
-              {METRICS.filter(m => m.key === mobileSelectedMetric).map((metric) => (
-                  <div key={metric.key} className={`bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 relative overflow-hidden`}>
-                      <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: metric.color }}></div>
-                      <div className="flex justify-between items-center mb-4 pl-2">
-                          <div>
-                             <h3 className="font-bold text-slate-800 dark:text-white text-base">{metric.label}</h3>
-                             <div className="flex gap-3 mt-1.5">
-                                 <div className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300 font-bold"><div className="w-2 h-2 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
-                                 {isComparisonMode && <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><div className="w-2 h-2 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
-                             </div>
-                          </div>
-                          <div className="bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-full text-[10px] font-bold text-white shadow-md border border-white/10">
-                             Hedef: {metric.target}{metric.isPercent ? "%" : " Adet"}
-                          </div>
-                      </div>
-                      
-                      <div className="h-[250px] w-full mt-2">
-                          {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <LineChart data={trendData[metric.key]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
-                                      <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dy={10} />
-                                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
-                                      <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} />
-                                      <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />
-                                      {isComparisonMode && <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />}
-                                      <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={4} dot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 7, strokeWidth: 0, fill: metric.color }} animationDuration={1000} />
-                                  </LineChart>
-                              </ResponsiveContainer>
-                          ) : (
-                              <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium">Bu birim/metrik için veri bulunamadı.</div>
-                          )}
-                      </div>
-                  </div>
-              ))}
-          </div>
-
-          {/* MASAÜSTÜ GÖRÜNÜM (3'lü Grid) */}
-          <div ref={pdfContainerRef} className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* TEK BİRLEŞTİRİLMİŞ KAPSAYICI (Mobilde Alt Alta 1, PC'de Yan Yana 4 Grafik) */}
+          <div ref={pdfContainerRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {METRICS.map((metric) => (
-                  <div key={metric.key} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-5 relative overflow-hidden transition-transform hover:-translate-y-1">
+                  <div key={metric.key} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-transform hover:-translate-y-1">
                       <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: metric.color }}></div>
                       
                       <div className="flex justify-between items-center mb-6 pl-2">
-                          <div>
-                             <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{metric.label}</h3>
-                             <div className="flex gap-4 mt-2">
-                                 <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-bold"><div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
-                                 {isComparisonMode && <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold"><div className="w-2.5 h-2.5 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
+                          <div className="min-w-0 pr-2">
+                             <h3 className="font-bold text-slate-800 dark:text-white text-base sm:text-lg leading-tight truncate">{metric.label}</h3>
+                             <div className="flex gap-3 sm:gap-4 mt-2">
+                                 <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-bold"><div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
+                                 {isComparisonMode && <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold"><div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
                              </div>
                           </div>
-                          <div className="bg-slate-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-white shadow-lg border border-white/10">
+                          <div className="bg-slate-900/90 backdrop-blur-sm px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold text-white shadow-lg border border-white/10 shrink-0">
                              Hedef: <span style={{ color: '#fff' }}>{metric.target}{metric.isPercent ? "%" : " Adet"}</span>
                           </div>
                       </div>
                       
-                      <div className="h-[220px] w-full mt-2">
+                      <div className="h-[200px] sm:h-[220px] w-full mt-2">
                           {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <LineChart data={trendData[metric.key]} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
-                                      <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} dy={10} />
-                                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} domain={['auto', 'auto']} />
+                                      <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dy={10} />
+                                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
                                       <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
                                       <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />
-                                      {isComparisonMode && <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 6, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />}
-                                      <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={4} dot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 7, strokeWidth: 0, fill: metric.color }} animationDuration={1000} />
+                                      {isComparisonMode && <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />}
+                                      <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} animationDuration={1000} />
                                   </LineChart>
                               </ResponsiveContainer>
                           ) : (
