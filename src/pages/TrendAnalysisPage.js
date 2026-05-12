@@ -117,7 +117,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   const [selectedUnit, setSelectedUnit] = useState("BÖLGE"); 
   const [isComparisonMode, setIsComparisonMode] = useState(true); 
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  
   const [expandedMetric, setExpandedMetric] = useState(null);
 
   const trendData = useMemo(() => {
@@ -256,12 +255,13 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
     });
   }, []);
 
+  // KART RENDER: Tamamen Eski Düzen (Ferah Yükseklik, Eğilim Notu Yok)
   const renderCard = (metric) => {
       return (
           <div 
               key={metric.key} 
               onClick={() => setExpandedMetric(metric)}
-              className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl flex flex-col h-full cursor-pointer group"
+              className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-transform hover:-translate-y-1 cursor-pointer group"
           >
               <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: metric.color }}></div>
               
@@ -269,7 +269,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                  <Maximize2 size={14} />
               </div>
               
-              <div className="flex justify-between items-start mb-4 sm:mb-6 pl-2 shrink-0 gap-2 pr-8">
+              <div className="flex justify-between items-start mb-4 sm:mb-6 pl-2 shrink-0 gap-2 pr-6">
                   <div className="min-w-0 flex-1">
                      <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base leading-tight whitespace-normal break-words">{metric.label}</h3>
                      <div className="flex gap-3 mt-2">
@@ -277,13 +277,13 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                          {isComparisonMode && <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><div className="w-2 h-2 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
                      </div>
                   </div>
-                  <div className="bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold text-white shadow-md border border-white/10 shrink-0 text-center">
+                  <div className="bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold text-white shadow-md border border-white/10 shrink-0 text-center mt-1">
                      Hedef<br/><span style={{ color: '#fff' }}>{metric.target !== null ? `${metric.target}${metric.isPercent ? "%" : " Adet"}` : "-"}</span>
                   </div>
               </div>
               
-              {/* ESKİ GENİŞ YÜKSEKLİKLER GERİ GELDİ */}
-              <div className="flex-1 w-full mt-auto h-[200px] sm:h-[220px]">
+              {/* SABİT YÜKSEKLİK - DARALMA VE KAYBOLMAYI ÖNLER */}
+              <div className="w-full mt-2 h-[200px] sm:h-[220px]">
                   {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                       <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
@@ -381,7 +381,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
           </div>
       </div>
 
-      {/* DEV EKRAN (MODAL) */}
+      {/* TIKLANINCA AÇILAN BÜYÜK EKRAN (MODAL) */}
       {expandedMetric && (
           <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[70] p-4 sm:p-8 backdrop-blur-sm" onClick={() => setExpandedMetric(null)}>
               <div className="bg-white dark:bg-slate-900 w-full max-w-6xl rounded-3xl shadow-2xl flex flex-col relative animate-in zoom-in duration-200 overflow-hidden border border-slate-200 dark:border-slate-700" onClick={(e) => e.stopPropagation()}>
@@ -413,7 +413,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                     </div>
                  </div>
 
-                 <div className="p-5 sm:p-8 h-[400px] sm:h-[600px] w-full">
+                 <div className="p-5 sm:p-8 h-[400px] sm:h-[500px] w-full">
                      {trendData[expandedMetric.key] && hasAnyData(trendData[expandedMetric.key]) ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={trendData[expandedMetric.key]} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
@@ -437,6 +437,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                      )}
                  </div>
 
+                 {/* Yapay Zeka Notu Sadece Modal'da Çıkar */}
                  {getTrendStatus(trendData[expandedMetric.key], expandedMetric.key) && (
                     <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center">
                        <div className={`flex items-center gap-3 px-5 py-2.5 rounded-xl font-bold text-sm sm:text-base ${getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).bg} ${getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).color}`}>
