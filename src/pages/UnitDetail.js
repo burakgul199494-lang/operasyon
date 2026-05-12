@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom"; 
 import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck, Trophy } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
-import KPICard from "../components/KPICard";
 
 const TARGETS = { 
   teslimPerformansi: 96, adresAlimOrani: 90, musteriSikayet: 0,
@@ -396,12 +395,12 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     
     if (td !== null) {
       if (td === 0) text += "• Teslim düşülen kargo adetiniz 0 olarak gerçekleşmiş olup, başarılı operasyonunuz için teşekkür ederiz.\n";
-      else if (td <= 5) text += "• Teslim düşülen kargo sayınız 1-5 aralığında gerçekleşmiştir, süreç konusunda daha dikkatli olunması önemle rica olunur.\n";
+      else if (td <= 5) text += "• Teslim düşülen kargo sayınız 1-5 aralığında (kabul edilebilir seviyede) gerçekleşmiştir, dikkatle takip edilmelidir.\n";
       else text += "• Teslim düşülen kargo sayınız hedeflerin çok uzağında olup tamamen başarısızdır. Şube içi kargo akışı acilen kontrol edilmelidir.\n";
     }
 
     if (tg !== null) {
-      if (tg === 0) text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiş olup, zamanında teslimatlarınız için tebrik ederiz.\n";
+      if (tg === 0) text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiş olup, hatasız gönderiminiz için tebrik ederiz.\n";
       else if (tg <= 5) text += "• Transferde gecikme sayınız 1-5 aralığında (kabul edilebilir seviyede) gerçekleşmiştir, şube/hat çıkışlarına özen gösterilmelidir.\n";
       else text += "• Transferde gecikme sayınız kabul edilemez seviyededir (tamamen başarısız). Araç yüklemeleri ve aktarma işlemlerinde ivedilikle aksiyon alınmalıdır.\n";
     }
@@ -973,6 +972,19 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     } catch (error) { console.error("Toplu ZIP oluşturulurken hata:", error); alert("Toplu indirme sırasında bir hata oluştu."); } finally { setIsGeneratingPdf(false); setShowPdfModal(false); }
   };
 
+  // YENİ: Ortadaki 9 Metriğin Dizesi
+  const middleMetrics = [
+    { title: "Rota", avgTitle: "Ort. Rota", val: displayData?.rotaOrani, isPercent: true, target: TARGETS.rotaOrani, targetStr: `Hedef: %${TARGETS.rotaOrani}`, isFail: parseMetric(displayData?.rotaOrani) < TARGETS.rotaOrani },
+    { title: "TVS", avgTitle: "Ort. TVS", val: displayData?.tvsOrani, isPercent: true, target: TARGETS.tvsOrani, targetStr: `Hedef: %${TARGETS.tvsOrani}`, isFail: parseMetric(displayData?.tvsOrani) < TARGETS.tvsOrani },
+    { title: "Check-in", avgTitle: "Ort. Check-in", val: displayData?.checkInOrani, isPercent: true, target: TARGETS.checkInOrani, targetStr: `Hedef: %${TARGETS.checkInOrani}`, isFail: parseMetric(displayData?.checkInOrani) < TARGETS.checkInOrani },
+    { title: "SMS", avgTitle: "Ort. SMS", val: displayData?.smsOrani, isPercent: true, target: TARGETS.smsOrani, targetStr: `Hedef: %${TARGETS.smsOrani}`, isFail: parseMetric(displayData?.smsOrani) < TARGETS.smsOrani },
+    { title: "E-ATF", avgTitle: "Ort. E-ATF", val: displayData?.eAtfOrani, isPercent: true, target: TARGETS.eAtfOrani, targetStr: `Hedef: %${TARGETS.eAtfOrani}`, isFail: parseMetric(displayData?.eAtfOrani) < TARGETS.eAtfOrani },
+    { title: "HTF", avgTitle: "Ort. HTF", val: displayData?.htfOrani, isPercent: true, target: TARGETS.htfOrani, targetStr: `Hedef: %${TARGETS.htfOrani}`, isFail: parseMetric(displayData?.htfOrani) < TARGETS.htfOrani },
+    { title: "E-İhbar", avgTitle: "Ort. E-İhbar", val: displayData?.elektronikIhbar, isPercent: true, target: 90, targetStr: `Hedef: %90`, isFail: parseMetric(displayData?.elektronikIhbar) < 90 },
+    { title: "K. Sende", avgTitle: "Ort. K. Sende", val: displayData?.kontrolSende, isPercent: true, target: TARGETS.kontrolSende, targetStr: `Hedef: %${TARGETS.kontrolSende}`, isFail: parseMetric(displayData?.kontrolSende) < TARGETS.kontrolSende },
+    { title: "Ölçüm Tartım", avgTitle: "Ort. Ölçüm", val: displayData?.olcumTartim, isPercent: false, target: TARGETS.olcumTartim, targetStr: `Hedef: ${TARGETS.olcumTartim} Adet`, isFail: parseMetric(displayData?.olcumTartim) > TARGETS.olcumTartim }
+  ];
+
   return (
     <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-20 shadow-sm border-b border-slate-200 dark:border-slate-800">
@@ -1127,18 +1139,23 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                 )}
               </div>
               
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                <KPICard title="Rota" value={formatDisplayMetric(displayData.rotaOrani, true)} target={TARGETS.rotaOrani} suffix="%" color={parseMetric(displayData.rotaOrani) < TARGETS.rotaOrani ? "red" : "green"} icon={TrendingUp} />
-                <KPICard title="TVS" value={formatDisplayMetric(displayData.tvsOrani, true)} target={TARGETS.tvsOrani} suffix="%" color={parseMetric(displayData.tvsOrani) < TARGETS.tvsOrani ? "red" : "green"} icon={Activity} />
-                <KPICard title="Check-in" value={formatDisplayMetric(displayData.checkInOrani, true)} target={TARGETS.checkInOrani} suffix="%" color={parseMetric(displayData.checkInOrani) < TARGETS.checkInOrani ? "red" : "green"} icon={CheckCircle2} />
-                <KPICard title="SMS" value={formatDisplayMetric(displayData.smsOrani, true)} target={TARGETS.smsOrani} suffix="%" color={parseMetric(displayData.smsOrani) < TARGETS.smsOrani ? "red" : "green"} icon={Smartphone} />
-                <KPICard title="E-ATF" value={formatDisplayMetric(displayData.eAtfOrani, true)} target={TARGETS.eAtfOrani} suffix="%" color={parseMetric(displayData.eAtfOrani) < TARGETS.eAtfOrani ? "red" : "green"} icon={FileText} />
-                <KPICard title="HTF" value={formatDisplayMetric(displayData.htfOrani, true)} target={TARGETS.htfOrani} suffix="%" color={parseMetric(displayData.htfOrani) < TARGETS.htfOrani ? "red" : "green"} icon={Activity} />
-                <KPICard title="E-İhbar" value={formatDisplayMetric(displayData.elektronikIhbar, true)} target={90} suffix="%" color={parseMetric(displayData.elektronikIhbar) < 90 ? "red" : "green"} icon={Mail} />
-                <KPICard title="K. Sende" value={formatDisplayMetric(displayData.kontrolSende, true)} target={TARGETS.kontrolSende} suffix="%" color={parseMetric(displayData.kontrolSende) < TARGETS.kontrolSende ? "red" : "green"} icon={ShieldCheck} />
-                <KPICard title="Ölçüm Tartım" value={formatDisplayMetric(displayData.olcumTartim, false)} target={`${TARGETS.olcumTartim} Adet`} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
+              {/* GÜNCELLENDİ: Orta 9'lu Kart Grubu (KPICard yerine tamamen aynı standart fiyakalı tasarım) */}
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+                 {middleMetrics.map((item, idx) => (
+                    <div key={idx} className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${item.isFail ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                      <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
+                        <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? item.avgTitle : item.title}</p>
+                        <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">
+                            {formatDisplayMetric(item.val, item.isPercent)}
+                            {item.isPercent && item.val !== undefined && item.val !== null && item.val !== "" ? "%" : ""}
+                        </h2>
+                        <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">{item.targetStr}</span></div>
+                      </div>
+                    </div>
+                 ))}
               </div>
 
+              {/* Alt 3'lü Kart Grubu */}
               <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimDusulenBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                     <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
