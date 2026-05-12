@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo } from "react";
 import { ArrowLeft, FileDown, TrendingUp, TrendingDown, Minus, BarChart2, Loader2, Calendar, ChevronDown, Eye, EyeOff, Maximize2, X } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
@@ -34,6 +34,7 @@ const parseMetric = (val) => {
   return isNaN(num) ? null : num;
 };
 
+// Eğilim (Trend) Hesaplama
 const getTrendStatus = (dataArray, metricKey) => {
     if (!dataArray) return null;
     const validData = dataArray.filter(d => d.current !== null && d.current !== undefined);
@@ -43,44 +44,38 @@ const getTrendStatus = (dataArray, metricKey) => {
     let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
     
     validData.forEach((d, i) => {
-        let x = i;
-        let y = d.current;
-        sumX += x;
-        sumY += y;
-        sumXY += x * y;
-        sumXX += x * x;
+        let x = i; let y = d.current;
+        sumX += x; sumY += y; sumXY += x * y; sumXX += x * x;
     });
     
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const denominator = (n * sumXX - sumX * sumX);
+    if (denominator === 0) return { text: "Yatay (Stabil)", icon: "stable", color: "text-slate-500 dark:text-slate-400", bg: "bg-slate-100 dark:bg-slate-800" };
+    
+    const slope = (n * sumXY - sumX * sumY) / denominator;
     
     const isReverseMetric = ["musteriSikayet", "teslimDusulen", "transferGecikme", "olcumTartim"].includes(metricKey);
     const isVolumeMetric = ["gelenKargo", "gidenKargo"].includes(metricKey);
 
     if (slope > 0.1) {
         return {
-            text: "Yükseliş Eğiliminde",
+            text: "Yükseliş Eğilimi",
             icon: "up",
             color: isVolumeMetric ? "text-blue-600 dark:text-blue-400" : (isReverseMetric ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"),
             bg: isVolumeMetric ? "bg-blue-50 dark:bg-blue-900/20" : (isReverseMetric ? "bg-rose-50 dark:bg-rose-900/20" : "bg-emerald-50 dark:bg-emerald-900/20")
         };
     } else if (slope < -0.1) {
         return {
-            text: "Düşüş Eğiliminde",
+            text: "Düşüş Eğilimi",
             icon: "down",
             color: isVolumeMetric ? "text-slate-500 dark:text-slate-400" : (isReverseMetric ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"),
             bg: isVolumeMetric ? "bg-slate-100 dark:bg-slate-800" : (isReverseMetric ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-rose-50 dark:bg-rose-900/20")
         };
     } else {
-        return {
-            text: "Yatay (Stabil) Seyir",
-            icon: "stable",
-            color: "text-slate-500 dark:text-slate-400",
-            bg: "bg-slate-100 dark:bg-slate-800"
-        };
+        return { text: "Yatay Seyir", icon: "stable", color: "text-slate-500 dark:text-slate-400", bg: "bg-slate-100 dark:bg-slate-800" };
     }
 };
 
-const CustomTooltip = ({ active, payload, label, isPercent, selectedYear, isComparisonMode }) => {
+const CustomTooltip = ({ active, payload, label, isPercent, selectedYear }) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-lg shadow-xl border border-slate-700 min-w-[140px] z-50">
@@ -89,9 +84,7 @@ const CustomTooltip = ({ active, payload, label, isPercent, selectedYear, isComp
           <div key={index} className="flex items-center justify-between gap-4 mb-1.5">
              <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></div>
-                <span className="text-xs font-medium text-slate-300">
-                  {entry.dataKey === 'current' ? selectedYear : selectedYear - 1}
-                </span>
+                <span className="text-xs font-medium text-slate-300">{entry.dataKey === 'current' ? selectedYear : selectedYear - 1}</span>
              </div>
              <span className="text-sm font-black" style={{ color: entry.color }}>
                {entry.value !== null && entry.value !== undefined ? entry.value.toLocaleString('tr-TR', { minimumFractionDigits: isPercent ? 2 : 0, maximumFractionDigits: isPercent ? 2 : 0 }) : "-"}
@@ -257,22 +250,28 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   }, []);
 
   const renderCard = (metric) => {
-      // YENİ: Trend Status hesaplandı
       const trendStatus = getTrendStatus(trendData[metric.key], metric.key);
 
       return (
           <div 
               key={metric.key} 
-              onClick={() => setExpandedMetric(metric)}
-              className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl flex flex-col h-full cursor-pointer group"
+              // GÜNCELLENDİ: Sadece ekran 768px (md) ve üzerindeyse tıklanabilir olsun.
+              onClick={() => {
+                  if (window.innerWidth >= 768) {
+                      setExpandedMetric(metric);
+                  }
+              }}
+              // GÜNCELLENDİ: hover ve cursor efektleri sadece "md:" (Masaüstü/Tablet) cihazlar için eklendi.
+              className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-all md:hover:-translate-y-1 md:hover:shadow-xl md:cursor-pointer group block"
           >
               <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: metric.color }}></div>
               
-              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-100 dark:bg-slate-700 p-1.5 rounded-md text-slate-500 dark:text-slate-300">
+              {/* GÜNCELLENDİ: Büyütme ikonu mobilde "hidden" yapılarak gizlendi */}
+              <div className="absolute top-3 right-3 opacity-0 md:group-hover:opacity-100 transition-opacity bg-slate-100 dark:bg-slate-700 p-1.5 rounded-md text-slate-500 dark:text-slate-300 hidden md:block">
                  <Maximize2 size={14} />
               </div>
               
-              <div className="flex justify-between items-start mb-4 sm:mb-6 pl-2 shrink-0 gap-2 pr-8">
+              <div className="flex justify-between items-start mb-4 sm:mb-6 pl-2 shrink-0 gap-2 pr-2 md:pr-6">
                   <div className="min-w-0 flex-1">
                      <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base leading-tight whitespace-normal break-words">{metric.label}</h3>
                      <div className="flex gap-3 mt-2">
@@ -285,8 +284,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   </div>
               </div>
               
-              {/* ORİJİNAL TASARIM VE YÜKSEKLİK: Hiç Dokunulmadı */}
-              <div className="flex-1 w-full mt-auto h-[200px] sm:h-[220px]">
+              <div className="w-full mt-auto h-[200px] sm:h-[220px]">
                   {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                       <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
@@ -327,14 +325,11 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   )}
               </div>
 
-              {/* YENİ: Eğilim Durumu Çubuğu Karta Eklendi */}
               {trendStatus && (
                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between shrink-0">
-                    <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wide">Eğilim:</span>
-                    <span className={`text-[10px] sm:text-[11px] font-black flex items-center gap-1.5 px-2.5 py-1 rounded-md ${trendStatus.bg} ${trendStatus.color}`}>
-                       {trendStatus.icon === 'up' && <TrendingUp size={14} />}
-                       {trendStatus.icon === 'down' && <TrendingDown size={14} />}
-                       {trendStatus.icon === 'stable' && <Minus size={14} />}
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">Eğilim:</span>
+                    <span className={`text-[10px] font-black flex items-center gap-1.5 px-2 py-1 rounded-md ${trendStatus.bg} ${trendStatus.color}`}>
+                       {trendStatus.icon === 'up' ? <TrendingUp size={12} /> : trendStatus.icon === 'down' ? <TrendingDown size={12} /> : <Minus size={12} />}
                        {trendStatus.text}
                     </span>
                  </div>
@@ -397,7 +392,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
           </div>
       </div>
 
-      {/* DEV EKRAN (MODAL) */}
       {expandedMetric && (
           <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[70] p-4 sm:p-8 backdrop-blur-sm" onClick={() => setExpandedMetric(null)}>
               <div className="bg-white dark:bg-slate-900 w-full max-w-6xl rounded-3xl shadow-2xl flex flex-col relative animate-in zoom-in duration-200 overflow-hidden border border-slate-200 dark:border-slate-700" onClick={(e) => e.stopPropagation()}>
@@ -430,29 +424,19 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                  </div>
 
                  <div className="p-5 sm:p-8 h-[400px] sm:h-[500px] w-full shrink-0">
-                     {trendData[expandedMetric.key] && hasAnyData(trendData[expandedMetric.key]) ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={trendData[expandedMetric.key]} margin={{ top: 20, right: 20, left: -10, bottom: 25 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.7} />
-                                <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 'bold' }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 'bold' }} domain={['auto', 'auto']} />
-                                <Tooltip content={<CustomTooltip isPercent={expandedMetric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 2, strokeDasharray: '5 5' }} />
-                                {expandedMetric.target !== null && <ReferenceLine y={expandedMetric.target} stroke={expandedMetric.color} strokeDasharray="3 3" strokeOpacity={0.3} />}
-                                
-                                {isComparisonMode && (
-                                  <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={3} strokeDasharray="6 6" dot={{ r: 5, strokeWidth: 3, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 8, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />
-                                )}
-                                <Line type="monotone" dataKey="current" stroke={expandedMetric.color} strokeWidth={5} dot={{ r: 7, strokeWidth: 3, fill: '#fff', stroke: expandedMetric.color }} activeDot={{ r: 10, strokeWidth: 0, fill: expandedMetric.color }} animationDuration={1000} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                     ) : (
-                        <div className="h-full flex items-center justify-center text-slate-400 text-lg font-medium flex-col gap-3">
-                            <BarChart2 className="opacity-20" size={48} />
-                            Veri Bekleniyor
-                        </div>
-                     )}
+                     <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={trendData[expandedMetric.key]} margin={{ top: 20, right: 20, left: -10, bottom: 25 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.7} />
+                            <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 'bold' }} dy={10} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 'bold' }} domain={['auto', 'auto']} />
+                            <Tooltip content={<CustomTooltip isPercent={expandedMetric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} />
+                            {expandedMetric.target !== null && <ReferenceLine y={expandedMetric.target} stroke={expandedMetric.color} strokeDasharray="3 3" strokeOpacity={0.3} />}
+                            {isComparisonMode && (<Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={3} strokeDasharray="6 6" dot={{ r: 5, strokeWidth: 3, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 8, strokeWidth: 0, fill: '#94a3b8' }} />)}
+                            <Line type="monotone" dataKey="current" stroke={expandedMetric.color} strokeWidth={5} dot={{ r: 7, strokeWidth: 3, fill: '#fff', stroke: expandedMetric.color }} activeDot={{ r: 10, strokeWidth: 0, fill: expandedMetric.color }} />
+                        </LineChart>
+                     </ResponsiveContainer>
                  </div>
-
+                 
                  {getTrendStatus(trendData[expandedMetric.key], expandedMetric.key) && (
                     <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center">
                        <div className={`flex items-center gap-3 px-5 py-2.5 rounded-xl font-bold text-sm sm:text-base ${getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).bg} ${getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).color}`}>
@@ -466,7 +450,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               </div>
           </div>
       )}
-
     </div>
   );
 };
