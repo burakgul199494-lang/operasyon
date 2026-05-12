@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
-import { ArrowLeft, FileDown, TrendingUp, BarChart2, Loader2, Calendar, ChevronDown, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, FileDown, TrendingUp, TrendingDown, Minus, BarChart2, Loader2, Calendar, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import html2canvas from "html2canvas";
@@ -32,6 +32,55 @@ const parseMetric = (val) => {
   const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
   const num = parseFloat(cleanStr);
   return isNaN(num) ? null : num;
+};
+
+// YENİ: Yıl İçi Eğim (Trend) Hesaplama Algoritması
+const getTrendStatus = (dataArray, metricKey) => {
+    if (!dataArray) return null;
+    const validData = dataArray.filter(d => d.current !== null && d.current !== undefined);
+    if (validData.length < 2) return null; // Trend için en az 2 ay veri lazım
+
+    // Basit Doğrusal Regresyon (Linear Regression Slope)
+    let n = validData.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+    
+    validData.forEach((d, i) => {
+        let x = i;
+        let y = d.current;
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumXX += x * x;
+    });
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    
+    // Metriğin doğası (Tersi Kötü Olanlar vs. Hacim Verileri)
+    const isReverseMetric = ["musteriSikayet", "teslimDusulen", "transferGecikme", "olcumTartim"].includes(metricKey);
+    const isVolumeMetric = ["gelenKargo", "gidenKargo"].includes(metricKey);
+
+    if (slope > 0.1) {
+        return {
+            text: "Yükseliş Eğiliminde",
+            icon: "up",
+            color: isVolumeMetric ? "text-blue-600 dark:text-blue-400" : (isReverseMetric ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"),
+            bg: isVolumeMetric ? "bg-blue-50 dark:bg-blue-900/20" : (isReverseMetric ? "bg-rose-50 dark:bg-rose-900/20" : "bg-emerald-50 dark:bg-emerald-900/20")
+        };
+    } else if (slope < -0.1) {
+        return {
+            text: "Düşüş Eğiliminde",
+            icon: "down",
+            color: isVolumeMetric ? "text-slate-500 dark:text-slate-400" : (isReverseMetric ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"),
+            bg: isVolumeMetric ? "bg-slate-100 dark:bg-slate-800" : (isReverseMetric ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-rose-50 dark:bg-rose-900/20")
+        };
+    } else {
+        return {
+            text: "Yatay (Stabil) Seyir",
+            icon: "stable",
+            color: "text-slate-500 dark:text-slate-400",
+            bg: "bg-slate-100 dark:bg-slate-800"
+        };
+    }
 };
 
 const CustomTooltip = ({ active, payload, label, isPercent, selectedYear, isComparisonMode }) => {
@@ -91,7 +140,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   }, [allData, selectedYear, selectedUnit, isComparisonMode]);
 
   const generatePDF = async () => {
-    setIsGeneratingPdf(true); // GÜNCELLENDİ: Bu true olunca grafik animasyonları duracak
+    setIsGeneratingPdf(true);
     const desktopWrapper = document.getElementById('desktop-wrapper');
     
     try {
@@ -126,11 +175,11 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
 
             element.className = 'grid grid-cols-4 gap-4';
             element.style.width = '1600px'; 
-            element.style.height = '850px'; 
+            // GÜNCELLENDİ: Alt bilgi eklendiği için PDF alanı 900px'e esnetildi
+            element.style.height = '900px'; 
             element.style.padding = '25px';
             element.style.background = '#f8fafc';
             
-            // Recharts'ın animasyonsuz haliyle noktaları tam çizmesi için bekleme süresi
             await new Promise(r => setTimeout(r, 400));
 
             const canvas = await html2canvas(element, { 
@@ -195,7 +244,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
             desktopWrapper.classList.remove('block');
             desktopWrapper.classList.add('hidden', 'md:block');
         }
-        setIsGeneratingPdf(false); // Animasyonlar tekrar aktif
+        setIsGeneratingPdf(false); 
     }
   };
 
@@ -209,66 +258,82 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
     });
   }, []);
 
-  const renderCard = (metric) => (
-      <div key={metric.key} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-transform hover:-translate-y-1 flex flex-col h-full">
-          <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: metric.color }}></div>
-          
-          <div className="flex justify-between items-start mb-4 sm:mb-6 pl-2 shrink-0 gap-2">
-              <div className="min-w-0 flex-1">
-                 <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base leading-tight whitespace-normal break-words">{metric.label}</h3>
-                 <div className="flex gap-3 mt-2">
-                     <div className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300 font-bold"><div className="w-2 h-2 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
-                     {isComparisonMode && <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><div className="w-2 h-2 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
-                 </div>
-              </div>
-              <div className="bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold text-white shadow-md border border-white/10 shrink-0 text-center">
-                 Hedef<br/><span style={{ color: '#fff' }}>{metric.target !== null ? `${metric.target}${metric.isPercent ? "%" : " Adet"}` : "-"}</span>
-              </div>
-          </div>
-          
-          <div className="flex-1 w-full mt-auto h-[200px] sm:h-[180px]">
-              {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
-                          <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
-                          <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
-                          {metric.target !== null && <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />}
-                          
-                          {/* GÜNCELLENDİ: isAnimationActive dinamik eklendi, noktaların kalınlığı korundu */}
-                          {isComparisonMode && (
-                            <Line 
-                              type="monotone" 
-                              dataKey="previous" 
-                              stroke="#94a3b8" 
-                              strokeWidth={2} 
-                              strokeDasharray="4 4" 
-                              dot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} 
-                              activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} 
-                              isAnimationActive={!isGeneratingPdf} 
-                            />
-                          )}
-                          <Line 
-                            type="monotone" 
-                            dataKey="current" 
-                            stroke={metric.color} 
-                            strokeWidth={3} 
-                            dot={{ r: 4.5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} 
-                            activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} 
-                            isAnimationActive={!isGeneratingPdf} 
-                          />
-                      </LineChart>
-                  </ResponsiveContainer>
-              ) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium flex-col gap-2">
-                      <BarChart2 className="opacity-20" size={32} />
-                      Veri Bekleniyor
+  const renderCard = (metric) => {
+      const trendStatus = getTrendStatus(trendData[metric.key], metric.key);
+
+      return (
+          <div key={metric.key} className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-transform hover:-translate-y-1 flex flex-col h-full">
+              <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: metric.color }}></div>
+              
+              <div className="flex justify-between items-start mb-4 sm:mb-6 pl-2 shrink-0 gap-2">
+                  <div className="min-w-0 flex-1">
+                     <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base leading-tight whitespace-normal break-words">{metric.label}</h3>
+                     <div className="flex gap-3 mt-2">
+                         <div className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300 font-bold"><div className="w-2 h-2 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
+                         {isComparisonMode && <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><div className="w-2 h-2 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
+                     </div>
                   </div>
+                  <div className="bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold text-white shadow-md border border-white/10 shrink-0 text-center">
+                     Hedef<br/><span style={{ color: '#fff' }}>{metric.target !== null ? `${metric.target}${metric.isPercent ? "%" : " Adet"}` : "-"}</span>
+                  </div>
+              </div>
+              
+              <div className="flex-1 w-full mt-auto min-h-[160px] sm:min-h-[170px]">
+                  {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
+                              <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dy={10} />
+                              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
+                              <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
+                              {metric.target !== null && <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />}
+                              
+                              {isComparisonMode && (
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="previous" 
+                                  stroke="#94a3b8" 
+                                  strokeWidth={2} 
+                                  strokeDasharray="4 4" 
+                                  dot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} 
+                                  activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} 
+                                  isAnimationActive={!isGeneratingPdf} 
+                                />
+                              )}
+                              <Line 
+                                type="monotone" 
+                                dataKey="current" 
+                                stroke={metric.color} 
+                                strokeWidth={3} 
+                                dot={{ r: 4.5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} 
+                                activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} 
+                                isAnimationActive={!isGeneratingPdf} 
+                              />
+                          </LineChart>
+                      </ResponsiveContainer>
+                  ) : (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium flex-col gap-2">
+                          <BarChart2 className="opacity-20" size={32} />
+                          Veri Bekleniyor
+                      </div>
+                  )}
+              </div>
+
+              {/* YENİ: YAPAY ZEKA TREND ÖZET NOTU */}
+              {trendStatus && (
+                 <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between shrink-0">
+                    <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">Yıl İçi Eğilim:</span>
+                    <span className={`text-[10px] sm:text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1 rounded-md ${trendStatus.bg} ${trendStatus.color}`}>
+                       {trendStatus.icon === 'up' && <TrendingUp size={14} />}
+                       {trendStatus.icon === 'down' && <TrendingDown size={14} />}
+                       {trendStatus.icon === 'stable' && <Minus size={14} />}
+                       {trendStatus.text}
+                    </span>
+                 </div>
               )}
           </div>
-      </div>
-  );
+      );
+  };
 
   return (
     <div className="bg-slate-50 dark:bg-slate-900 min-h-screen flex flex-col transition-colors duration-300">
