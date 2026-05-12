@@ -367,6 +367,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     });
   }, [fleetData, selectedUnit]);
 
+  // GÜNCELLENDİ: Teslim Düşülen ve Transfer Gecikme 2'li yapıya ve dinamik sayıya geçirildi.
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
     const a = parseMetric(data.adresAlimOrani);
@@ -393,16 +394,22 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       else text += "• Adres alım oranınız başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
     }
     
+    // YENİ: Teslim Düşülen 2 Seçenek (Dinamik Sayı)
     if (td !== null) {
-      if (td === 0) text += "• Teslim düşülen kargo adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
-      else if (td <= 5) text += "• Teslim düşülen kargo sayınız 4 olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır. Bu konuda ilgili ayda hedef performansın mutlaka yakalanması gerekmektedir.\n";
-      else text += "• Teslim düşülen kargo sayınız hedeflerin çok uzağında olup tamamen başarısızdır. Şube içi kargo akışı acilen kontrol edilmelidir.\n";
+      if (td === 0) {
+        text += "• Teslim düşülen kargo adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
+      } else {
+        text += `• Teslim düşülen kargo sayınız ${td} olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır. Bu konuda ilgili ayda hedef performansın mutlaka yakalanması gerekmektedir.\n`;
+      }
     }
 
+    // YENİ: Transfer Gecikme 2 Seçenek (Dinamik Sayı)
     if (tg !== null) {
-      if (tg === 0) text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
-      else if (tg <= 5) text += "• Transferde gecikme sayınız 4 olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır. Bu konuda ilgili ayda hedef performansın mutlaka yakalanması gerekmektedir.\n";
-      else text += "• Transferde gecikme sayınız kabul edilemez seviyededir (tamamen başarısız). Araç yüklemeleri ve aktarma işlemlerinde ivedilikle aksiyon alınmalıdır.\n";
+      if (tg === 0) {
+        text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
+      } else {
+        text += `• Transferde gecikme sayınız ${tg} olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır. Bu konuda ilgili ayda hedef performansın mutlaka yakalanması gerekmektedir.\n`;
+      }
     }
 
     if (r !== null) {
@@ -1139,7 +1146,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                 )}
               </div>
               
-              {/* GÜNCELLENDİ: Orta 9'lu Kart Grubu (KPICard yerine tamamen aynı standart fiyakalı tasarım) */}
               <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
                  {middleMetrics.map((item, idx) => (
                     <div key={idx} className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${item.isFail ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
@@ -1155,7 +1161,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                  ))}
               </div>
 
-              {/* Alt 3'lü Kart Grubu */}
               <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimDusulenBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                     <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
