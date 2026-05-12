@@ -108,7 +108,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
   const [showAllPersonnelModal, setShowAllPersonnelModal] = useState(false);
   const [showFleetModal, setShowFleetModal] = useState(false);
 
-  // GÜNCELLENDİ: PDF çökmesini engelleyen pazar günü bulucu fonksiyon geri eklendi!
   const getIsSunday = (day) => {
       if (!selectedYear || !selectedMonth || !day) return false;
       const d = new Date(selectedYear, selectedMonth - 1, day);
@@ -500,7 +499,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       doc.setFont("Roboto", "normal"); 
     }
     
-    // GÜNCELLENDİ: Oranlar Üstte, Adetler (Ölçüm Tartım, Düşülen, Gecikme) Altta!
     const tableRows = [
       ["Teslim Performansı", `%${formatDisplayMetric(targetData.teslimPerformansi, true)}`, `%${TARGETS.teslimPerformansi}`],
       ["Adres Alım Oranı", `%${formatDisplayMetric(targetData.adresAlimOrani, true)}`, `%${TARGETS.adresAlimOrani}`],
@@ -1138,30 +1136,27 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                 <KPICard title="HTF" value={formatDisplayMetric(displayData.htfOrani, true)} target={TARGETS.htfOrani} suffix="%" color={parseMetric(displayData.htfOrani) < TARGETS.htfOrani ? "red" : "green"} icon={Activity} />
                 <KPICard title="E-İhbar" value={formatDisplayMetric(displayData.elektronikIhbar, true)} target={90} suffix="%" color={parseMetric(displayData.elektronikIhbar) < 90 ? "red" : "green"} icon={Mail} />
                 <KPICard title="K. Sende" value={formatDisplayMetric(displayData.kontrolSende, true)} target={TARGETS.kontrolSende} suffix="%" color={parseMetric(displayData.kontrolSende) < TARGETS.kontrolSende ? "red" : "green"} icon={ShieldCheck} />
-                {/* GÜNCELLENDİ: Ölçüm Tartım da "Adet" olarak hedeflendi */}
                 <KPICard title="Ölçüm Tartım" value={formatDisplayMetric(displayData.olcumTartim, false)} target={`${TARGETS.olcumTartim} Adet`} suffix="" color={parseMetric(displayData.olcumTartim) > TARGETS.olcumTartim ? "red" : "green"} icon={Scale} />
               </div>
 
               <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                  <div className={`rounded-xl sm:rounded-2xl shadow-sm relative overflow-hidden flex flex-col text-center ${isTeslimDusulenBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                  <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimDusulenBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                     <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                       <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Düşülen" : "T. Düşülen"}</p>
                       <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.teslimDusulen, false)}</h2>
-                      {/* GÜNCELLENDİ: Adet */}
                       <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.teslimDusulen} Adet</span></div>
                     </div>
                   </div>
                   
-                  <div className={`rounded-xl sm:rounded-2xl shadow-sm relative overflow-hidden flex flex-col text-center ${isTransferGecikmeBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
+                  <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTransferGecikmeBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                     <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                       <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Gecikme" : "T. Gecikme"}</p>
                       <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.transferGecikme, false)}</h2>
-                      {/* GÜNCELLENDİ: Adet */}
                       <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.transferGecikme} Adet</span></div>
                     </div>
                   </div>
 
-                  <div className={`rounded-xl sm:rounded-2xl shadow-sm relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white`}>
+                  <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white`}>
                     <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                       <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Pb D/O</p>
                       <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
