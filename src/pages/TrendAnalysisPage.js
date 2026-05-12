@@ -1,11 +1,10 @@
 import React, { useState, useMemo, useRef } from "react";
-import { ArrowLeft, FileDown, TrendingUp, BarChart2, Loader2, Calendar, ChevronDown, Layers, LayersClear } from "lucide-react";
+import { ArrowLeft, FileDown, TrendingUp, BarChart2, Loader2, Calendar, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
-// TÜM BİRİMLER DAHİL EDİLDİ (Filtre kaldırıldı)
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
@@ -60,13 +59,12 @@ const CustomTooltip = ({ active, payload, label, isPercent, selectedYear, isComp
 
 const TrendAnalysisPage = ({ allData = [], onBack }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedUnit, setSelectedUnit] = useState("BÖLGE"); // Açılış sayfası BÖLGE yapıldı
-  const [isComparisonMode, setIsComparisonMode] = useState(true); // Varsayılan karşılaştırma açık
+  const [selectedUnit, setSelectedUnit] = useState("BÖLGE"); 
+  const [isComparisonMode, setIsComparisonMode] = useState(true); 
   const [mobileSelectedMetric, setMobileSelectedMetric] = useState(METRICS[0].key);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const pdfContainerRef = useRef(null);
 
-  // Veri motoru: BÖLGE ham verilerini çeker
   const trendData = useMemo(() => {
     if (!allData || allData.length === 0) return {};
     const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -96,32 +94,47 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
     try {
         const element = pdfContainerRef.current;
         if (!element) return;
+        
         element.classList.remove('hidden');
         element.classList.add('grid');
         element.style.width = '1600px'; 
         element.style.padding = '20px';
         element.style.background = '#f8fafc';
+        
         const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
-        element.style.width = ''; element.style.padding = ''; element.style.background = '';
-        if (window.innerWidth < 768) { element.classList.add('hidden'); element.classList.remove('grid'); }
+        
+        element.style.width = ''; 
+        element.style.padding = ''; 
+        element.style.background = '';
+        if (window.innerWidth < 768) { 
+            element.classList.add('hidden'); 
+            element.classList.remove('grid'); 
+        }
+        
         const imgData = canvas.toDataURL('image/jpeg', 1.0);
         const pdf = new jsPDF('landscape', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        
         pdf.setFontSize(16);
         pdf.setTextColor(30, 58, 138); 
         pdf.text(`TREND ANALİZ RAPORU: ${selectedUnit} (${isComparisonMode ? 'Kıyaslamalı' : 'Tek Yıl'})`, 14, 15);
         pdf.setFontSize(10);
         pdf.setTextColor(100);
         pdf.text(`Dönem: ${selectedYear} ${isComparisonMode ? '& ' + (selectedYear-1) : ''} | Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 21);
+        
         pdf.addImage(imgData, 'JPEG', 5, 25, pdfWidth - 10, pdfHeight - 10);
         pdf.save(`${selectedUnit}_Trend_${selectedYear}.pdf`);
-    } catch (error) { console.error(error); } finally { setIsGeneratingPdf(false); }
+    } catch (error) { 
+        console.error(error); 
+        alert("PDF oluşturulurken bir hata oluştu.");
+    } finally { 
+        setIsGeneratingPdf(false); 
+    }
   };
 
   const hasAnyData = (dataArray) => dataArray.some(d => d.current !== null || d.previous !== null);
 
-  // Ünitedeki BÖLGE'yi listenin en başına alalım
   const sortedUnits = useMemo(() => {
     return [...UNITS].sort((a, b) => {
         if (a === "BÖLGE") return -1;
@@ -148,8 +161,8 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               </div>
 
               <div className="flex items-center gap-2">
-                  <button onClick={() => setIsComparisonMode(!isComparisonMode)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-all ${isComparisonMode ? 'bg-purple-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}>
-                      {isComparisonMode ? <Layers size={16}/> : <LayersClear size={16}/>}
+                  <button onClick={() => setIsComparisonMode(!isComparisonMode)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-all ${isComparisonMode ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
+                      {isComparisonMode ? <EyeOff size={16}/> : <Eye size={16}/>}
                       <span className="hidden sm:inline">{isComparisonMode ? "Kıyaslamayı Kapat" : "Geçen Yılı Ekle"}</span>
                   </button>
                   <button onClick={generatePDF} disabled={isGeneratingPdf} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50">
@@ -160,12 +173,15 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
           </div>
 
           <div className="px-4 pb-3 flex flex-wrap gap-2 items-center">
-              <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 px-3 rounded-lg border-none outline-none">
-                  {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-3">
+                  <Calendar size={14} className="text-slate-500 dark:text-slate-400 mr-2" />
+                  <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-transparent text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 border-none outline-none focus:ring-0">
+                      {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                  </select>
+              </div>
 
               <div className="relative">
-                  <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="appearance-none bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold text-sm py-1.5 pl-3 pr-8 rounded-lg border border-blue-200 dark:border-blue-800 outline-none">
+                  <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="appearance-none bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold text-sm py-1.5 pl-3 pr-8 rounded-lg border border-blue-200 dark:border-blue-800 outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
                       {sortedUnits.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
                   <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-600 pointer-events-none" />
