@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo } from "react";
 import { ArrowLeft, FileDown, TrendingUp, BarChart2, Loader2, Calendar, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
@@ -32,6 +32,16 @@ const parseMetric = (val) => {
   const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
   const num = parseFloat(cleanStr);
   return isNaN(num) ? null : num;
+};
+
+const formatDisplayMetric = (val, isPercent = true) => {
+  if (val === undefined || val === null || val === "") return "-";
+  let strVal = String(val).replace(/%/g, '').replace(/,/g, '.').trim();
+  let num = parseFloat(strVal);
+  if (!isNaN(num)) {
+    return num.toLocaleString('tr-TR', { minimumFractionDigits: isPercent ? 2 : 0, maximumFractionDigits: isPercent ? 2 : 0 });
+  }
+  return val;
 };
 
 const CustomTooltip = ({ active, payload, label, isPercent, selectedYear, isComparisonMode }) => {
@@ -92,8 +102,17 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
 
   const generatePDF = async () => {
     setIsGeneratingPdf(true);
+    const desktopWrapper = document.getElementById('desktop-wrapper');
+    
     try {
         window.scrollTo(0, 0); 
+        
+        // Mobilden PDF alınıyorsa masaüstü kapsayıcısını geçici olarak görünür yap
+        if (desktopWrapper) {
+            desktopWrapper.classList.remove('hidden', 'md:block');
+            desktopWrapper.classList.add('block');
+        }
+
         const pdf = new jsPDF('landscape', 'mm', 'a4');
         
         try {
@@ -122,8 +141,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
             element.style.padding = '25px';
             element.style.background = '#f8fafc';
             
-            // Animasyonların durması ve noktaların çizilmesi için kısa bekleme
-            await new Promise(r => setTimeout(r, 400));
+            await new Promise(r => setTimeout(r, 300));
 
             const canvas = await html2canvas(element, { 
                 scale: 2, 
@@ -183,6 +201,11 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
         console.error(error); 
         alert("PDF oluşturulamadı.");
     } finally { 
+        // Mobildeki gizleme sınıflarını geri getir
+        if (desktopWrapper) {
+            desktopWrapper.classList.remove('block');
+            desktopWrapper.classList.add('hidden', 'md:block');
+        }
         setIsGeneratingPdf(false); 
     }
   };
@@ -205,8 +228,8 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               <div className="min-w-0 flex-1">
                  <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base leading-tight whitespace-normal break-words">{metric.label}</h3>
                  <div className="flex gap-3 mt-2">
-                     <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-bold"><div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
-                     {isComparisonMode && <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold"><div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
+                     <div className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300 font-bold"><div className="w-2 h-2 rounded-full" style={{backgroundColor: metric.color}}></div> {selectedYear}</div>
+                     {isComparisonMode && <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold"><div className="w-2 h-2 rounded-full border-2 border-slate-400 border-dashed bg-transparent"></div> {selectedYear - 1}</div>}
                  </div>
               </div>
               <div className="bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold text-white shadow-md border border-white/10 shrink-0 text-center">
@@ -214,22 +237,18 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               </div>
           </div>
           
-          <div className="flex-1 w-full mt-auto min-h-[180px]">
+          {/* GÜNCELLENDİ: Mobilde 0 piksele çökmemesi için yükseklik 'h-[200px]' olarak sabitlendi */}
+          <div className="w-full mt-auto h-[200px] sm:h-[180px]">
               {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                   <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={trendData[metric.key]} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                      <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
                           <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dy={10} />
                           <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
                           <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
-                          
                           {metric.target !== null && <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />}
-                          
-                          {/* GÜNCELLENDİ: Rakam listesi tamamen kaldırıldı, sadece noktalar bırakıldı */}
-                          {isComparisonMode && (
-                            <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} isAnimationActive={!isGeneratingPdf} />
-                          )}
-                          <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={3} dot={{ r: 4.5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} isAnimationActive={!isGeneratingPdf} />
+                          {isComparisonMode && <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} animationDuration={1000} />}
+                          <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} animationDuration={1000} />
                       </LineChart>
                   </ResponsiveContainer>
               ) : (
@@ -282,10 +301,14 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
           </div>
       </div>
       <div className="p-4 sm:p-6 max-w-[1800px] mx-auto w-full">
+          
+          {/* MOBİL GÖRÜNÜM (Alt alta 16 grafik) */}
           <div className="flex flex-col gap-4 md:hidden">
               {METRICS.map(renderCard)}
           </div>
-          <div className="hidden md:block">
+          
+          {/* MASAÜSTÜ GÖRÜNÜM VE MOBİL PDF MOTORU */}
+          <div id="desktop-wrapper" className="hidden md:block">
               <div id="pdf-page-1" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-4 sm:mb-6">
                   {METRICS.slice(0, 8).map(renderCard)}
               </div>
@@ -293,6 +316,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   {METRICS.slice(8, 16).map(renderCard)}
               </div>
           </div>
+
       </div>
     </div>
   );
