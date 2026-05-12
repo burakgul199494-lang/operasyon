@@ -1110,21 +1110,21 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-4">
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Teslim" : "Teslim"}</p>
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Teslim Per. Oranı" : "Teslim Per. Oranı"}</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.teslimPerformansi, true)}%</h2>
                   <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: %{TARGETS.teslimPerformansi}</span></div>
                 </div>
               </div>
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isAdresAlimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Adres" : "Adres"}</p>
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Adres Alım Oranı" : "Adres Alım Oranı"}</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.adresAlimOrani, true)}%</h2>
                   <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: %{TARGETS.adresAlimOrani}</span></div>
                 </div>
               </div>
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isMusteriSikayetBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
-                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Şikayet" : "Şikayet"}</p>
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Şikayet Sayısı" : "Şikayet Sayısı"}</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.musteriSikayet, false)}</h2>
                   <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.musteriSikayet}</span></div>
                 </div>
