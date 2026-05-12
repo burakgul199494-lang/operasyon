@@ -1,4 +1,5 @@
-import FinalRankingPage from "./pages/FinalRankingPage"; // Yeni sayfamızın importu
+import TrendAnalysisPage from "./pages/TrendAnalysisPage"; // YENİ EKLENDİ
+import FinalRankingPage from "./pages/FinalRankingPage";
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
@@ -16,7 +17,6 @@ import PersonnelDefensePage from "./pages/PersonnelDefensePage";
 import PersonnelQuantitiesPage from "./pages/PersonnelQuantitiesPage";
 import UserProfileModal from "./components/UserProfileModal";
 import { Lock } from "lucide-react";
-
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -109,11 +109,11 @@ export default function App() {
     if (window.confirm("Çıkış?")) { await signOut(auth); navigate("/"); }
   };
 
-  // GÜNCELLENDİ: Sıralama sayfasına giden komut buraya eklendi
   const handleNavigateFromMenu = (target) => {
     if (target === "admin") setShowLoginModal(true);
     else if (target === "dashboard") navigate("/dashboard");
     else if (target === "ranking") navigate("/ranking"); 
+    else if (target === "trends") navigate("/trends"); // YENİ EKLENDİ
     else if (target === "notes") navigate("/notes");
     else if (target === "fleet") navigate("/fleet"); 
     else if (target === "personnelDefense") navigate("/personnel-defense"); 
@@ -163,9 +163,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingMenu user={user} onNavigate={handleNavigateFromMenu} onLogout={handleAppLogout} onProfile={() => setProfileOpen(true)} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />} />
         <Route path="/dashboard" element={<Dashboard onUnitClick={(unit) => navigate(`/detail/${unit}`)} onNavigateMenu={() => navigate("/")} />} />
-        
         <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
         <Route path="/ranking" element={<FinalRankingPage allData={allData} onBack={() => navigate("/")} />} />
+        
+        {/* YENİ ROTA EKLENDİ */}
+        <Route path="/trends" element={<TrendAnalysisPage allData={allData} onBack={() => navigate("/")} />} />
+
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
         <Route path="/fleet" element={<FleetPage fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/")} />} />
         <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
