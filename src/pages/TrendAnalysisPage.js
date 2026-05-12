@@ -118,7 +118,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   const [isComparisonMode, setIsComparisonMode] = useState(true); 
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
-  // YENİ: Genişletilmiş Ekran (Modal) Durumu
   const [expandedMetric, setExpandedMetric] = useState(null);
 
   const trendData = useMemo(() => {
@@ -258,17 +257,14 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
   }, []);
 
   const renderCard = (metric) => {
-      const trendStatus = getTrendStatus(trendData[metric.key], metric.key);
-
       return (
           <div 
               key={metric.key} 
-              onClick={() => setExpandedMetric(metric)} // Tıklanınca modülü aç
+              onClick={() => setExpandedMetric(metric)}
               className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl flex flex-col h-full cursor-pointer group"
           >
               <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: metric.color }}></div>
               
-              {/* Şık Büyütme İkonu (Hover olunca görünür) */}
               <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-100 dark:bg-slate-700 p-1.5 rounded-md text-slate-500 dark:text-slate-300">
                  <Maximize2 size={14} />
               </div>
@@ -286,7 +282,8 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                   </div>
               </div>
               
-              <div className="flex-1 w-full mt-auto h-[180px] sm:h-[200px] shrink-0">
+              {/* ESKİ GENİŞ YÜKSEKLİKLER GERİ GELDİ */}
+              <div className="flex-1 w-full mt-auto h-[200px] sm:h-[220px]">
                   {trendData[metric.key] && hasAnyData(trendData[metric.key]) ? (
                       <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={trendData[metric.key]} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
@@ -295,8 +292,28 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                               <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} domain={['auto', 'auto']} />
                               <Tooltip content={<CustomTooltip isPercent={metric.isPercent} selectedYear={selectedYear} isComparisonMode={isComparisonMode} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5 5' }} />
                               {metric.target !== null && <ReferenceLine y={metric.target} stroke={metric.color} strokeDasharray="3 3" strokeOpacity={0.2} />}
-                              {isComparisonMode && <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} isAnimationActive={!isGeneratingPdf} />}
-                              <Line type="monotone" dataKey="current" stroke={metric.color} strokeWidth={3} dot={{ r: 4.5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} isAnimationActive={!isGeneratingPdf} />
+                              
+                              {isComparisonMode && (
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="previous" 
+                                  stroke="#94a3b8" 
+                                  strokeWidth={2} 
+                                  strokeDasharray="4 4" 
+                                  dot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#94a3b8' }} 
+                                  activeDot={{ r: 5, strokeWidth: 0, fill: '#94a3b8' }} 
+                                  isAnimationActive={!isGeneratingPdf} 
+                                />
+                              )}
+                              <Line 
+                                type="monotone" 
+                                dataKey="current" 
+                                stroke={metric.color} 
+                                strokeWidth={3} 
+                                dot={{ r: 4.5, strokeWidth: 2, fill: '#fff', stroke: metric.color }} 
+                                activeDot={{ r: 6, strokeWidth: 0, fill: metric.color }} 
+                                isAnimationActive={!isGeneratingPdf} 
+                              />
                           </LineChart>
                       </ResponsiveContainer>
                   ) : (
@@ -306,18 +323,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                       </div>
                   )}
               </div>
-
-              {trendStatus && (
-                 <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between shrink-0">
-                    <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">Yıl İçi Eğilim:</span>
-                    <span className={`text-[10px] sm:text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1 rounded-md ${trendStatus.bg} ${trendStatus.color}`}>
-                       {trendStatus.icon === 'up' && <TrendingUp size={14} />}
-                       {trendStatus.icon === 'down' && <TrendingDown size={14} />}
-                       {trendStatus.icon === 'stable' && <Minus size={14} />}
-                       {trendStatus.text}
-                    </span>
-                 </div>
-              )}
           </div>
       );
   };
@@ -376,12 +381,11 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
           </div>
       </div>
 
-      {/* YENİ: GENİŞLETİLMİŞ GRAFİK EKRANI (MODAL) */}
+      {/* DEV EKRAN (MODAL) */}
       {expandedMetric && (
           <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[70] p-4 sm:p-8 backdrop-blur-sm" onClick={() => setExpandedMetric(null)}>
               <div className="bg-white dark:bg-slate-900 w-full max-w-6xl rounded-3xl shadow-2xl flex flex-col relative animate-in zoom-in duration-200 overflow-hidden border border-slate-200 dark:border-slate-700" onClick={(e) => e.stopPropagation()}>
                  
-                 {/* Modal Üst Başlık */}
                  <div className="p-5 sm:p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start gap-4 bg-slate-50/50 dark:bg-slate-800/50">
                     <div>
                        <h2 className="text-xl sm:text-3xl font-black text-slate-800 dark:text-white flex items-center gap-3">
@@ -409,7 +413,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                     </div>
                  </div>
 
-                 {/* Modal Dev Grafik */}
                  <div className="p-5 sm:p-8 h-[400px] sm:h-[600px] w-full">
                      {trendData[expandedMetric.key] && hasAnyData(trendData[expandedMetric.key]) ? (
                         <ResponsiveContainer width="100%" height="100%">
@@ -434,7 +437,6 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
                      )}
                  </div>
 
-                 {/* Modal Alt Bilgi (Yapay Zeka Yorumu) */}
                  {getTrendStatus(trendData[expandedMetric.key], expandedMetric.key) && (
                     <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center">
                        <div className={`flex items-center gap-3 px-5 py-2.5 rounded-xl font-bold text-sm sm:text-base ${getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).bg} ${getTrendStatus(trendData[expandedMetric.key], expandedMetric.key).color}`}>
