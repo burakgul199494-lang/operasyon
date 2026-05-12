@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, ShieldCheck, Truck, FileText, Settings, LogOut, Moon, Sun, User, BarChart2, Trophy } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Truck, FileText, Settings, LogOut, Moon, Sun, User, BarChart2, Trophy, TrendingUp } from "lucide-react";
 
 const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggleDarkMode }) => {
   
@@ -15,10 +15,19 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
     {
       id: "ranking",
       title: "Nihai Başarı Sıralaması",
-      desc: "11 Metrik üzerinden tüm birimlerin karşılaştırmalı puan tablosunu ve sıralamasını inceleyin.",
+      desc: "Tüm birimlerin karşılaştırmalı puan tablosunu ve sıralamasını inceleyin.",
       icon: Trophy,
       color: "text-amber-600 dark:text-amber-400",
       route: "ranking"
+    },
+    // YENİ EKLENEN GRAFİK BUTONU
+    {
+      id: "trends",
+      title: "Trend Analizi (Grafikler)",
+      desc: "Bölgenin ve birimlerin yıl içindeki performans gelişimlerini grafiklerle takip edin.",
+      icon: TrendingUp,
+      color: "text-sky-600 dark:text-sky-400",
+      route: "trends"
     },
     {
       id: "personnelDefense",
@@ -62,7 +71,6 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
     }
   ];
 
-  // GÜVENLİK FİLTRESİ: Admin panelini sadece belirtilen e-posta adresine gösterir
   const filteredMenuItems = MENU_ITEMS.filter(item => {
     if (item.id === "admin" && user?.email !== "burak.gul@yurticikargo.com") {
       return false;
@@ -72,9 +80,8 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300 flex items-center justify-center p-4 sm:p-6">
-      <div className="max-w-5xl w-full">
+      <div className="max-w-6xl w-full">
         
-        {/* EN SADE VE TEMİZ ÜST HEADER */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xl uppercase border border-blue-100 dark:border-slate-600 shadow-sm">
@@ -98,8 +105,7 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
           </div>
         </div>
 
-        {/* İLK SİSTEMDEKİ SADE KART LİSTESİ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {filteredMenuItems.map((item) => (
             <button 
               key={item.id} 
