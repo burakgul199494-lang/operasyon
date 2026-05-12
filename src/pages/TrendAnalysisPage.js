@@ -89,23 +89,40 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
     return dataByMetric;
   }, [allData, selectedYear, selectedUnit, isComparisonMode]);
 
+  // GÜNCELLENDİ: Akıllı Ölçeklendirmeli (Smart Scaling) Kusursuz PDF Motoru
   const generatePDF = async () => {
     setIsGeneratingPdf(true);
     try {
         const element = pdfContainerRef.current;
         if (!element) return;
+
+        // Görünüm kaymalarını önlemek için sayfayı en üste sabitle
+        window.scrollTo(0, 0);
         
+        // Orijinal stilleri koru
+        const originalWidth = element.style.width;
+        const originalPadding = element.style.padding;
+        const originalBackground = element.style.background;
+
+        // PDF kalitesi için container'ı geçici olarak optimize et
         element.classList.remove('hidden');
         element.classList.add('grid');
         element.style.width = '1600px'; 
         element.style.padding = '20px';
         element.style.background = '#f8fafc';
         
-        const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
+        // Canvas oluştur (yüksek çözünürlük)
+        const canvas = await html2canvas(element, { 
+            scale: 2, 
+            useCORS: true, 
+            logging: false,
+            windowWidth: 1600 // HTML2Canvas'ın ekranı dar görmesini engelle
+        });
         
-        element.style.width = ''; 
-        element.style.padding = ''; 
-        element.style.background = '';
+        // Stilleri geri yükle
+        element.style.width = originalWidth; 
+        element.style.padding = originalPadding; 
+        element.style.background = originalBackground;
         if (window.innerWidth < 768) { 
             element.classList.add('hidden'); 
             element.classList.remove('grid'); 
@@ -113,9 +130,34 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
         
         const imgData = canvas.toDataURL('image/jpeg', 1.0);
         const pdf = new jsPDF('landscape', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
         
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        
+        // Kenar boşlukları ve başlık alanı
+        const marginX = 10;
+        const marginTop = 25;
+        const marginBottom = 10;
+        
+        // Resmin sığabileceği MAKSİMUM alan
+        const maxImgWidth = pageWidth - (marginX * 2);
+        const maxImgHeight = pageHeight - marginTop - marginBottom;
+        
+        const canvasRatio = canvas.width / canvas.height;
+        
+        let finalImgWidth = maxImgWidth;
+        let finalImgHeight = maxImgWidth / canvasRatio;
+        
+        // AKILLI ÖLÇEKLENDİRME: Eğer hesaplanan yükseklik sayfaya sığmıyorsa, yüksekliğe göre küçült
+        if (finalImgHeight > maxImgHeight) {
+            finalImgHeight = maxImgHeight;
+            finalImgWidth = maxImgHeight * canvasRatio;
+        }
+        
+        // Sayfayı yatayda tam ortalamak için X eksenini kaydır
+        const xOffset = marginX + (maxImgWidth - finalImgWidth) / 2;
+        
+        // Başlıklar
         pdf.setFontSize(16);
         pdf.setTextColor(30, 58, 138); 
         pdf.text(`TREND ANALİZ RAPORU: ${selectedUnit} (${isComparisonMode ? 'Kıyaslamalı' : 'Tek Yıl'})`, 14, 15);
@@ -123,8 +165,10 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
         pdf.setTextColor(100);
         pdf.text(`Dönem: ${selectedYear} ${isComparisonMode ? '& ' + (selectedYear-1) : ''} | Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 21);
         
-        pdf.addImage(imgData, 'JPEG', 5, 25, pdfWidth - 10, pdfHeight - 10);
+        // Resmi ölçeklendirilmiş boyutlarıyla bas
+        pdf.addImage(imgData, 'JPEG', xOffset, marginTop, finalImgWidth, finalImgHeight);
         pdf.save(`${selectedUnit}_Trend_${selectedYear}.pdf`);
+        
     } catch (error) { 
         console.error(error); 
         alert("PDF oluşturulurken bir hata oluştu.");
