@@ -578,7 +578,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       doc.text(splitText, 14, finalY);
       finalY += splitText.length * 5 + 10;
       doc.setFontSize(11);
-      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
+      doc.text("Açıklama / Görüş İçeriği:", 14, finalY);
       doc.setDrawColor(200);
       for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
       finalY += 75;
@@ -854,7 +854,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       const s = parseMetric(person.smsOrani);
       doc.setFontSize(18);
       doc.setTextColor(220, 38, 38);
-      doc.text("PERSONEL PERFORMANS SAVUNMA FORMU", 14, 22);
+      doc.text("PERSONEL PERFORMANS GÖRÜŞ YAZISI FORMU", 14, 22);
       doc.setFontSize(10);
       doc.setTextColor(100);
       doc.text(`Personel: ${person.name}`, 14, 30);
@@ -895,7 +895,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       doc.text(splitText, 14, finalY);
       finalY += splitText.length * 5 + 10;
       doc.setFontSize(11);
-      doc.text("Açıklama / Savunma İçeriği:", 14, finalY);
+      doc.text("Açıklama / Görüş İçeriği:", 14, finalY);
       doc.setDrawColor(200);
       for(let i=1; i<=7; i++) { doc.line(14, finalY + (i*8), 196, finalY + (i*8)); }
       finalY += 75;
