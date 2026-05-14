@@ -1338,7 +1338,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
               
               <button onClick={() => generatePDF('defense')} disabled={isGeneratingPdf} className="w-full flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 transition-colors text-left disabled:opacity-50">
                  <div className="w-10 h-10 rounded-full bg-rose-200 dark:bg-rose-800/50 flex items-center justify-center text-rose-700 dark:text-rose-400 shrink-0">{isGeneratingPdf ? <Loader2 size={20} className="animate-spin" /> : <ShieldCheck size={20} />}</div>
-                 <div><h4 className="font-bold text-rose-800 dark:text-rose-400">Görüş Formu</h4><p className="text-[10px] sm:text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">Hedef altı kalan metrikler tabloda işaretlenir.</p></div>
+                 <div><h4 className="font-bold text-rose-800 dark:text-rose-400">Savunma Formu</h4><p className="text-[10px] sm:text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">Hedef altı kalan metrikler tabloda işaretlenir.</p></div>
               </button>
 
               <button onClick={generateFleetPDF} disabled={isGeneratingPdf || unitFleet.length === 0} className="w-full flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-cyan-100 bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-900/20 dark:border-cyan-800/50 transition-colors text-left disabled:opacity-50">
