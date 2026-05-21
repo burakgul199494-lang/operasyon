@@ -4,7 +4,7 @@ import { UNITS, METRIC_TYPES, MONTH_NAMES } from "../utils/helpers";
 import { doc, writeBatch, collection, getDocs } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
 
-const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], quantitiesData = [], onSaveBatch, onSaveQuantities, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
+const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], quantitiesData = [], fleetDailyKms = [], onSaveBatch, onSaveQuantities, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
   const [activeTab, setActiveTab] = useState("performance"); 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); 
@@ -20,8 +20,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
 
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
-  
-  // Canlı yenileme tetikleyicisi
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const MONTH_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -80,6 +78,32 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     setSelectedYear(nextYear);
   };
 
+  // STANDART EKRAN TEMİZLEME FONKSİYONU
+  const handleClearGrid = () => {
+    if(!window.confirm("Ekrandaki hücreler temizlenecek (Kaydet butonuna basana kadar veritabanından silinmez). Onaylıyor musunuz?")) return;
+    
+    if (activeTab === "performance") {
+        const ng = {};
+        UNITS.forEach(u => { ng[u] = {}; MONTH_INDICES.forEach(m => ng[u][m] = "") });
+        setGridData(ng);
+    } else if (activeTab === "personnel") {
+        setPersonnelGrid(Array(50).fill({ unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" }));
+    } else if (activeTab === "quantities") {
+        setQuantitiesGrid(Array(100).fill({ tarih: "", name: "", type: "", birim: "", count: "" }));
+    } else if (activeTab === "fleetCounts") {
+        const ng = {};
+        UNITS.forEach(u => { ng[u] = { ozmal: "", ozMasHar: "", kiralik: "", destek: "", motor: "", parcaBasi: "" } });
+        setFleetCountsGrid(ng);
+    } else if (activeTab === "fleetMonthly") {
+        setFleetMonthlyGrid(Array(50).fill({ unit: "", plate: "", owner: "", status: "", type: "", brand: "", model: "", year: "", volume: "" }));
+    } else if (activeTab === "kms") {
+        setKmsGrid(Array(50).fill({ unit: "", plate: "", tarih: "", km: "" }));
+    } else if (activeTab === "nihaiTeslim") {
+        setNihaiTeslimGrid(Array(50).fill({ unit: "", score: "" }));
+    }
+    setPendingChanges(true);
+  };
+
   useEffect(() => {
     if (activeTab !== "performance") return;
     const newGrid = {};
@@ -119,10 +143,8 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     setPendingChanges(false);
   }, [allData, activeTab, selectedYear, selectedMonth]);
 
-  // ÇÖZÜM: Veritabanına canlı bağlanıp seçili ayın günlük KM verilerini doğrudan çeken yapı eklendi
   useEffect(() => {
     if (activeTab !== "kms") return;
-    
     const fetchLiveDailyKms = async () => {
         try {
             const snapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "fleet_daily_kms"));
@@ -135,9 +157,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                     });
                 }
             });
-            
             loadedData.sort((a, b) => a.unit.localeCompare(b.unit) || a.tarih.localeCompare(b.tarih));
-            
             const emptyRow = { unit: "", plate: "", tarih: "", km: "" };
             const fillCount = 100 - loadedData.length;
             if(fillCount > 0) { loadedData = [...loadedData, ...Array(fillCount).fill({ ...emptyRow })]; }
@@ -145,11 +165,8 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             
             setKmsGrid(loadedData);
             setPendingChanges(false);
-        } catch (e) {
-            console.error("KM verileri çekilemedi:", e);
-        }
+        } catch (e) { console.error("KM verileri çekilemedi:", e); }
     };
-    
     fetchLiveDailyKms();
   }, [activeTab, selectedYear, selectedMonth, refreshTrigger]);
 
@@ -176,11 +193,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     let loadedData = [];
     fleetMonthly.forEach(doc => {
         if (doc.year === parseInt(selectedYear) && doc.month === parseInt(selectedMonth)) {
-            if (doc.records) {
-                doc.records.forEach(v => {
-                    loadedData.push({ unit: doc.unit, ...v });
-                });
-            }
+            if (doc.records) { doc.records.forEach(v => { loadedData.push({ unit: doc.unit, ...v }); }); }
         }
     });
     loadedData.sort((a,b) => a.unit.localeCompare(b.unit));
@@ -216,9 +229,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
         quantitiesData.forEach(doc => {
             if (doc.year === parseInt(selectedYear) && doc.month === parseInt(selectedMonth) && doc.records) {
                 doc.records.forEach(r => {
-                   loadedQuantities.push({
-                       tarih: r.date || "", name: r.name || "", type: r.type || "", birim: doc.unit || "", count: r.count !== undefined && r.count !== null ? String(r.count) : ""
-                   });
+                   loadedQuantities.push({ tarih: r.date || "", name: r.name || "", type: r.type || "", birim: doc.unit || "", count: r.count !== undefined && r.count !== null ? String(r.count) : "" });
                 });
             }
         });
@@ -446,33 +457,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     }
   };
 
-  const handleSafeDeleteMonthlyFleet = async () => {
-    if (!window.confirm(`DİKKAT: ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemine ait Araç Listesi (Excel) veritabanından SİLİNECEKTİR. Onaylıyor musunuz?`)) return;
-    try {
-        const batch = writeBatch(db);
-        UNITS.forEach(unit => {
-            batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_monthly", `${unit}-${selectedYear}-${selectedMonth}`));
-        });
-        await batch.commit();
-        setFleetMonthlyGrid(Array(50).fill({ unit: "", plate: "", owner: "", status: "", type: "", brand: "", model: "", year: "", volume: "" }));
-        alert("Seçili ayın Araç Listesi silindi.");
-    } catch (e) { alert("Hata oluştu."); }
-  };
-
-  const handleSafeDeleteKms = async () => {
-    if (!window.confirm(`DİKKAT: ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemine ait Günlük KM verileri veritabanından SİLİNECEKTİR. Onaylıyor musunuz?`)) return;
-    try {
-        const batch = writeBatch(db);
-        UNITS.forEach(unit => {
-            batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_daily_kms", `${unit}-${selectedYear}-${selectedMonth}`));
-        });
-        await batch.commit();
-        setKmsGrid(Array(50).fill({ unit: "", plate: "", tarih: "", km: "" }));
-        setRefreshTrigger(prev => prev + 1); // Canlı yenileme
-        alert("Seçili ayın KM verileri silindi.");
-    } catch (e) { alert("Hata oluştu."); }
-  };
-
+  // STANDART KAYDETME MOTORU (Eğer tablo tamamen boşaltılıp kaydet denilirse o dönemi SİLER)
   const handleSave = async () => {
     if (activeTab === "performance") {
         let recordsToUpdate = [];
@@ -525,7 +510,15 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
 
     } else if (activeTab === "fleetMonthly") { 
         const validRows = fleetMonthlyGrid.filter(row => row.plate && row.plate.trim() !== "" && row.unit);
-        if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok.");
+        if(validRows.length === 0) {
+            if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemine ait Araç Listesi tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
+            try {
+                const batch = writeBatch(db);
+                UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_monthly", `${unit}-${selectedYear}-${selectedMonth}`)); });
+                await batch.commit(); setPendingChanges(false); alert("Araç Listesi tamamen silindi."); return;
+            } catch(e) { return alert("Hata: " + e.message); }
+        }
+        
         const grouped = {};
         validRows.forEach(r => {
             const unit = r.unit.trim().toUpperCase();
@@ -548,7 +541,19 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
          
     } else if (activeTab === "nihaiTeslim") {
         const validRows = nihaiTeslimGrid.filter(r => r.unit && r.score !== "");
-        if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok.");
+        if(validRows.length === 0) {
+            const recordsToUpdate = [];
+            UNITS.forEach(unit => {
+                const origRec = allData.find((d) => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+                if (origRec && origRec.nihaiTeslim !== undefined && origRec.nihaiTeslim !== null) {
+                    recordsToUpdate.push({ id: `${unit}-${selectedYear}-${selectedMonth}`, unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), nihaiTeslim: null });
+                }
+            });
+            if(recordsToUpdate.length === 0) return alert("Değişiklik yok.");
+            if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} Nihai Teslim Performansları tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
+            try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert("Nihai Teslim verileri tamamen silindi."); return; } catch(e) { return alert("Hata oluştu."); }
+        }
+
         const recordsToUpdate = [];
         validRows.forEach(r => {
             const unit = r.unit.trim().toUpperCase();
@@ -558,11 +563,23 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                 recordsToUpdate.push({ id: `${unit}-${selectedYear}-${selectedMonth}`, unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), nihaiTeslim: Number(val.toFixed(2)) });
             }
         });
-        if (recordsToUpdate.length === 0) return alert("Geçerli veri bulunamadı.");
         try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} için Nihai Teslim Performansları güncellendi.`); } catch(e) { alert("Hata oluştu."); }
 
     } else if (activeTab === "personnel") {
         const validRows = personnelGrid.filter(r => r.unit && r.unit.trim() !== "" && r.name && r.name.trim() !== "");
+        if(validRows.length === 0) {
+            const recordsToUpdate = [];
+            UNITS.forEach(unit => {
+                const existingRecord = allData.find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+                if (existingRecord && existingRecord.personnel && existingRecord.personnel.length > 0) {
+                    recordsToUpdate.push({ id: `${unit}-${selectedYear}-${selectedMonth}`, unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), personnel: [] });
+                }
+            });
+            if(recordsToUpdate.length === 0) return alert("Değişiklik yok.");
+            if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} Personel Performansları tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
+            try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert("Personel verileri tamamen silindi."); return; } catch(e) { return alert("Hata oluştu."); }
+        }
+
         const groupedByUnit = {};
         validRows.forEach(r => {
             const unitName = r.unit.trim().toUpperCase(); 
@@ -584,12 +601,19 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                 recordsToUpdate.push({ id: recordId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), personnel: personnelList });
             }
         });
-        if (recordsToUpdate.length === 0) return alert("Kaydedilecek geçerli personel verisi bulunamadı.");
         try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert(`Personel verileri başarıyla kaydedildi!`); } catch(e) { alert("Hata oluştu."); }
 
     } else if (activeTab === "kms") { 
         const validRows = kmsGrid.filter(r => r.unit && r.plate && r.tarih && r.km !== "");
-        if(validRows.length === 0) return alert("Kaydedilecek geçerli veri yok.");
+        if(validRows.length === 0) {
+            if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} Günlük KM verileri tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
+            try {
+                const batch = writeBatch(db);
+                UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_daily_kms", `${unit}-${selectedYear}-${selectedMonth}`)); });
+                await batch.commit(); setPendingChanges(false); setRefreshTrigger(prev => prev + 1); alert("Günlük KM verileri tamamen silindi."); return;
+            } catch(e) { return alert("Hata: " + e.message); }
+        }
+
         const grouped = {};
         validRows.forEach(r => {
             const parts = String(r.tarih).split(/[./-]/);
@@ -608,14 +632,26 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                 const ref = doc(db, "artifacts", appId, "public", "data", "fleet_daily_kms", docId);
                 batch.set(ref, { unit: grouped[docId].unit, year: grouped[docId].year, month: grouped[docId].month, records: grouped[docId].records }, { merge: true });
             });
-            await batch.commit(); 
-            setPendingChanges(false); 
-            setRefreshTrigger(prev => prev + 1); // ÇÖZÜM: Canlı Yenileme!
-            alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} için Günlük KM verileri güncellendi.`);
+            await batch.commit(); setPendingChanges(false); setRefreshTrigger(prev => prev + 1); alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} için Günlük KM verileri güncellendi.`);
         } catch(e) { alert("Hata: " + e.message); }
     
     } else if (activeTab === "quantities") {
         const validRows = quantitiesGrid.filter(r => r.tarih && r.birim && r.name && r.count !== "");
+        if(validRows.length === 0) {
+            const recordsToUpdate = [];
+            const existingDocsForMonth = quantitiesData.filter(d => d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+            UNITS.forEach(unit => {
+                const docId = `${unit}-${selectedYear}-${selectedMonth}`;
+                const existingDoc = existingDocsForMonth.find(d => d.unit === unit);
+                if (existingDoc && existingDoc.records && existingDoc.records.length > 0) {
+                    recordsToUpdate.push({ id: docId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), records: [] });
+                }
+            });
+            if(recordsToUpdate.length === 0) return alert("Değişiklik yok.");
+            if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} Personel Adet verileri tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
+            try { await onSaveQuantities(recordsToUpdate); setPendingChanges(false); alert("Personel Adet verileri tamamen silindi."); return; } catch(e) { return alert("Hata: " + e.message); }
+        }
+
         const grouped = {};
         validRows.forEach(r => {
             const parts = r.tarih.split(/[./-]/);
@@ -637,7 +673,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                 recordsToUpdate.push({ id: docId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), records: newRecords });
             }
         });
-        if (recordsToUpdate.length === 0) return alert("Kaydedilecek geçerli veri yok veya silinecek bir değişiklik yapılmadı.");
         try { await onSaveQuantities(recordsToUpdate); setPendingChanges(false); alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} için Personel Adetleri güncellendi.`); } catch(e) { alert("Hata: " + e.message); }
     }
   };
@@ -672,7 +707,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             <>
                 <div className="p-3 flex gap-3 items-center justify-between border-b border-slate-200 bg-white">
                     <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-300 shadow-sm"><span className="text-xs font-bold text-slate-500 uppercase">Yıl:</span><select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent font-bold text-slate-800 outline-none">{availableYears.map((y) => <option key={y} value={y}>{y}</option>)}</select><button onClick={handleAddYear} className="ml-2 bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 transition-colors"><Plus size={12} /> Ekle</button></div>
-                    <button onClick={() => { if(window.confirm("Ekrandaki hücreleri boşaltmak istiyor musunuz? (Veritabanı silinmez, sadece UI temizlenir)")) { const ng={}; UNITS.forEach(u=>{ng[u]={};MONTH_INDICES.forEach(m=>ng[u][m]="")}); setGridData(ng); setPendingChanges(true); } }} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Temizle</button>
+                    <button onClick={handleClearGrid} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold hover:bg-orange-50 transition-colors"><RotateCcw size={14} /> Ekranı Temizle</button>
                 </div>
                 <div className="px-2 py-2 flex gap-2 overflow-x-auto no-scrollbar bg-slate-50 border-b border-slate-200">
                     {EXTENDED_METRICS.map((metric) => (<button key={metric.id} onClick={() => setSelectedMetric(metric.id)} className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${selectedMetric === metric.id ? "bg-slate-800 text-white shadow-md transform scale-105" : "bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"}`}><Layers size={14} /> {metric.label}</button>))}
@@ -699,22 +734,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                 {activeTab === "kms" && <span className="text-xs text-red-800 font-medium">(Birim Adı | Plaka | Tarih | KM)</span>}
 
                 <div className="ml-auto flex gap-2">
-                    {activeTab === "kms" && (
-                        <button onClick={handleSafeDeleteKms} className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded border border-red-200 text-xs font-bold hover:bg-red-200"><AlertTriangle size={14} /> Seçili Ayı Sil</button>
-                    )}
-                    {activeTab === "fleetMonthly" && (
-                        <button onClick={handleSafeDeleteMonthlyFleet} className="flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded border border-emerald-200 text-xs font-bold hover:bg-emerald-200"><AlertTriangle size={14} /> Seçili Ayı Sil</button>
-                    )}
-                    <button onClick={() => { 
-                        if(window.confirm("Ekrandaki hücreler temizlenecek (Veritabanı silinmez). Onaylıyor musunuz?")) { 
-                            if(activeTab === "personnel") setPersonnelGrid(Array(50).fill({ unit: "", name: "", rotaOrani: "", tvsOrani: "", checkInOrani: "", smsOrani: "" }));
-                            if(activeTab === "quantities") setQuantitiesGrid(Array(100).fill({ tarih: "", name: "", type: "", birim: "", count: "" }));
-                            if(activeTab === "fleetMonthly") setFleetMonthlyGrid(Array(50).fill({ unit: "", plate: "", owner: "", status: "", type: "", brand: "", model: "", year: "", volume: "" }));
-                            if(activeTab === "kms") setKmsGrid(Array(50).fill({ unit: "", plate: "", tarih: "", km: "" }));
-                            if(activeTab === "nihaiTeslim") setNihaiTeslimGrid(Array(50).fill({ unit: "", score: "" }));
-                            setPendingChanges(true); 
-                        } 
-                    }} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold"><RotateCcw size={14} /> Ekranı Temizle</button>
+                    <button onClick={handleClearGrid} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold hover:bg-orange-50 transition-colors"><RotateCcw size={14} /> Ekranı Temizle</button>
                 </div>
             </div>
         )}
