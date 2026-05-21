@@ -5,9 +5,27 @@ import { UNITS, MONTH_NAMES } from "../utils/helpers";
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-// FİLTRELEME KURALLARI
-const ALLOWED_STATUSES = ["acente kiralık", "acente özmal", "acente özmal (masraf dışı)", "acente özmal(masraf dışı)", "şirket özmal", "şube kiralık"];
-const ALLOWED_TYPES = ["kamyon", "kamyonet"];
+// Türkçe karakter ve yazım hatası sorunlarını aşan ultra-esnek kural motoru
+const checkVehicleFilter = (typeStr, statusStr) => {
+    // Görünmez karakterleri (i̇) ve boşlukları temizleyerek güvenli küçük harfe çevirme
+    const t = String(typeStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
+    const s = String(statusStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
+
+    // 1. Kural: Cinsi Kamyon veya Kamyonet (içinde "kamyon" geçmesi ikisini de kapsar)
+    const isTypeMatch = t.includes("kamyon"); 
+    
+    // 2. Kural: Statü eşleşmesi (Yazım hataları ve İngilizce klavye hataları dahil edildi)
+    const isStatusMatch = 
+        s.includes("acente kiralık") || s.includes("acente kiralik") ||
+        s.includes("acente özmal") || s.includes("acente ozmal") ||
+        s.includes("şirket özmal") || s.includes("sirket ozmal") || 
+        s.includes("şirket ozmal") || s.includes("sirket özmal") ||
+        s.includes("şube kiralık") || s.includes("sube kiralik") || 
+        s.includes("şube kiralik") || s.includes("sube kiralık");
+
+    // İki kuralın AYNI ANDA (VE) sağlanması zorunludur.
+    return isTypeMatch && isStatusMatch;
+};
 
 const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onBack }) => {
     const [selectedUnit, setSelectedUnit] = useState(null); 
@@ -38,13 +56,8 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                 if (selectedUnit !== "BÖLGE" && fm.unit !== selectedUnit) return;
                 
                 fm.records.forEach(v => {
-                    const typeLower = String(v.type || "").toLowerCase();
-                    const statusLower = String(v.status || "").toLowerCase().trim();
-                    
-                    const isAllowedType = ALLOWED_TYPES.some(t => typeLower.includes(t));
-                    const isAllowedStatus = ALLOWED_STATUSES.includes(statusLower);
-
-                    if (isAllowedType && isAllowedStatus) {
+                    // Güçlü kural motorundan geçiyorsa listeye al
+                    if (checkVehicleFilter(v.type, v.status)) {
                         const key = `${fm.unit}-${v.plate.replace(/\s/g, "").toUpperCase()}`;
                         vehicleInfoMap[key] = { unit: fm.unit, plate: v.plate, type: v.type, status: v.status, days: {} };
                     }
@@ -63,7 +76,7 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                     doc.records.forEach(r => {
                         const key = `${doc.unit}-${r.plate.replace(/\s/g, "").toUpperCase()}`;
                         
-                        // Sadece filtre kurallarından geçen araçlara KM işlenir
+                        // Sadece filtre kurallarından geçen (map içinde olan) araçlara KM işlenir
                         if (map[key]) {
                             const kmVal = parseFloat(String(r.km).replace(',', '.'));
                             if (!isNaN(kmVal)) map[key].days[r.day] = kmVal;
@@ -96,7 +109,7 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
 
     }, [fleetDailyKms, fleetMonthly, selectedUnit, selectedYear, selectedMonth]);
 
-    // YATAN ARAÇ KURALI
+    // YATAN ARAÇ KURALI: NİHAİ TESLİM < %95 VE (Kamyon/Kamyonet + Özel Statü) VE O AY HİÇ KM'Sİ YOK
     const idleVehicles = useMemo(() => {
         if (!allData || !fleetMonthly || !fleetDailyKms) return [];
         
@@ -110,14 +123,8 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
             const unitMonthlyFleet = fleetMonthly.find(fm => fm.unit === unit && fm.year === selectedYear && fm.month === selectedMonth)?.records || [];
             
             unitMonthlyFleet.forEach(vehicle => {
-                const typeLower = String(vehicle.type || "").toLowerCase();
-                const statusLower = String(vehicle.status || "").toLowerCase().trim();
-
-                const isAllowedType = ALLOWED_TYPES.some(t => typeLower.includes(t));
-                const isAllowedStatus = ALLOWED_STATUSES.includes(statusLower);
-
                 // 3. Yalnızca kurala uyan (Kamyon/Kamyonet ve Özel statü) araçları incele
-                if (!isAllowedType || !isAllowedStatus) return;
+                if (!checkVehicleFilter(vehicle.type, vehicle.status)) return;
                 
                 const plateKey = vehicle.plate.replace(/\s/g, "").toUpperCase();
                 
@@ -129,11 +136,11 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                     const vehicleRecords = unitDaily.records.filter(r => r.plate.replace(/\s/g, "").toUpperCase() === plateKey);
                     hasAnyKm = vehicleRecords.some(r => {
                         const km = parseFloat(String(r.km).replace(',', '.'));
-                        return !isNaN(km) && km > 0;
+                        return !isNaN(km) && km > 0; // 1 km bile olsa true döner
                     });
                 }
                 
-                // Eğer hiç KM girilmemişse (veya hepsi 0 ise) bu araç yatan araçtır.
+                // Eğer hiç KM girilmemişse bu araç yatan araçtır.
                 if (!hasAnyKm) {
                     idleList.push({ unit, plate: vehicle.plate, type: vehicle.type, status: vehicle.status, owner: vehicle.owner });
                 }
