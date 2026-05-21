@@ -22,7 +22,8 @@ import { Lock } from "lucide-react";
 export default function App() {
   const [user, setUser] = useState(null);
   const [allData, setAllData] = useState([]);
-  const [fleetMonthly, setFleetMonthly] = useState([]); // YENİ: AYLIK DİNAMİK FİLO
+  const [fleetMonthly, setFleetMonthly] = useState([]); 
+  const [fleetMonthlyCounts, setFleetMonthlyCounts] = useState([]); // YENİ: AYLIK ARAÇ ADETLERİ
   const [fleetDailyKms, setFleetDailyKms] = useState([]); 
   const [quantitiesData, setQuantitiesData] = useState([]); 
 
@@ -55,7 +56,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // PERFORMANS VERİLERİ (Nihai Teslim de buraya eklenecek)
   useEffect(() => {
     if (!user) { setAllData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "performance_records");
@@ -65,7 +65,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // YENİ: AYLIK FİLO BİLGİLERİ (Eski fleet_list ve unit_info yerine)
   useEffect(() => {
     if (!user) { setFleetMonthly([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_monthly");
@@ -75,7 +74,16 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // GÜNLÜK KM VERİLERİ
+  // YENİ: AYLIK ARAÇ ADETLERİ
+  useEffect(() => {
+    if (!user) { setFleetMonthlyCounts([]); return; }
+    const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_monthly_counts");
+    const unsubscribe = onSnapshot(colRef, (snap) => {
+      setFleetMonthlyCounts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsubscribe();
+  }, [user]);
+
   useEffect(() => {
     if (!user) { setFleetDailyKms([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_daily_kms");
@@ -85,7 +93,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // PERSONEL ADET VERİLERİ
   useEffect(() => {
     if (!user) { setQuantitiesData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "personnel_quantities");
@@ -160,14 +167,13 @@ export default function App() {
         <Route path="/" element={<LandingMenu user={user} onNavigate={handleNavigateFromMenu} onLogout={handleAppLogout} onProfile={() => setProfileOpen(true)} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />} />
         <Route path="/dashboard" element={<Dashboard onUnitClick={(unit) => navigate(`/detail/${unit}`)} onNavigateMenu={() => navigate("/")} />} />
         
-        {/* ARTIK fleetMonthly İLE BESLENİYOR */}
-        <Route path="/detail/:unitName" element={<UnitDetail allData={allData} quantitiesData={quantitiesData} fleetMonthly={fleetMonthly} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
+        {/* fleetMonthlyCounts eklendi */}
+        <Route path="/detail/:unitName" element={<UnitDetail allData={allData} quantitiesData={quantitiesData} fleetMonthly={fleetMonthly} fleetMonthlyCounts={fleetMonthlyCounts} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
         
         <Route path="/ranking" element={<FinalRankingPage allData={allData} onBack={() => navigate("/")} />} />
         <Route path="/trends" element={<TrendAnalysisPage allData={allData} onBack={() => navigate("/")} />} />
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
         
-        {/* ARTIK fleetMonthly İLE BESLENİYOR */}
         <Route path="/fleet" element={<FleetPage fleetMonthly={fleetMonthly} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/")} />} />
         <Route path="/fleet-kms" element={<FleetKmsPage allData={allData} fleetMonthly={fleetMonthly} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/")} />} />
         
@@ -177,6 +183,7 @@ export default function App() {
           <AdminPanel
             allData={allData}
             fleetMonthly={fleetMonthly}
+            fleetMonthlyCounts={fleetMonthlyCounts}
             quantitiesData={quantitiesData}
             onSaveBatch={handleSaveBatch}
             onSaveQuantities={handleSaveQuantities}
