@@ -50,9 +50,6 @@ const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "r
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-const ALLOWED_STATUSES = ["acente kiralık", "acente özmal", "acente özmal (masraf dışı)", "acente özmal(masraf dışı)", "şirket özmal", "şube kiralık"];
-const EXCLUDED_TYPES = ["kamyon", "kamyonet"];
-
 const parseMetric = (val) => {
   if (val === undefined || val === null || val === "") return null;
   const cleanStr = String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
@@ -97,7 +94,7 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], fleetDailyKms = [], onBack, onChangeUnit }) => {
+const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], fleetMonthlyCounts = [], fleetDailyKms = [], onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
   
@@ -129,32 +126,25 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
     }
   }, [allData, selectedUnit]); 
 
-  // FİLO VERİSİNİ AL VE FİLTRELE (Aylık)
+  // AYLIK FİLO ADETLERİ
+  const currentVehicles = useMemo(() => {
+     return fleetMonthlyCounts.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+  }, [fleetMonthlyCounts, selectedUnit, selectedYear, selectedMonth]);
+
+  // AYLIK FİLO LİSTESİ (Filtresiz, sadece Statü -> Plaka sıralı)
   const unitFleet = useMemo(() => {
     const rawFleet = fleetMonthly.find(fm => fm.unit === selectedUnit && fm.year === selectedYear && fm.month === selectedMonth)?.records || [];
     
-    // Filtreleme kurallarını uygula
-    const filtered = rawFleet.filter(v => {
-        const typeLower = String(v.type || "").toLowerCase();
-        const statusLower = String(v.status || "").toLowerCase().trim();
-        
-        if (EXCLUDED_TYPES.some(t => typeLower.includes(t))) return false;
-        if (!ALLOWED_STATUSES.includes(statusLower)) return false;
-        return true;
-    });
-
-    return filtered.sort((a, b) => {
-      const typeA = String(a.type || "");
-      const typeB = String(b.type || "");
-      const typeCompare = typeA.localeCompare(typeB, 'tr-TR');
-      if (typeCompare !== 0) return typeCompare;
-      const plateA = String(a.plate || "");
-      const plateB = String(b.plate || "");
-      return plateA.localeCompare(plateB, 'tr-TR');
+    return rawFleet.sort((a, b) => {
+      const statA = String(a.status || "");
+      const statB = String(b.status || "");
+      const statComp = statA.localeCompare(statB, 'tr-TR');
+      if (statComp !== 0) return statComp;
+      return String(a.plate || "").localeCompare(String(b.plate || ""), 'tr-TR');
     });
   }, [fleetMonthly, selectedUnit, selectedYear, selectedMonth]);
 
-  // YENİ: İlgili Ay veya Yıl İçin 3 KM Kurallı Ortalama (PAZAR HARİÇ)
+  // AYLIK 3KM KURALI (Pazar Hariç) ORTALAMALAR
   const calculatedFleetKms = useMemo(() => {
     if (!fleetDailyKms || fleetDailyKms.length === 0) return {};
     
@@ -849,7 +839,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
       doc.setFontSize(10);
       doc.setTextColor(100);
       doc.text(`Birim: ${selectedUnit}`, 14, 30);
-      doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 35);
+      doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 35);
 
       const tableHead = [['Çalışma Şekli', 'Plaka', 'Tedarikçi Adı', 'Marka Model', 'Yıl', 'Ort. KM']];
       const tableBody = unitFleet.map(v => {
@@ -874,7 +864,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
         columnStyles: { 0: { fontStyle: 'bold', textColor: [147, 51, 234] }, 1: { fontStyle: 'bold' }, 5: { halign: 'center', fontStyle: 'bold', textColor: [37, 99, 235] } }
       });
 
-      doc.save(`${selectedUnit}_Filo_Listesi.pdf`);
+      doc.save(`${selectedUnit}_Filo_Listesi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.pdf`);
     } catch (error) {
       console.error("PDF oluşturulurken hata:", error);
     } finally {
@@ -1103,10 +1093,42 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
 
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2 pl-1">
-                 <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Filo Durumu</h3>
+                 <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Aylık Filo Durumu</h3>
                  <button onClick={() => setShowFleetModal(true)} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow-sm">
                      <Truck size={12}/> Filo Detayları
                  </button>
+              </div>
+              <div className="flex gap-1">
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Özmal</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozmal || "0"}</p>
+                </div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5 whitespace-nowrap">Öz.M.H</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.ozMasHar || "0"}</p>
+                </div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-0.5"><Key size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Kiralık</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.kiralik || "0"}</p>
+                </div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-0.5"><Truck size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Destek</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.destek || "0"}</p>
+                </div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-0.5"><Zap size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Motor</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.motor || "0"}</p>
+                </div>
+                <div className="flex-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center text-center">
+                   <div className="w-6 h-6 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-0.5"><Package size={12} /></div>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">P.Başı</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentVehicles?.parcaBasi || "0"}</p>
+                </div>
               </div>
             </div>
 
@@ -1292,17 +1314,17 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
                 <button onClick={() => setShowFleetModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><X size={20} /></button>
              </div>
              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-[10px] text-blue-700 dark:text-blue-300 font-medium text-center border-b border-blue-100 dark:border-blue-900/50">
-                 Kamyon/Kamyonet hariçtir ve sadece belirlenen statüdeki araçlar gösterilmektedir. KM'ler seçili ayda pazar hariç hesaplanır.
+                 Bu ekranda kuralsız olarak <strong>seçili ayın tüm araçları</strong> (Statü ve Plaka sırasına göre) listelenir. KM'ler pazar hariç hesaplanır.
              </div>
              <div className="overflow-x-auto overflow-y-auto flex-1 relative no-scrollbar">
                 <table className="w-full text-left whitespace-nowrap border-collapse">
                    <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                       <tr>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 text-center"><div className="flex items-center justify-center gap-1"><Gauge size={12}/> Ort. KM</div></th>
-                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Plaka</th>
-                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Araç Sahibi</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Statü</th>
+                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Plaka</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Araç Cinsi</th>
+                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Araç Sahibi</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Marka Model</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 text-center">Model Yılı</th>
                       </tr>
@@ -1318,10 +1340,10 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
                              return (
                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
                                   <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{calculatedFleetKms[plateKey] || "-"}</td>
-                                  <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plate}</td>
-                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400" title={ownerName}>{displayOwner}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm font-semibold text-purple-600 dark:text-purple-400 bg-purple-50/30 dark:bg-purple-900/10">{vehicle.status}</td>
+                                  <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plate}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{vehicle.type}</td>
+                                  <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400" title={ownerName}>{displayOwner}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400">{brandModel}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400 text-center">{vehicle.year}</td>
                                </tr>
@@ -1329,7 +1351,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
                           })
                       ) : (
                           <tr>
-                             <td colSpan="7" className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">Filtrelere uygun filo kaydı bulunmamaktadır.</td>
+                             <td colSpan="7" className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">Bu aya ait filo kaydı bulunmamaktadır.</td>
                           </tr>
                       )}
                    </tbody>
