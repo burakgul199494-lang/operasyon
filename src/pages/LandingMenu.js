@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, ShieldCheck, Truck, FileText, Settings, LogOut, Moon, Sun, User, BarChart2, Trophy, TrendingUp } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Truck, FileText, Settings, LogOut, Moon, Sun, User, BarChart2, Trophy, TrendingUp, Gauge } from "lucide-react";
 
 const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggleDarkMode }) => {
   
@@ -20,7 +20,6 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
       color: "text-amber-600 dark:text-amber-400",
       route: "ranking"
     },
-    // YENİ EKLENEN GRAFİK BUTONU
     {
       id: "trends",
       title: "Trend Analizi (Grafikler)",
@@ -48,10 +47,18 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
     {
       id: "fleet",
       title: "Araç Filo Yönetimi",
-      desc: "Sözleşmeli araçların durumlarını, yakıt ve kilometre detaylarını takip edin.",
+      desc: "Sözleşmeli araçların durumlarını, yakıt ve sözleşme detaylarını takip edin.",
       icon: Truck,
       color: "text-orange-600 dark:text-orange-400",
       route: "fleet"
+    },
+    {
+      id: "fleetKms",
+      title: "Günlük KM & Yatan Araç",
+      desc: "Araçların günlük kilometre verilerini, çalışma günlerini (TÇG) ve riskli araçları inceleyin.",
+      icon: Gauge,
+      color: "text-rose-600 dark:text-rose-400",
+      route: "fleetKms"
     },
     {
       id: "notes",
@@ -105,7 +112,7 @@ const LandingMenu = ({ user, onNavigate, onLogout, onProfile, isDarkMode, toggle
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredMenuItems.map((item) => (
             <button 
               key={item.id} 
