@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, Search, ChevronRight, Home, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Search, ChevronRight, ChevronDown, Home, X, AlertTriangle } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -179,12 +179,27 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
 
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen">
+            {/* ÜST MENÜ GÜNCELLENDİ (Açılır Seçim Menüsü Eklendi) */}
             <div className="bg-white dark:bg-slate-900 p-3 shadow-sm sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b dark:border-slate-700">
-                <div className="flex items-center gap-3">
-                    <button onClick={() => setSelectedUnit(null)}><ArrowLeft className="text-slate-600 dark:text-white" /></button>
-                    <h2 className="font-bold text-lg dark:text-white">{selectedUnit} - Günlük KM</h2>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors flex-shrink-0">
+                        <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
+                    </button>
+                    <div className="relative flex items-center w-full max-w-[250px]">
+                        <select 
+                            value={selectedUnit} 
+                            onChange={(e) => setSelectedUnit(e.target.value)} 
+                            className="appearance-none bg-transparent text-lg font-bold text-slate-800 dark:text-white w-full pr-8 outline-none cursor-pointer truncate py-1 z-10"
+                        >
+                            <option value="BÖLGE" className="dark:bg-slate-800 dark:text-white">TÜMÜ (BÖLGE)</option>
+                            {UNITS.filter(u => u !== "BÖLGE").map((u) => (
+                                <option key={u} value={u} className="dark:bg-slate-800 dark:text-white">{u}</option>
+                            ))}
+                        </select>
+                        <ChevronDown size={18} className="absolute right-0 text-slate-400 pointer-events-none" />
+                    </div>
                 </div>
-                <button onClick={() => setShowIdleModal(true)} className="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition">
+                <button onClick={() => setShowIdleModal(true)} className="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition flex-shrink-0">
                     <AlertTriangle size={14}/> Yatan Araçlar ({idleVehicles.length})
                 </button>
             </div>
