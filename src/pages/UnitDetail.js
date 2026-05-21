@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom"; 
-import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck, Trophy } from "lucide-react";
+import { ArrowLeft, ChevronDown, Calendar, TrendingUp, Activity, CheckCircle2, Smartphone, FileText, Mail, Truck, Box, Zap, Package, Key, Scale, ShieldCheck, FileDown, X, Loader2, Users, Archive, Award, ClipboardCheck, Trophy, Gauge } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const TARGETS = { 
@@ -94,7 +94,7 @@ const loadZipLibraries = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetData = [], fleetKms = {}, onBack, onChangeUnit }) => {
+const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetData = [], fleetDailyKms = [], onBack, onChangeUnit }) => {
   const { unitName } = useParams();
   const selectedUnit = unitName; 
   const currentVehicles = unitInfo ? unitInfo[selectedUnit] : null;
@@ -126,6 +126,40 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       setSelectedMonth(latestRecord.month);
     }
   }, [allData, selectedUnit]); 
+
+  // YENİ: İlgili Ay veya Yıl İçin 3 KM Kurallı Ortalama Filo KM Hesaplama
+  const calculatedFleetKms = useMemo(() => {
+    if (!fleetDailyKms || fleetDailyKms.length === 0) return {};
+    
+    let relevantData = showYearAvg 
+        ? fleetDailyKms.filter(d => d.year === parseInt(selectedYear))
+        : fleetDailyKms.filter(d => d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
+
+    relevantData = relevantData.filter(d => d.unit === selectedUnit);
+
+    const kmsMap = {};
+    
+    relevantData.forEach(doc => {
+        if (doc.records) {
+            doc.records.forEach(r => {
+                const plateKey = r.plate.replace(/\s/g, "").toUpperCase();
+                const kmVal = parseFloat(String(r.km).replace(',', '.'));
+                if (!isNaN(kmVal) && kmVal >= 3) {
+                    if (!kmsMap[plateKey]) kmsMap[plateKey] = { total: 0, count: 0 };
+                    kmsMap[plateKey].total += kmVal;
+                    kmsMap[plateKey].count += 1;
+                }
+            });
+        }
+    });
+
+    const result = {};
+    Object.keys(kmsMap).forEach(plate => {
+        result[plate] = (kmsMap[plate].total / kmsMap[plate].count).toFixed(1);
+    });
+    
+    return result;
+  }, [fleetDailyKms, selectedYear, selectedMonth, showYearAvg, selectedUnit]);
 
   const currentUnitRankInfo = useMemo(() => {
     try {
@@ -367,7 +401,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     });
   }, [fleetData, selectedUnit]);
 
-  // GÜNCELLENDİ: Teslim Düşülen ve Transfer Gecikme 2'li yapıya ve dinamik sayıya geçirildi.
   const generateDynamicAnalysis = (data) => {
     const t = parseMetric(data.teslimPerformansi);
     const a = parseMetric(data.adresAlimOrani);
@@ -394,7 +427,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       else text += "• Adres alım oranınız başarısız seviyededir, bu alanda acil aksiyon alınması gerekmektedir.\n";
     }
     
-    // YENİ: Teslim Düşülen 2 Seçenek (Dinamik Sayı)
     if (td !== null) {
       if (td === 0) {
         text += "• Teslim düşülen kargo adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
@@ -403,7 +435,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
       }
     }
 
-    // YENİ: Transfer Gecikme 2 Seçenek (Dinamik Sayı)
     if (tg !== null) {
       if (tg === 0) {
         text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
@@ -811,7 +842,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
           v.supplier || "-",
           v.brandModel || "-",
           v.year || "-",
-          fleetKms[plateKey] || "-"
+          calculatedFleetKms[plateKey] || "-"
         ];
       });
 
@@ -979,7 +1010,6 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
     } catch (error) { console.error("Toplu ZIP oluşturulurken hata:", error); alert("Toplu indirme sırasında bir hata oluştu."); } finally { setIsGeneratingPdf(false); setShowPdfModal(false); }
   };
 
-  // YENİ: Ortadaki 9 Metriğin Dizesi
   const middleMetrics = [
     { title: "Rota", avgTitle: "Ort. Rota", val: displayData?.rotaOrani, isPercent: true, target: TARGETS.rotaOrani, targetStr: `Hedef: %${TARGETS.rotaOrani}`, isFail: parseMetric(displayData?.rotaOrani) < TARGETS.rotaOrani },
     { title: "TVS", avgTitle: "Ort. TVS", val: displayData?.tvsOrani, isPercent: true, target: TARGETS.tvsOrani, targetStr: `Hedef: %${TARGETS.tvsOrani}`, isFail: parseMetric(displayData?.tvsOrani) < TARGETS.tvsOrani },
@@ -1279,7 +1309,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                 <table className="w-full text-left whitespace-nowrap border-collapse">
                    <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 shadow-sm">
                       <tr>
-                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">Ort. KM</th>
+                        <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 text-center"><div className="flex items-center justify-center gap-1"><Gauge size={12}/> Ort. KM</div></th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Çalışma Şekli</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Plaka</th>
                         <th className="p-2 sm:p-3 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">Tedarikçi Adı</th>
@@ -1296,7 +1326,7 @@ const UnitDetail = ({ allData = [], unitInfo = {}, quantitiesData = [], fleetDat
                              
                              return (
                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                                  <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{fleetKms[plateKey] || "-"}</td>
+                                  <td className="p-2 sm:p-3 font-black text-[11px] sm:text-sm text-blue-600 dark:text-blue-400 text-center">{calculatedFleetKms[plateKey] || "-"}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm font-semibold text-purple-600 dark:text-purple-400 bg-purple-50/30 dark:bg-purple-900/10">{vehicle.operationType}</td>
                                   <td className="p-2 sm:p-3 font-bold text-[10px] sm:text-sm text-slate-800 dark:text-slate-200">{vehicle.plate}</td>
                                   <td className="p-2 sm:p-3 text-[10px] sm:text-sm text-slate-600 dark:text-slate-400" title={supplierName}>{displaySupplier}</td>
