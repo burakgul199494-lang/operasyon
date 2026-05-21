@@ -1,4 +1,4 @@
-import TrendAnalysisPage from "./pages/TrendAnalysisPage";
+import TrendAnalysisPage from "./pages/TrendAnalysisPage"; 
 import FinalRankingPage from "./pages/FinalRankingPage";
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
@@ -15,7 +15,7 @@ import NotesPage from "./pages/NotesPage";
 import FleetPage from "./pages/FleetPage";
 import PersonnelDefensePage from "./pages/PersonnelDefensePage";
 import PersonnelQuantitiesPage from "./pages/PersonnelQuantitiesPage";
-import FleetKmsPage from "./pages/FleetKmsPage"; // YENİ SAYFA IMPORTU
+import FleetKmsPage from "./pages/FleetKmsPage"; 
 import UserProfileModal from "./components/UserProfileModal";
 import { Lock } from "lucide-react";
 
@@ -24,8 +24,7 @@ export default function App() {
   const [allData, setAllData] = useState([]);
   const [unitInfo, setUnitInfo] = useState({});
   const [fleetData, setFleetData] = useState([]);
-  const [fleetKms, setFleetKms] = useState({});
-  const [fleetDailyKms, setFleetDailyKms] = useState([]); // YENİ GÜNLÜK KM STATE'İ
+  const [fleetDailyKms, setFleetDailyKms] = useState([]); 
   const [quantitiesData, setQuantitiesData] = useState([]); 
 
   const [loading, setLoading] = useState(true);
@@ -84,17 +83,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // ESKİ SABİT KM (Bir süre daha hatasız çalışması için kalıyor)
-  useEffect(() => {
-    if (!user) { setFleetKms({}); return; }
-    const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_kms");
-    const unsubscribe = onSnapshot(colRef, (snap) => {
-      const kmsMap = {}; snap.docs.forEach((d) => { kmsMap[d.id] = d.data().km; }); setFleetKms(kmsMap);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  // YENİ GÜNLÜK KM VERİSİNİ ÇEKME
   useEffect(() => {
     if (!user) { setFleetDailyKms([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_daily_kms");
@@ -129,7 +117,7 @@ export default function App() {
     else if (target === "trends") navigate("/trends");
     else if (target === "notes") navigate("/notes");
     else if (target === "fleet") navigate("/fleet"); 
-    else if (target === "fleetKms") navigate("/fleet-kms"); // YENİ SAYFA YÖNLENDİRMESİ
+    else if (target === "fleetKms") navigate("/fleet-kms"); 
     else if (target === "personnelDefense") navigate("/personnel-defense"); 
     else if (target === "quantities") navigate("/personnel-quantities");
   };
@@ -177,15 +165,15 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingMenu user={user} onNavigate={handleNavigateFromMenu} onLogout={handleAppLogout} onProfile={() => setProfileOpen(true)} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />} />
         <Route path="/dashboard" element={<Dashboard onUnitClick={(unit) => navigate(`/detail/${unit}`)} onNavigateMenu={() => navigate("/")} />} />
-        <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
+        {/* UnitDetail ARTIK YENİ GÜNLÜK KM VERİSİNİ ALIYOR */}
+        <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} fleetData={fleetData} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
         <Route path="/ranking" element={<FinalRankingPage allData={allData} onBack={() => navigate("/")} />} />
         <Route path="/trends" element={<TrendAnalysisPage allData={allData} onBack={() => navigate("/")} />} />
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
-        <Route path="/fleet" element={<FleetPage fleetData={fleetData} fleetKms={fleetKms} onBack={() => navigate("/")} />} />
         
-        {/* YENİ ROTA EKLENDİ (FleetKmsPage sayfasını bir sonraki adımda yaratacağız ama rotası hazır) */}
+        {/* FleetPage ARTIK YENİ GÜNLÜK KM VERİSİNİ ALIYOR */}
+        <Route path="/fleet" element={<FleetPage fleetData={fleetData} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/")} />} />
         <Route path="/fleet-kms" element={<FleetKmsPage allData={allData} fleetData={fleetData} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/")} />} />
-        
         <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
         <Route path="/personnel-quantities" element={<PersonnelQuantitiesPage allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
         <Route path="/admin" element={
@@ -193,7 +181,6 @@ export default function App() {
             allData={allData}
             unitInfo={unitInfo}
             fleetData={fleetData}
-            fleetKms={fleetKms} 
             quantitiesData={quantitiesData}
             onSaveBatch={handleSaveBatch}
             onSaveQuantities={handleSaveQuantities}
