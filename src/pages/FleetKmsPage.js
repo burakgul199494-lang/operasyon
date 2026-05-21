@@ -5,16 +5,12 @@ import { UNITS, MONTH_NAMES } from "../utils/helpers";
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-// Türkçe karakter ve yazım hatası sorunlarını aşan ultra-esnek kural motoru
 const checkVehicleFilter = (typeStr, statusStr) => {
-    // Görünmez karakterleri (i̇) ve boşlukları temizleyerek güvenli küçük harfe çevirme
     const t = String(typeStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
     const s = String(statusStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
 
-    // 1. Kural: Cinsi Kamyon veya Kamyonet (içinde "kamyon" geçmesi ikisini de kapsar)
     const isTypeMatch = t.includes("kamyon"); 
     
-    // 2. Kural: Statü eşleşmesi (Yazım hataları ve İngilizce klavye hataları dahil edildi)
     const isStatusMatch = 
         s.includes("acente kiralık") || s.includes("acente kiralik") ||
         s.includes("acente özmal") || s.includes("acente ozmal") ||
@@ -23,7 +19,6 @@ const checkVehicleFilter = (typeStr, statusStr) => {
         s.includes("şube kiralık") || s.includes("sube kiralik") || 
         s.includes("şube kiralik") || s.includes("sube kiralık");
 
-    // İki kuralın AYNI ANDA (VE) sağlanması zorunludur.
     return isTypeMatch && isStatusMatch;
 };
 
@@ -46,17 +41,14 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
     const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    // Tabloda gösterilecek veriyi hesapla (KURAL: Kamyon/Kamyonet VE Belirli Statüler)
     const processedData = useMemo(() => {
         const vehicleInfoMap = {};
         
-        // 1. Önce o ayın filosundaki uygun araçları (Kurallara göre) tespit edelim
         fleetMonthly.forEach(fm => {
             if (fm.year === selectedYear && fm.month === selectedMonth) {
                 if (selectedUnit !== "BÖLGE" && fm.unit !== selectedUnit) return;
                 
                 fm.records.forEach(v => {
-                    // Güçlü kural motorundan geçiyorsa listeye al
                     if (checkVehicleFilter(v.type, v.status)) {
                         const key = `${fm.unit}-${v.plate.replace(/\s/g, "").toUpperCase()}`;
                         vehicleInfoMap[key] = { unit: fm.unit, plate: v.plate, type: v.type, status: v.status, days: {} };
@@ -65,7 +57,6 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
             }
         });
 
-        // 2. KM verilerini bu araçlara eşleyelim
         const map = { ...vehicleInfoMap }; 
 
         fleetDailyKms.forEach(doc => {
@@ -75,8 +66,6 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                 if (doc.records) {
                     doc.records.forEach(r => {
                         const key = `${doc.unit}-${r.plate.replace(/\s/g, "").toUpperCase()}`;
-                        
-                        // Sadece filtre kurallarından geçen (map içinde olan) araçlara KM işlenir
                         if (map[key]) {
                             const kmVal = parseFloat(String(r.km).replace(',', '.'));
                             if (!isNaN(kmVal)) map[key].days[r.day] = kmVal;
@@ -91,7 +80,6 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
             let totalKmForAvg = 0;
             
             Object.entries(item.days).forEach(([dayStr, km]) => {
-                // PAZAR GÜNLERİ HESAPLAMAYA DAHİL EDİLMEZ
                 if (!getIsSunday(parseInt(dayStr))) {
                     if (km >= 3) {
                         tcg += 1;
@@ -109,26 +97,20 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
 
     }, [fleetDailyKms, fleetMonthly, selectedUnit, selectedYear, selectedMonth]);
 
-    // YATAN ARAÇ KURALI: NİHAİ TESLİM < %95 VE (Kamyon/Kamyonet + Özel Statü) VE O AY HİÇ KM'Sİ YOK
     const idleVehicles = useMemo(() => {
         if (!allData || !fleetMonthly || !fleetDailyKms) return [];
         
-        // 1. İlgili ayda "NİHAİ TESLİM PERFORMANSI" %95 altı olan birimleri bul
         const underperformingUnits = allData.filter(d => d.year === selectedYear && d.month === selectedMonth && d.nihaiTeslim !== undefined && d.nihaiTeslim < 95).map(d => d.unit);
 
         const idleList = [];
 
         underperformingUnits.forEach(unit => {
-            // 2. Bu birimin aylık filosunu bul
             const unitMonthlyFleet = fleetMonthly.find(fm => fm.unit === unit && fm.year === selectedYear && fm.month === selectedMonth)?.records || [];
             
             unitMonthlyFleet.forEach(vehicle => {
-                // 3. Yalnızca kurala uyan (Kamyon/Kamyonet ve Özel statü) araçları incele
                 if (!checkVehicleFilter(vehicle.type, vehicle.status)) return;
                 
                 const plateKey = vehicle.plate.replace(/\s/g, "").toUpperCase();
-                
-                // 4. Bu araca ait o ay hiç KM girilmiş mi? (Pazar veya normal fark etmeksizin 1 KM dahi olsa çalışmış sayılır)
                 const unitDaily = fleetDailyKms.find(d => d.unit === unit && d.year === selectedYear && d.month === selectedMonth);
                 let hasAnyKm = false;
                 
@@ -136,11 +118,10 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                     const vehicleRecords = unitDaily.records.filter(r => r.plate.replace(/\s/g, "").toUpperCase() === plateKey);
                     hasAnyKm = vehicleRecords.some(r => {
                         const km = parseFloat(String(r.km).replace(',', '.'));
-                        return !isNaN(km) && km > 0; // 1 km bile olsa true döner
+                        return !isNaN(km) && km > 0; 
                     });
                 }
                 
-                // Eğer hiç KM girilmemişse bu araç yatan araçtır.
                 if (!hasAnyKm) {
                     idleList.push({ unit, plate: vehicle.plate, type: vehicle.type, status: vehicle.status, owner: vehicle.owner });
                 }
@@ -179,7 +160,6 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
 
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen">
-            {/* ÜST MENÜ GÜNCELLENDİ (Açılır Seçim Menüsü Eklendi) */}
             <div className="bg-white dark:bg-slate-900 p-3 shadow-sm sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b dark:border-slate-700">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                     <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors flex-shrink-0">
@@ -216,7 +196,7 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
             </div>
 
             <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-[10px] text-blue-700 dark:text-blue-300 font-medium text-center border-b border-blue-100 dark:border-blue-900/50">
-                Sadece <strong>Kamyon/Kamyonet</strong> olan ve belirli statülere sahip araçlar listelenir. KM'si girilmeyen araçlar da listede görünür. Pazar günleri hesaba dahil edilmez.
+                Sadece <strong>Kamyon/Kamyonet</strong> olan ve belirli statülere sahip araçlar listelenir. KM'si girilmeyen araçlar da listede görünür. Yatan araçların (Riskli) satırları kırmızıdır.
             </div>
 
             <div className="p-3 overflow-x-auto">
@@ -231,19 +211,32 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                         </tr>
                     </thead>
                     <tbody>
-                        {processedData.length > 0 ? processedData.map((row, i) => (
-                            <tr key={i} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                <td className="p-2 sticky left-0 bg-white dark:bg-slate-800 font-bold dark:text-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{row.unit}</td>
-                                <td className="p-2 sticky left-32 bg-white dark:bg-slate-800 font-mono text-xs dark:text-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]" title={`${row.type} - ${row.status}`}>{row.plate}</td>
-                                <td className="p-2 text-center font-bold text-blue-600 bg-blue-50/50 dark:bg-blue-900/20">{row.tcg}</td>
-                                <td className="p-2 text-center font-bold text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20">{row.ok}</td>
-                                {daysArray.map(d => (
-                                    <td key={d} className={`p-1 border-l dark:border-slate-700 text-center font-medium ${getIsSunday(d) ? 'bg-red-50/50 dark:bg-red-900/10 text-red-500' : 'dark:text-slate-400'}`}>
-                                        {row.days[d] || "-"}
+                        {processedData.length > 0 ? processedData.map((row, i) => {
+                            // Bu satırdaki araç yatan araç listesinde var mı?
+                            const isIdle = idleVehicles.some(iv => iv.unit === row.unit && iv.plate.replace(/\s/g, "").toUpperCase() === row.plate.replace(/\s/g, "").toUpperCase());
+                            
+                            return (
+                                <tr key={i} className={isIdle ? "border-b border-rose-200 dark:border-rose-800 bg-rose-100 dark:bg-rose-900/40 hover:bg-rose-200 dark:hover:bg-rose-900/60 transition-colors" : "border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"}>
+                                    <td className={`p-2 sticky left-0 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isIdle ? 'bg-rose-100 dark:bg-rose-900/90 text-rose-800 dark:text-rose-200' : 'bg-white dark:bg-slate-800 dark:text-white'}`}>
+                                        {row.unit}
                                     </td>
-                                ))}
-                            </tr>
-                        )) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Bu ay için filtrelere uygun araç bulunamadı.</td></tr>}
+                                    <td className={`p-2 sticky left-32 font-mono text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isIdle ? 'bg-rose-100 dark:bg-rose-900/90 text-rose-700 dark:text-rose-300' : 'bg-white dark:bg-slate-800 dark:text-slate-300'}`} title={`${row.type} - ${row.status}`}>
+                                        {row.plate}
+                                    </td>
+                                    <td className={`p-2 text-center font-bold ${isIdle ? 'text-rose-700 dark:text-rose-300' : 'text-blue-600 bg-blue-50/50 dark:bg-blue-900/20'}`}>
+                                        {row.tcg}
+                                    </td>
+                                    <td className={`p-2 text-center font-bold ${isIdle ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20'}`}>
+                                        {row.ok}
+                                    </td>
+                                    {daysArray.map(d => (
+                                        <td key={d} className={`p-1 border-l dark:border-slate-700 text-center font-medium ${isIdle ? 'text-rose-600 dark:text-rose-400' : (getIsSunday(d) ? 'bg-red-50/50 dark:bg-red-900/10 text-red-500' : 'dark:text-slate-400')}`}>
+                                            {row.days[d] || "-"}
+                                        </td>
+                                    ))}
+                                </tr>
+                            );
+                        }) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Bu ay için filtrelere uygun araç bulunamadı.</td></tr>}
                     </tbody>
                 </table>
             </div>
