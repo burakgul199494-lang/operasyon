@@ -4,7 +4,7 @@ import { UNITS, METRIC_TYPES, MONTH_NAMES } from "../utils/helpers";
 import { doc, writeBatch, collection, getDocs } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
 
-const AdminPanel = ({ allData, fleetMonthly, fleetMonthlyCounts, quantitiesData, fleetDailyKms, onSaveBatch, onSaveQuantities, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
+const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], quantitiesData = [], onSaveBatch, onSaveQuantities, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
   const [activeTab, setActiveTab] = useState("performance"); 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); 
@@ -20,9 +20,11 @@ const AdminPanel = ({ allData, fleetMonthly, fleetMonthlyCounts, quantitiesData,
 
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
+  
+  // Canlı yenileme tetikleyicisi
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const MONTH_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-  
   const FLEET_COUNTS_COLUMNS = ["ozmal", "ozMasHar", "kiralik", "destek", "motor", "parcaBasi"];
 
   const KMS_COLUMNS = [
@@ -117,28 +119,39 @@ const AdminPanel = ({ allData, fleetMonthly, fleetMonthlyCounts, quantitiesData,
     setPendingChanges(false);
   }, [allData, activeTab, selectedYear, selectedMonth]);
 
+  // ÇÖZÜM: Veritabanına canlı bağlanıp seçili ayın günlük KM verilerini doğrudan çeken yapı eklendi
   useEffect(() => {
     if (activeTab !== "kms") return;
-    let loadedData = [];
-    if (fleetDailyKms && fleetDailyKms.length > 0) {
-        fleetDailyKms.forEach(doc => {
-            if (doc.year === parseInt(selectedYear) && doc.month === parseInt(selectedMonth) && doc.records) {
-                doc.records.forEach(r => {
-                    loadedData.push({ unit: doc.unit, plate: r.plate, tarih: r.date, km: r.km });
-                });
-            }
-        });
-    }
-    loadedData.sort((a, b) => a.unit.localeCompare(b.unit) || a.tarih.localeCompare(b.tarih));
     
-    const emptyRow = { unit: "", plate: "", tarih: "", km: "" };
-    const fillCount = 100 - loadedData.length;
-    if(fillCount > 0) { loadedData = [...loadedData, ...Array(fillCount).fill({ ...emptyRow })]; }
-    else { loadedData = [...loadedData, ...Array(20).fill({ ...emptyRow })]; }
+    const fetchLiveDailyKms = async () => {
+        try {
+            const snapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "fleet_daily_kms"));
+            let loadedData = [];
+            snapshot.docs.forEach(docSnap => {
+                const docData = docSnap.data();
+                if (docData.year === parseInt(selectedYear) && docData.month === parseInt(selectedMonth) && docData.records) {
+                    docData.records.forEach(r => {
+                        loadedData.push({ unit: docData.unit, plate: r.plate, tarih: r.date, km: r.km });
+                    });
+                }
+            });
+            
+            loadedData.sort((a, b) => a.unit.localeCompare(b.unit) || a.tarih.localeCompare(b.tarih));
+            
+            const emptyRow = { unit: "", plate: "", tarih: "", km: "" };
+            const fillCount = 100 - loadedData.length;
+            if(fillCount > 0) { loadedData = [...loadedData, ...Array(fillCount).fill({ ...emptyRow })]; }
+            else { loadedData = [...loadedData, ...Array(20).fill({ ...emptyRow })]; }
+            
+            setKmsGrid(loadedData);
+            setPendingChanges(false);
+        } catch (e) {
+            console.error("KM verileri çekilemedi:", e);
+        }
+    };
     
-    setKmsGrid(loadedData);
-    setPendingChanges(false);
-  }, [fleetDailyKms, activeTab, selectedYear, selectedMonth]);
+    fetchLiveDailyKms();
+  }, [activeTab, selectedYear, selectedMonth, refreshTrigger]);
 
   useEffect(() => {
     if (activeTab !== "fleetCounts") return;
@@ -433,7 +446,6 @@ const AdminPanel = ({ allData, fleetMonthly, fleetMonthlyCounts, quantitiesData,
     }
   };
 
-  // GÜVENLİ SİLME FONKSİYONLARI (Sadece Seçili Ay Silinir)
   const handleSafeDeleteMonthlyFleet = async () => {
     if (!window.confirm(`DİKKAT: ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemine ait Araç Listesi (Excel) veritabanından SİLİNECEKTİR. Onaylıyor musunuz?`)) return;
     try {
@@ -456,6 +468,7 @@ const AdminPanel = ({ allData, fleetMonthly, fleetMonthlyCounts, quantitiesData,
         });
         await batch.commit();
         setKmsGrid(Array(50).fill({ unit: "", plate: "", tarih: "", km: "" }));
+        setRefreshTrigger(prev => prev + 1); // Canlı yenileme
         alert("Seçili ayın KM verileri silindi.");
     } catch (e) { alert("Hata oluştu."); }
   };
@@ -595,7 +608,10 @@ const AdminPanel = ({ allData, fleetMonthly, fleetMonthlyCounts, quantitiesData,
                 const ref = doc(db, "artifacts", appId, "public", "data", "fleet_daily_kms", docId);
                 batch.set(ref, { unit: grouped[docId].unit, year: grouped[docId].year, month: grouped[docId].month, records: grouped[docId].records }, { merge: true });
             });
-            await batch.commit(); setPendingChanges(false); alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} için Günlük KM verileri güncellendi.`);
+            await batch.commit(); 
+            setPendingChanges(false); 
+            setRefreshTrigger(prev => prev + 1); // ÇÖZÜM: Canlı Yenileme!
+            alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} için Günlük KM verileri güncellendi.`);
         } catch(e) { alert("Hata: " + e.message); }
     
     } else if (activeTab === "quantities") {
@@ -652,7 +668,6 @@ const AdminPanel = ({ allData, fleetMonthly, fleetMonthlyCounts, quantitiesData,
             <button onClick={() => setActiveTab("nihaiTeslim")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "nihaiTeslim" ? "bg-white text-amber-600 border-b-2 border-amber-600" : "text-slate-500 hover:bg-slate-200"}`}><CheckCircle2 size={16} /> Nihai Teslim Performansı</button>
         </div>
         
-        {/* ÇÖZÜM: Performans sekmesindeki metrik butonları Geri Getirildi */}
         {activeTab === "performance" && (
             <>
                 <div className="p-3 flex gap-3 items-center justify-between border-b border-slate-200 bg-white">
@@ -796,7 +811,6 @@ const AdminPanel = ({ allData, fleetMonthly, fleetMonthlyCounts, quantitiesData,
                 </tr>
             ))}
 
-            {/* ÇÖZÜM: Quantities (Personel Adet) grid'i geri eklendi */}
             {activeTab === "quantities" && quantitiesGrid.map((row, rIndex) => (
                 <tr key={rIndex} className="border-b border-slate-200 hover:bg-pink-50 transition-colors">
                    {QUANTITIES_COLUMNS.map((col, cIndex) => {
