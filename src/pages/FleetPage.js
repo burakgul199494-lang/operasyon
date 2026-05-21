@@ -1,13 +1,15 @@
 import React, { useState, useMemo } from "react";
 import { ArrowLeft, Search, CarFront, X, User, Tag, Calendar, PenTool, CheckCircle2, AlertCircle, Truck, Gauge } from "lucide-react";
-
-// formatNumber ve UNITS'i utils'den çekiyoruz
 import { formatNumber, UNITS } from "../utils/helpers"; 
 
-const FleetPage = ({ fleetData, fleetKms, onBack }) => {
+const currentYear = new Date().getFullYear();
+const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
+
+const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [unitFilter, setUnitFilter] = useState("all"); 
   const [operationFilter, setOperationFilter] = useState("all");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedVehicle, setSelectedVehicle] = useState(null);
 
   const handleUnitChange = (e) => {
@@ -15,12 +17,10 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
     setOperationFilter("all"); 
   };
 
-  // KORUMALI: Çalışma şekillerini alırken Excel'den sayı gelse bile String'e çeviriyoruz
   const operationTypes = useMemo(() => {
     const types = new Set();
     (fleetData || []).forEach(v => {
       if (unitFilter !== "all" && String(v.unit) !== String(unitFilter)) return;
-      
       if (v.operationType && String(v.operationType).trim() !== "") {
         types.add(String(v.operationType).trim());
       }
@@ -28,31 +28,48 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
     return [...types].sort((a, b) => String(a).localeCompare(String(b), 'tr-TR'));
   }, [fleetData, unitFilter]);
 
-  // KORUMALI: Çalışma Şekillerine göre Sıralama Ağırlığı
   const getOperationWeight = (type) => {
     if (!type) return 99; 
     const t = String(type).toLocaleLowerCase('tr-TR').replace(/\s/g, ''); 
-    
     if (t.includes('özmal') || t.includes('kiralık')) return 1;
     if (t.includes('destek')) return 2;
     if (t.includes('motor')) return 3;
     if (t.includes('parçabaşı')) return 4;
-    
     return 3; 
   };
 
-  // KORUMALI: Arama ve Sıralama işlemleri
+  // YENİ: Seçilen Yıla Ait Araçların Yıllık KM Ortalaması (3 KM Kuralı Uygulanmış)
+  const calculatedYearlyKms = useMemo(() => {
+    if (!fleetDailyKms) return {};
+    const yearData = fleetDailyKms.filter(d => d.year === selectedYear);
+    const kmsMap = {};
+    
+    yearData.forEach(doc => {
+        if (doc.records) {
+            doc.records.forEach(r => {
+                const plateKey = r.plate.replace(/\s/g, "").toUpperCase();
+                const kmVal = parseFloat(String(r.km).replace(',', '.'));
+                // 3 KM Kuralı
+                if (!isNaN(kmVal) && kmVal >= 3) {
+                    if (!kmsMap[plateKey]) kmsMap[plateKey] = { total: 0, count: 0 };
+                    kmsMap[plateKey].total += kmVal;
+                    kmsMap[plateKey].count += 1;
+                }
+            });
+        }
+    });
+
+    const result = {};
+    Object.keys(kmsMap).forEach(plate => {
+        result[plate] = (kmsMap[plate].total / kmsMap[plate].count).toFixed(1);
+    });
+    return result;
+  }, [fleetDailyKms, selectedYear]);
+
   const filteredList = useMemo(() => {
     let result = [...(fleetData || [])];
-
-    if (unitFilter !== "all") {
-      result = result.filter(item => String(item.unit) === String(unitFilter));
-    }
-      
-    if (operationFilter !== "all") {
-      result = result.filter(item => item.operationType && String(item.operationType).trim() === operationFilter);
-    }
-
+    if (unitFilter !== "all") result = result.filter(item => String(item.unit) === String(unitFilter));
+    if (operationFilter !== "all") result = result.filter(item => item.operationType && String(item.operationType).trim() === operationFilter);
     if (searchQuery.trim()) {
       const lowerQ = String(searchQuery).toLocaleLowerCase('tr-TR');
       result = result.filter(item => {
@@ -63,18 +80,14 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
     }
 
     return result.sort((a, b) => {
-      const unitA = String(a.unit || "");
-      const unitB = String(b.unit || "");
-      const unitCompare = unitA.localeCompare(unitB, 'tr-TR');
+      const unitCompare = String(a.unit || "").localeCompare(String(b.unit || ""), 'tr-TR');
       if (unitCompare !== 0) return unitCompare;
       
       const weightA = getOperationWeight(a.operationType);
       const weightB = getOperationWeight(b.operationType);
       if (weightA !== weightB) return weightA - weightB;
       
-      const plateA = String(a.plate || "");
-      const plateB = String(b.plate || "");
-      return plateA.localeCompare(plateB, 'tr-TR');
+      return String(a.plate || "").localeCompare(String(b.plate || ""), 'tr-TR');
     });
   }, [fleetData, searchQuery, operationFilter, unitFilter]);
 
@@ -109,12 +122,19 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
           
           <div className="flex gap-2 w-full sm:w-auto">
             <select
+               value={selectedYear}
+               onChange={(e) => setSelectedYear(Number(e.target.value))}
+               className="flex-1 sm:flex-none bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-xl text-xs sm:text-sm px-3 py-3 font-bold outline-none truncate focus:ring-2 focus:ring-blue-500"
+             >
+                {availableYears.map(y => <option key={y} value={y}>{y} Yılı Ort.</option>)}
+             </select>
+
+            <select
                value={unitFilter}
                onChange={handleUnitChange}
                className="flex-1 sm:flex-none bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-xs sm:text-sm px-3 py-3 font-medium outline-none text-slate-700 dark:text-slate-200 truncate focus:ring-2 focus:ring-emerald-500"
              >
                 <option value="all">Tüm Birimler</option>
-                {/* Güvenlik: UNITS undefined olursa hata vermemesi için */}
                 {(UNITS || []).map(u => <option key={u} value={u}>{u}</option>)}
              </select>
 
@@ -137,48 +157,57 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
             <p className="text-sm">Arama veya filtrelere uygun araç bulunamadı.</p>
           </div>
         ) : (
-          filteredList.map((vehicle, idx) => (
-            <div 
-               key={vehicle.id || idx} 
-               onClick={() => setSelectedVehicle(vehicle)}
-              className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all cursor-pointer relative group"
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold px-2 py-0.5 rounded">
-                      {vehicle.unit}
-                    </span>
-                    
-                    {vehicle.operationType && (
-                      <span className="bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-bold px-2 py-0.5 rounded">
-                        {vehicle.operationType}
-                      </span>
-                    )}
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${String(vehicle.status).includes("Destek") ? "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400" : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"}`}>
-                        {vehicle.status}
-                    </span>
+          filteredList.map((vehicle, idx) => {
+            const plateKey = vehicle.plate ? String(vehicle.plate).replace(/\s/g, "").toUpperCase() : "";
+            const avgKm = calculatedYearlyKms[plateKey] || null;
+
+            return (
+                <div 
+                   key={vehicle.id || idx} 
+                   onClick={() => setSelectedVehicle(vehicle)}
+                  className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all cursor-pointer relative group"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold px-2 py-0.5 rounded">
+                          {vehicle.unit}
+                        </span>
+                        
+                        {vehicle.operationType && (
+                          <span className="bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-bold px-2 py-0.5 rounded">
+                            {vehicle.operationType}
+                          </span>
+                        )}
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${String(vehicle.status).includes("Destek") ? "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400" : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"}`}>
+                            {vehicle.status}
+                        </span>
+                        
+                        {avgKm && (
+                          <span className="bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                            <Gauge size={10}/> {avgKm} km
+                          </span>
+                        )}
+                      </div>
+                      
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-white font-mono tracking-wide">{vehicle.plate}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        {vehicle.brandModel || [vehicle.brand, vehicle.model].filter(Boolean).join(" - ")}
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-full text-slate-400 dark:text-slate-500 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/30 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors shrink-0">
+                        <CarFront size={20} />
+                    </div>
                   </div>
-                  
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-white font-mono tracking-wide">{vehicle.plate}</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    {vehicle.brandModel || [vehicle.brand, vehicle.model].filter(Boolean).join(" - ")}
-                  </p>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-full text-slate-400 dark:text-slate-500 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/30 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors shrink-0">
-                    <CarFront size={20} />
-                </div>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
       {selectedVehicle && (() => {
-        // Güvenlik: fleetKms App.js'den gelmediyse boş nesne varsay
-        const safeFleetKms = fleetKms || {}; 
         const vehiclePlateKey = selectedVehicle.plate ? String(selectedVehicle.plate).replace(/\s/g, "").toUpperCase() : "";
-        const avgKm = safeFleetKms[vehiclePlateKey] || null;
+        const avgKm = calculatedYearlyKms[vehiclePlateKey] || null;
 
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedVehicle(null)}>
@@ -197,7 +226,7 @@ const FleetPage = ({ fleetData, fleetKms, onBack }) => {
               
               <div className="p-6 space-y-4">
                 {avgKm && (
-                  <DetailRow icon={Gauge} label="Ortalama KM" value={`${formatNumber(avgKm)} km`} color="text-blue-600 dark:text-blue-400" />
+                  <DetailRow icon={Gauge} label={`${selectedYear} Yılı Ort. KM`} value={`${formatNumber(avgKm)} km`} color="text-blue-600 dark:text-blue-400" />
                 )}
                 
                 <DetailRow icon={User} label="Tedarikçi" value={selectedVehicle.supplier} />
