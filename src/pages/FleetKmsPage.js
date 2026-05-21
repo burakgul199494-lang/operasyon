@@ -1,24 +1,20 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, ChevronDown, Calendar, Search, ChevronRight, Home, X, Truck, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Search, ChevronRight, Home, X, AlertTriangle } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-const parseMetric = (val) => {
-    if (val === undefined || val === null || val === "") return null;
-    const num = parseFloat(String(val).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.'));
-    return isNaN(num) ? null : num;
-};
+const ALLOWED_STATUSES = ["acente kiralık", "acente özmal", "acente özmal (masraf dışı)", "acente özmal(masraf dışı)", "şirket özmal", "şube kiralık"];
+const EXCLUDED_TYPES = ["kamyon", "kamyonet"];
 
-const FleetKmsPage = ({ allData = [], fleetData = [], fleetDailyKms = [], onBack }) => {
+const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onBack }) => {
     const [selectedUnit, setSelectedUnit] = useState(null); 
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [searchQuery, setSearchQuery] = useState("");
     const [showIdleModal, setShowIdleModal] = useState(false);
 
-    // İlk girişte en son verisi olan ayı seçme
     useEffect(() => {
         if (fleetDailyKms && fleetDailyKms.length > 0 && !selectedUnit) {
             const sortedData = [...fleetDailyKms].sort((a, b) => (b.year !== a.year ? b.year - a.year : b.month - a.month));
@@ -31,7 +27,6 @@ const FleetKmsPage = ({ allData = [], fleetData = [], fleetDailyKms = [], onBack
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
     const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    // Günlük verileri Pivot Tablo mantığında işleme ve 3KM kuralını uygulama
     const processedData = useMemo(() => {
         if (!fleetDailyKms) return [];
         let relevantData = fleetDailyKms.filter(d => d.year === selectedYear && d.month === selectedMonth);
@@ -53,60 +48,64 @@ const FleetKmsPage = ({ allData = [], fleetData = [], fleetDailyKms = [], onBack
             }
         });
 
-        // TÇG ve OK hesaplama (3 KM Kuralı)
         return Object.values(map).map(item => {
             let tcg = 0;
             let totalKmForAvg = 0;
+            let hasAnyKm = false; // "Tek 1 km bile yapsa çalışmış sayılacak" kuralı için
             
-            Object.values(item.days).forEach(km => {
-                if (km >= 3) {
-                    tcg += 1;
-                    totalKmForAvg += km;
+            Object.entries(item.days).forEach(([dayStr, km]) => {
+                if (km > 0) hasAnyKm = true; 
+
+                // PAZAR GÜNLERİ HESAPLAMAYA DAHİL EDİLMEZ!
+                if (!getIsSunday(parseInt(dayStr))) {
+                    if (km >= 3) {
+                        tcg += 1;
+                        totalKmForAvg += km;
+                    }
                 }
             });
 
             return {
                 ...item,
                 tcg: tcg,
-                ok: tcg > 0 ? (totalKmForAvg / tcg).toFixed(1) : 0
+                ok: tcg > 0 ? (totalKmForAvg / tcg).toFixed(1) : 0,
+                hasAnyKm
             };
         }).sort((a, b) => a.unit.localeCompare(b.unit) || a.plate.localeCompare(b.plate));
     }, [fleetDailyKms, selectedUnit, selectedYear, selectedMonth]);
 
-    // %95 ALTI TESLİMAT + ÇALIŞMAYAN ARAÇ ANALİZİ
     const idleVehicles = useMemo(() => {
-        if (!allData || !fleetData || !fleetDailyKms) return [];
+        if (!allData || !fleetMonthly || !fleetDailyKms) return [];
         
-        // 1. İlgili ayda teslim performansı %95 altı olan birimleri bul
-        const underperformingUnits = allData.filter(d => {
-            if (d.year === selectedYear && d.month === selectedMonth) {
-                const teslim = parseMetric(d.teslimPerformansi);
-                return teslim !== null && teslim < 95;
-            }
-            return false;
-        }).map(d => d.unit);
+        // 1. İlgili ayda "NİHAİ TESLİM PERFORMANSI" %95 altı olan birimleri bul
+        const underperformingUnits = allData.filter(d => d.year === selectedYear && d.month === selectedMonth && d.nihaiTeslim !== undefined && d.nihaiTeslim < 95).map(d => d.unit);
 
         const idleList = [];
 
         underperformingUnits.forEach(unit => {
-            // 2. Bu birimin araçlarını bul (Parça Başı HARİÇ)
-            const unitVehicles = fleetData.filter(v => v.unit === unit && v.operationType && !v.operationType.toLowerCase().includes("parça"));
+            // 2. Bu birimin aylık filosunu bul ve kurallara göre filtrele
+            const unitMonthlyFleet = fleetMonthly.find(fm => fm.unit === unit && fm.year === selectedYear && fm.month === selectedMonth)?.records || [];
             
-            // 3. Bu araçlar o ay çalışmış mı kontrol et
-            unitVehicles.forEach(vehicle => {
-                const plateKey = vehicle.plate.replace(/\s/g, "").toUpperCase();
+            unitMonthlyFleet.forEach(vehicle => {
+                const typeLower = String(vehicle.type || "").toLowerCase();
+                const statusLower = String(vehicle.status || "").toLowerCase().trim();
+
+                // Kamyon/Kamyonet filtrelemesi ve Statü filtrelemesi
+                if (EXCLUDED_TYPES.some(t => typeLower.includes(t))) return;
+                if (!ALLOWED_STATUSES.includes(statusLower)) return;
                 
-                // Araç processedData içinde var mı? Varsa TÇG'si 0 mı?
+                const plateKey = vehicle.plate.replace(/\s/g, "").toUpperCase();
                 const vehicleRecord = processedData.find(pd => pd.unit === unit && pd.plate.replace(/\s/g, "").toUpperCase() === plateKey);
                 
-                if (!vehicleRecord || vehicleRecord.tcg === 0) {
-                    idleList.push({ unit, plate: vehicle.plate, type: vehicle.operationType, supplier: vehicle.supplier });
+                // 3. Yatan Araç Şartı: Ay boyunca TÇG falan fark etmez, hiç KM girmemiş olacak (veya total km 0)
+                if (!vehicleRecord || vehicleRecord.hasAnyKm === false) {
+                    idleList.push({ unit, plate: vehicle.plate, type: vehicle.type, status: vehicle.status, owner: vehicle.owner });
                 }
             });
         });
 
         return idleList.sort((a,b) => a.unit.localeCompare(b.unit));
-    }, [allData, fleetData, processedData, selectedYear, selectedMonth]);
+    }, [allData, fleetMonthly, processedData, selectedYear, selectedMonth]);
 
     const filteredUnits = UNITS.filter((unit) => unit.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -182,7 +181,7 @@ const FleetKmsPage = ({ allData = [], fleetData = [], fleetDailyKms = [], onBack
                                     </td>
                                 ))}
                             </tr>
-                        )) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Veri bulunamadı.</td></tr>}
+                        )) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Veri bulunamadı. Pazar günleri TÇG'ye dahil edilmez.</td></tr>}
                     </tbody>
                 </table>
             </div>
@@ -192,27 +191,27 @@ const FleetKmsPage = ({ allData = [], fleetData = [], fleetDailyKms = [], onBack
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowIdleModal(false)}>
                     <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
                         <div className="p-4 bg-rose-600 text-white flex justify-between items-center shrink-0">
-                            <h3 className="font-bold flex items-center gap-2 text-sm sm:text-base"><AlertTriangle size={18}/> Teslim {"<"} %95 Olup Çalışmayan Araçlar ({MONTH_NAMES[selectedMonth]})</h3>
+                            <h3 className="font-bold flex items-center gap-2 text-sm sm:text-base"><AlertTriangle size={18}/> Yatan Araçlar (Nihai Teslim {"<"} %95)</h3>
                             <button onClick={() => setShowIdleModal(false)}><X size={20}/></button>
                         </div>
                         <div className="p-4 bg-rose-50 dark:bg-rose-900/20 text-xs text-rose-800 dark:text-rose-200 border-b dark:border-rose-900 shrink-0">
-                            Bu listede, ilgili ayda <strong>Teslim Performansı %95'in altında</strong> kalan birimlerdeki <strong>Parça Başı HARİÇ</strong> filoya kayıtlı olup, hiç KM verisi girilmeyen veya ortalamayı yükseltecek çalışması olmayan araçlar listelenir.
+                            İlgili ayda <strong>Nihai Teslim Performansı %95'in altında</strong> kalan birimlerde, Kamyon/Kamyonet harici ve belirtilen statülerdeki araçlar içinde o ay boyunca <strong>hiç KM girmemiş</strong> olan yatan araçlar listelenir. (1 km dahi girilmişse listeden düşer).
                         </div>
                         <div className="overflow-y-auto p-4">
                             {idleVehicles.length > 0 ? (
                                 <table className="w-full text-left text-sm">
                                     <thead><tr className="border-b dark:border-slate-700 dark:text-slate-300">
-                                        <th className="pb-2">Birim</th><th className="pb-2">Plaka</th><th className="pb-2">Tip</th><th className="pb-2">Tedarikçi</th>
+                                        <th className="pb-2">Birim</th><th className="pb-2">Plaka</th><th className="pb-2">Tip</th><th className="pb-2">Statü</th><th className="pb-2">Araç Sahibi</th>
                                     </tr></thead>
                                     <tbody>
                                         {idleVehicles.map((v, i) => (
                                             <tr key={i} className="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:text-slate-300">
-                                                <td className="py-2 font-bold text-rose-600 dark:text-rose-400">{v.unit}</td><td className="py-2 font-mono text-xs">{v.plate}</td><td className="py-2 text-xs">{v.type}</td><td className="py-2 text-xs">{v.supplier}</td>
+                                                <td className="py-2 font-bold text-rose-600 dark:text-rose-400">{v.unit}</td><td className="py-2 font-mono text-xs">{v.plate}</td><td className="py-2 text-xs">{v.type}</td><td className="py-2 text-xs">{v.status}</td><td className="py-2 text-xs">{v.owner}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
-                            ) : <p className="text-center text-slate-500 py-6">Kritere uyan yatan araç bulunamadı veya tüm araçlar aktif.</p>}
+                            ) : <p className="text-center text-slate-500 py-6">Kritere uyan yatan araç bulunamadı.</p>}
                         </div>
                     </div>
                 </div>
