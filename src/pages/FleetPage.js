@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { ArrowLeft, Search, CarFront, X, User, Tag, Calendar, PenTool, CheckCircle2, AlertCircle, Truck, Gauge } from "lucide-react";
+import { ArrowLeft, Search, CarFront, X, User, Calendar, PenTool, CheckCircle2, Truck, Gauge } from "lucide-react";
 import { formatNumber, UNITS, MONTH_NAMES } from "../utils/helpers"; 
 
 const currentYear = new Date().getFullYear();
@@ -18,7 +18,7 @@ const FleetPage = ({ fleetMonthly, fleetDailyKms, onBack }) => {
     setStatusFilter("all"); 
   };
 
-  // Seçili ayın/yılın filosunu çıkar
+  // Seçili ayın/yılın TÜM filosunu çıkar (FİLTRESİZ)
   const currentFleet = useMemo(() => {
     if (!fleetMonthly) return [];
     let list = [];
@@ -43,7 +43,7 @@ const FleetPage = ({ fleetMonthly, fleetDailyKms, onBack }) => {
     return [...statuses].sort((a, b) => String(a).localeCompare(String(b), 'tr-TR'));
   }, [currentFleet, unitFilter]);
 
-  // YENİ: Seçilen Ay'a Ait Araçların KM Ortalaması (Pazar Hariç)
+  // Seçilen Ay'a Ait Araçların KM Ortalaması (Pazar Hariç 3 KM Kuralı)
   const calculatedMonthlyKms = useMemo(() => {
     if (!fleetDailyKms) return {};
     const monthData = fleetDailyKms.filter(d => d.year === selectedYear && d.month === selectedMonth);
@@ -89,6 +89,12 @@ const FleetPage = ({ fleetMonthly, fleetDailyKms, onBack }) => {
     return result.sort((a, b) => {
       const unitCompare = String(a.unit || "").localeCompare(String(b.unit || ""), 'tr-TR');
       if (unitCompare !== 0) return unitCompare;
+      
+      const statA = String(a.status || "");
+      const statB = String(b.status || "");
+      const statCompare = statA.localeCompare(statB, 'tr-TR');
+      if (statCompare !== 0) return statCompare;
+
       return String(a.plate || "").localeCompare(String(b.plate || ""), 'tr-TR');
     });
   }, [currentFleet, searchQuery, statusFilter, unitFilter]);
@@ -189,6 +195,12 @@ const FleetPage = ({ fleetMonthly, fleetDailyKms, onBack }) => {
                             {vehicle.status}
                           </span>
                         )}
+
+                        {vehicle.type && (
+                          <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold px-2 py-0.5 rounded">
+                            {vehicle.type}
+                          </span>
+                        )}
                         
                         {avgKm && (
                           <span className="bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1">
@@ -233,7 +245,7 @@ const FleetPage = ({ fleetMonthly, fleetDailyKms, onBack }) => {
               
               <div className="p-6 space-y-4">
                 {avgKm && (
-                  <DetailRow icon={Gauge} label={`${MONTH_NAMES[selectedMonth]} Ort. KM`} value={`${formatNumber(avgKm)} km`} color="text-blue-600 dark:text-blue-400" />
+                  <DetailRow icon={Gauge} label={`${MONTH_NAMES[selectedMonth]} Ort. KM (Pazar Hariç)`} value={`${formatNumber(avgKm)} km`} color="text-blue-600 dark:text-blue-400" />
                 )}
                 
                 <DetailRow icon={User} label="Araç Sahibi" value={selectedVehicle.owner} />
