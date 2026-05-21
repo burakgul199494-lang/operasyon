@@ -1,56 +1,63 @@
 import React, { useState, useMemo } from "react";
 import { ArrowLeft, Search, CarFront, X, User, Tag, Calendar, PenTool, CheckCircle2, AlertCircle, Truck, Gauge } from "lucide-react";
-import { formatNumber, UNITS } from "../utils/helpers"; 
+import { formatNumber, UNITS, MONTH_NAMES } from "../utils/helpers"; 
 
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
+const FleetPage = ({ fleetMonthly, fleetDailyKms, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [unitFilter, setUnitFilter] = useState("all"); 
-  const [operationFilter, setOperationFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
 
   const handleUnitChange = (e) => {
     setUnitFilter(e.target.value);
-    setOperationFilter("all"); 
+    setStatusFilter("all"); 
   };
 
-  const operationTypes = useMemo(() => {
-    const types = new Set();
-    (fleetData || []).forEach(v => {
+  // Seçili ayın/yılın filosunu çıkar
+  const currentFleet = useMemo(() => {
+    if (!fleetMonthly) return [];
+    let list = [];
+    fleetMonthly.forEach(fm => {
+        if (fm.year === selectedYear && fm.month === selectedMonth && fm.records) {
+            fm.records.forEach(v => {
+                list.push({ unit: fm.unit, ...v });
+            });
+        }
+    });
+    return list;
+  }, [fleetMonthly, selectedYear, selectedMonth]);
+
+  const vehicleStatuses = useMemo(() => {
+    const statuses = new Set();
+    currentFleet.forEach(v => {
       if (unitFilter !== "all" && String(v.unit) !== String(unitFilter)) return;
-      if (v.operationType && String(v.operationType).trim() !== "") {
-        types.add(String(v.operationType).trim());
+      if (v.status && String(v.status).trim() !== "") {
+          statuses.add(String(v.status).trim());
       }
     });
-    return [...types].sort((a, b) => String(a).localeCompare(String(b), 'tr-TR'));
-  }, [fleetData, unitFilter]);
+    return [...statuses].sort((a, b) => String(a).localeCompare(String(b), 'tr-TR'));
+  }, [currentFleet, unitFilter]);
 
-  const getOperationWeight = (type) => {
-    if (!type) return 99; 
-    const t = String(type).toLocaleLowerCase('tr-TR').replace(/\s/g, ''); 
-    if (t.includes('özmal') || t.includes('kiralık')) return 1;
-    if (t.includes('destek')) return 2;
-    if (t.includes('motor')) return 3;
-    if (t.includes('parçabaşı')) return 4;
-    return 3; 
-  };
-
-  // YENİ: Seçilen Yıla Ait Araçların Yıllık KM Ortalaması (3 KM Kuralı Uygulanmış)
-  const calculatedYearlyKms = useMemo(() => {
+  // YENİ: Seçilen Ay'a Ait Araçların KM Ortalaması (Pazar Hariç)
+  const calculatedMonthlyKms = useMemo(() => {
     if (!fleetDailyKms) return {};
-    const yearData = fleetDailyKms.filter(d => d.year === selectedYear);
+    const monthData = fleetDailyKms.filter(d => d.year === selectedYear && d.month === selectedMonth);
     const kmsMap = {};
     
-    yearData.forEach(doc => {
+    monthData.forEach(doc => {
         if (doc.records) {
             doc.records.forEach(r => {
                 const plateKey = r.plate.replace(/\s/g, "").toUpperCase();
                 const kmVal = parseFloat(String(r.km).replace(',', '.'));
-                // 3 KM Kuralı
-                if (!isNaN(kmVal) && kmVal >= 3) {
+                const dDate = new Date(doc.year, doc.month - 1, r.day);
+                
+                // Pazar günlerini dahil etmiyoruz
+                if (dDate.getDay() !== 0 && !isNaN(kmVal) && kmVal >= 3) {
                     if (!kmsMap[plateKey]) kmsMap[plateKey] = { total: 0, count: 0 };
                     kmsMap[plateKey].total += kmVal;
                     kmsMap[plateKey].count += 1;
@@ -64,12 +71,12 @@ const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
         result[plate] = (kmsMap[plate].total / kmsMap[plate].count).toFixed(1);
     });
     return result;
-  }, [fleetDailyKms, selectedYear]);
+  }, [fleetDailyKms, selectedYear, selectedMonth]);
 
   const filteredList = useMemo(() => {
-    let result = [...(fleetData || [])];
+    let result = [...currentFleet];
     if (unitFilter !== "all") result = result.filter(item => String(item.unit) === String(unitFilter));
-    if (operationFilter !== "all") result = result.filter(item => item.operationType && String(item.operationType).trim() === operationFilter);
+    if (statusFilter !== "all") result = result.filter(item => item.status && String(item.status).trim() === statusFilter);
     if (searchQuery.trim()) {
       const lowerQ = String(searchQuery).toLocaleLowerCase('tr-TR');
       result = result.filter(item => {
@@ -82,14 +89,9 @@ const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
     return result.sort((a, b) => {
       const unitCompare = String(a.unit || "").localeCompare(String(b.unit || ""), 'tr-TR');
       if (unitCompare !== 0) return unitCompare;
-      
-      const weightA = getOperationWeight(a.operationType);
-      const weightB = getOperationWeight(b.operationType);
-      if (weightA !== weightB) return weightA - weightB;
-      
       return String(a.plate || "").localeCompare(String(b.plate || ""), 'tr-TR');
     });
-  }, [fleetData, searchQuery, operationFilter, unitFilter]);
+  }, [currentFleet, searchQuery, statusFilter, unitFilter]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-10 transition-colors duration-300">
@@ -126,7 +128,15 @@ const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
                onChange={(e) => setSelectedYear(Number(e.target.value))}
                className="flex-1 sm:flex-none bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-xl text-xs sm:text-sm px-3 py-3 font-bold outline-none truncate focus:ring-2 focus:ring-blue-500"
              >
-                {availableYears.map(y => <option key={y} value={y}>{y} Yılı Ort.</option>)}
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+             </select>
+
+             <select
+               value={selectedMonth}
+               onChange={(e) => setSelectedMonth(Number(e.target.value))}
+               className="flex-1 sm:flex-none bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-xl text-xs sm:text-sm px-3 py-3 font-bold outline-none truncate focus:ring-2 focus:ring-blue-500"
+             >
+                {MONTH_NAMES.map((m, i) => i !== 0 && <option key={i} value={i}>{m}</option>)}
              </select>
 
             <select
@@ -139,12 +149,12 @@ const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
              </select>
 
             <select
-               value={operationFilter}
-               onChange={(e) => setOperationFilter(e.target.value)}
+               value={statusFilter}
+               onChange={(e) => setStatusFilter(e.target.value)}
                className="flex-1 sm:flex-none bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-xs sm:text-sm px-3 py-3 font-medium outline-none text-slate-700 dark:text-slate-200 truncate focus:ring-2 focus:ring-emerald-500"
              >
-                <option value="all">Tümü (Ç.Şekli)</option>
-                {operationTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                <option value="all">Tümü (Statü)</option>
+                {vehicleStatuses.map(t => <option key={t} value={t}>{t}</option>)}
              </select>
           </div>
         </div>
@@ -154,16 +164,16 @@ const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
         {filteredList.length === 0 ? (
           <div className="text-center py-20 text-slate-400 dark:text-slate-500">
             <CarFront size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="text-sm">Arama veya filtrelere uygun araç bulunamadı.</p>
+            <p className="text-sm">Seçili ay ve filtrelere uygun araç bulunamadı.</p>
           </div>
         ) : (
           filteredList.map((vehicle, idx) => {
             const plateKey = vehicle.plate ? String(vehicle.plate).replace(/\s/g, "").toUpperCase() : "";
-            const avgKm = calculatedYearlyKms[plateKey] || null;
+            const avgKm = calculatedMonthlyKms[plateKey] || null;
 
             return (
                 <div 
-                   key={vehicle.id || idx} 
+                   key={idx} 
                    onClick={() => setSelectedVehicle(vehicle)}
                   className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all cursor-pointer relative group"
                 >
@@ -174,14 +184,11 @@ const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
                           {vehicle.unit}
                         </span>
                         
-                        {vehicle.operationType && (
+                        {vehicle.status && (
                           <span className="bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-bold px-2 py-0.5 rounded">
-                            {vehicle.operationType}
+                            {vehicle.status}
                           </span>
                         )}
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${String(vehicle.status).includes("Destek") ? "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400" : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"}`}>
-                            {vehicle.status}
-                        </span>
                         
                         {avgKm && (
                           <span className="bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1">
@@ -192,7 +199,7 @@ const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
                       
                       <h3 className="text-lg font-bold text-slate-800 dark:text-white font-mono tracking-wide">{vehicle.plate}</h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        {vehicle.brandModel || [vehicle.brand, vehicle.model].filter(Boolean).join(" - ")}
+                        {vehicle.brand || ""} {vehicle.model || ""}
                       </p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-full text-slate-400 dark:text-slate-500 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/30 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors shrink-0">
@@ -207,7 +214,7 @@ const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
 
       {selectedVehicle && (() => {
         const vehiclePlateKey = selectedVehicle.plate ? String(selectedVehicle.plate).replace(/\s/g, "").toUpperCase() : "";
-        const avgKm = calculatedYearlyKms[vehiclePlateKey] || null;
+        const avgKm = calculatedMonthlyKms[vehiclePlateKey] || null;
 
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={() => setSelectedVehicle(null)}>
@@ -226,20 +233,15 @@ const FleetPage = ({ fleetData, fleetDailyKms, onBack }) => {
               
               <div className="p-6 space-y-4">
                 {avgKm && (
-                  <DetailRow icon={Gauge} label={`${selectedYear} Yılı Ort. KM`} value={`${formatNumber(avgKm)} km`} color="text-blue-600 dark:text-blue-400" />
+                  <DetailRow icon={Gauge} label={`${MONTH_NAMES[selectedMonth]} Ort. KM`} value={`${formatNumber(avgKm)} km`} color="text-blue-600 dark:text-blue-400" />
                 )}
                 
-                <DetailRow icon={User} label="Tedarikçi" value={selectedVehicle.supplier} />
-                <DetailRow icon={Truck} label="Araç Cinsi" value={selectedVehicle.vehicleType} />
-                <DetailRow icon={CarFront} label="Marka / Model" value={selectedVehicle.brandModel || [selectedVehicle.brand, selectedVehicle.model].filter(Boolean).join(" ")} />
+                <DetailRow icon={User} label="Araç Sahibi" value={selectedVehicle.owner} />
+                <DetailRow icon={Truck} label="Araç Cinsi" value={selectedVehicle.type} />
+                <DetailRow icon={CarFront} label="Marka / Model" value={`${selectedVehicle.brand || ''} ${selectedVehicle.model || ''}`} />
                 <DetailRow icon={Calendar} label="Model Yılı" value={selectedVehicle.year} />
-                <DetailRow icon={PenTool} label="Çalışma Şekli" value={selectedVehicle.operationType} />
-                <DetailRow 
-                   icon={selectedVehicle.expenseStatus && String(selectedVehicle.expenseStatus).includes("Dahil") ? CheckCircle2 : AlertCircle} 
-                   label="Masraf Durumu" 
-                   value={selectedVehicle.expenseStatus} 
-                   color={selectedVehicle.expenseStatus && String(selectedVehicle.expenseStatus).includes("Dahil") ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"}
-                />
+                <DetailRow icon={PenTool} label="Araç Statü" value={selectedVehicle.status} />
+                <DetailRow icon={CheckCircle2} label="Hacim" value={selectedVehicle.volume} />
               </div>
               
               <div className="bg-slate-50 dark:bg-slate-900/50 p-4 text-center border-t border-slate-100 dark:border-slate-700">
