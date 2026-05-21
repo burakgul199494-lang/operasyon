@@ -22,8 +22,7 @@ import { Lock } from "lucide-react";
 export default function App() {
   const [user, setUser] = useState(null);
   const [allData, setAllData] = useState([]);
-  const [unitInfo, setUnitInfo] = useState({});
-  const [fleetData, setFleetData] = useState([]);
+  const [fleetMonthly, setFleetMonthly] = useState([]); // YENİ: AYLIK DİNAMİK FİLO
   const [fleetDailyKms, setFleetDailyKms] = useState([]); 
   const [quantitiesData, setQuantitiesData] = useState([]); 
 
@@ -56,6 +55,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // PERFORMANS VERİLERİ (Nihai Teslim de buraya eklenecek)
   useEffect(() => {
     if (!user) { setAllData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "performance_records");
@@ -65,24 +65,17 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
+  // YENİ: AYLIK FİLO BİLGİLERİ (Eski fleet_list ve unit_info yerine)
   useEffect(() => {
-    if (!user) return;
-    const colRef = collection(db, "artifacts", appId, "public", "data", "unit_info");
+    if (!user) { setFleetMonthly([]); return; }
+    const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_monthly");
     const unsubscribe = onSnapshot(colRef, (snap) => {
-      const infoMap = {}; snap.docs.forEach((d) => { infoMap[d.id] = d.data(); }); setUnitInfo(infoMap);
+      setFleetMonthly(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsubscribe();
   }, [user]);
 
-  useEffect(() => {
-    if (!user) { setFleetData([]); return; }
-    const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_list");
-    const unsubscribe = onSnapshot(colRef, (snap) => {
-      setFleetData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsubscribe();
-  }, [user]);
-
+  // GÜNLÜK KM VERİLERİ
   useEffect(() => {
     if (!user) { setFleetDailyKms([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "fleet_daily_kms");
@@ -92,6 +85,7 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
+  // PERSONEL ADET VERİLERİ
   useEffect(() => {
     if (!user) { setQuantitiesData([]); return; }
     const colRef = collection(db, "artifacts", appId, "public", "data", "personnel_quantities");
@@ -165,22 +159,24 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingMenu user={user} onNavigate={handleNavigateFromMenu} onLogout={handleAppLogout} onProfile={() => setProfileOpen(true)} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />} />
         <Route path="/dashboard" element={<Dashboard onUnitClick={(unit) => navigate(`/detail/${unit}`)} onNavigateMenu={() => navigate("/")} />} />
-        {/* UnitDetail ARTIK YENİ GÜNLÜK KM VERİSİNİ ALIYOR */}
-        <Route path="/detail/:unitName" element={<UnitDetail allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} fleetData={fleetData} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
+        
+        {/* ARTIK fleetMonthly İLE BESLENİYOR */}
+        <Route path="/detail/:unitName" element={<UnitDetail allData={allData} quantitiesData={quantitiesData} fleetMonthly={fleetMonthly} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/dashboard")} onChangeUnit={(u) => navigate(`/detail/${u}`)} />} />
+        
         <Route path="/ranking" element={<FinalRankingPage allData={allData} onBack={() => navigate("/")} />} />
         <Route path="/trends" element={<TrendAnalysisPage allData={allData} onBack={() => navigate("/")} />} />
         <Route path="/notes" element={<NotesPage user={user} onBack={() => navigate("/")} />} />
         
-        {/* FleetPage ARTIK YENİ GÜNLÜK KM VERİSİNİ ALIYOR */}
-        <Route path="/fleet" element={<FleetPage fleetData={fleetData} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/")} />} />
-        <Route path="/fleet-kms" element={<FleetKmsPage allData={allData} fleetData={fleetData} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/")} />} />
+        {/* ARTIK fleetMonthly İLE BESLENİYOR */}
+        <Route path="/fleet" element={<FleetPage fleetMonthly={fleetMonthly} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/")} />} />
+        <Route path="/fleet-kms" element={<FleetKmsPage allData={allData} fleetMonthly={fleetMonthly} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/")} />} />
+        
         <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
-        <Route path="/personnel-quantities" element={<PersonnelQuantitiesPage allData={allData} unitInfo={unitInfo} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
+        <Route path="/personnel-quantities" element={<PersonnelQuantitiesPage allData={allData} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
         <Route path="/admin" element={
           <AdminPanel
             allData={allData}
-            unitInfo={unitInfo}
-            fleetData={fleetData}
+            fleetMonthly={fleetMonthly}
             quantitiesData={quantitiesData}
             onSaveBatch={handleSaveBatch}
             onSaveQuantities={handleSaveQuantities}
