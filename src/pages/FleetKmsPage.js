@@ -1,12 +1,26 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, Search, ChevronRight, Home, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Search, ChevronRight, ChevronDown, Home, X, AlertTriangle } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-const ALLOWED_STATUSES = ["acente kiralık", "acente özmal", "acente özmal (masraf dışı)", "acente özmal(masraf dışı)", "şirket özmal", "şube kiralık"];
-const EXCLUDED_TYPES = ["kamyon", "kamyonet"];
+const checkVehicleFilter = (typeStr, statusStr) => {
+    const t = String(typeStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
+    const s = String(statusStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
+
+    const isTypeMatch = t.includes("kamyon"); 
+    
+    const isStatusMatch = 
+        s.includes("acente kiralık") || s.includes("acente kiralik") ||
+        s.includes("acente özmal") || s.includes("acente ozmal") ||
+        s.includes("şirket özmal") || s.includes("sirket ozmal") || 
+        s.includes("şirket ozmal") || s.includes("sirket özmal") ||
+        s.includes("şube kiralık") || s.includes("sube kiralik") || 
+        s.includes("şube kiralik") || s.includes("sube kiralık");
+
+    return isTypeMatch && isStatusMatch;
+};
 
 const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onBack }) => {
     const [selectedUnit, setSelectedUnit] = useState(null); 
@@ -28,35 +42,44 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
     const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
     const processedData = useMemo(() => {
-        if (!fleetDailyKms) return [];
-        let relevantData = fleetDailyKms.filter(d => d.year === selectedYear && d.month === selectedMonth);
+        const vehicleInfoMap = {};
         
-        if (selectedUnit !== "BÖLGE") {
-            relevantData = relevantData.filter(d => d.unit === selectedUnit);
-        }
-
-        const map = {};
-        relevantData.forEach(doc => {
-            if (doc.records) {
-                doc.records.forEach(r => {
-                    const key = `${doc.unit}-${r.plate.replace(/\s/g, "").toUpperCase()}`;
-                    if (!map[key]) map[key] = { unit: doc.unit, plate: r.plate, days: {} };
-                    
-                    const kmVal = parseFloat(String(r.km).replace(',', '.'));
-                    if (!isNaN(kmVal)) map[key].days[r.day] = kmVal;
+        fleetMonthly.forEach(fm => {
+            if (fm.year === selectedYear && fm.month === selectedMonth) {
+                if (selectedUnit !== "BÖLGE" && fm.unit !== selectedUnit) return;
+                
+                fm.records.forEach(v => {
+                    if (checkVehicleFilter(v.type, v.status)) {
+                        const key = `${fm.unit}-${v.plate.replace(/\s/g, "").toUpperCase()}`;
+                        vehicleInfoMap[key] = { unit: fm.unit, plate: v.plate, type: v.type, status: v.status, days: {} };
+                    }
                 });
+            }
+        });
+
+        const map = { ...vehicleInfoMap }; 
+
+        fleetDailyKms.forEach(doc => {
+            if (doc.year === selectedYear && doc.month === selectedMonth) {
+                if (selectedUnit !== "BÖLGE" && doc.unit !== selectedUnit) return;
+                
+                if (doc.records) {
+                    doc.records.forEach(r => {
+                        const key = `${doc.unit}-${r.plate.replace(/\s/g, "").toUpperCase()}`;
+                        if (map[key]) {
+                            const kmVal = parseFloat(String(r.km).replace(',', '.'));
+                            if (!isNaN(kmVal)) map[key].days[r.day] = kmVal;
+                        }
+                    });
+                }
             }
         });
 
         return Object.values(map).map(item => {
             let tcg = 0;
             let totalKmForAvg = 0;
-            let hasAnyKm = false; // "Tek 1 km bile yapsa çalışmış sayılacak" kuralı için
             
             Object.entries(item.days).forEach(([dayStr, km]) => {
-                if (km > 0) hasAnyKm = true; 
-
-                // PAZAR GÜNLERİ HESAPLAMAYA DAHİL EDİLMEZ!
                 if (!getIsSunday(parseInt(dayStr))) {
                     if (km >= 3) {
                         tcg += 1;
@@ -68,44 +91,45 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
             return {
                 ...item,
                 tcg: tcg,
-                ok: tcg > 0 ? (totalKmForAvg / tcg).toFixed(1) : 0,
-                hasAnyKm
+                ok: tcg > 0 ? (totalKmForAvg / tcg).toFixed(1) : 0
             };
         }).sort((a, b) => a.unit.localeCompare(b.unit) || a.plate.localeCompare(b.plate));
-    }, [fleetDailyKms, selectedUnit, selectedYear, selectedMonth]);
+
+    }, [fleetDailyKms, fleetMonthly, selectedUnit, selectedYear, selectedMonth]);
 
     const idleVehicles = useMemo(() => {
         if (!allData || !fleetMonthly || !fleetDailyKms) return [];
         
-        // 1. İlgili ayda "NİHAİ TESLİM PERFORMANSI" %95 altı olan birimleri bul
         const underperformingUnits = allData.filter(d => d.year === selectedYear && d.month === selectedMonth && d.nihaiTeslim !== undefined && d.nihaiTeslim < 95).map(d => d.unit);
 
         const idleList = [];
 
         underperformingUnits.forEach(unit => {
-            // 2. Bu birimin aylık filosunu bul ve kurallara göre filtrele
             const unitMonthlyFleet = fleetMonthly.find(fm => fm.unit === unit && fm.year === selectedYear && fm.month === selectedMonth)?.records || [];
             
             unitMonthlyFleet.forEach(vehicle => {
-                const typeLower = String(vehicle.type || "").toLowerCase();
-                const statusLower = String(vehicle.status || "").toLowerCase().trim();
-
-                // Kamyon/Kamyonet filtrelemesi ve Statü filtrelemesi
-                if (EXCLUDED_TYPES.some(t => typeLower.includes(t))) return;
-                if (!ALLOWED_STATUSES.includes(statusLower)) return;
+                if (!checkVehicleFilter(vehicle.type, vehicle.status)) return;
                 
                 const plateKey = vehicle.plate.replace(/\s/g, "").toUpperCase();
-                const vehicleRecord = processedData.find(pd => pd.unit === unit && pd.plate.replace(/\s/g, "").toUpperCase() === plateKey);
+                const unitDaily = fleetDailyKms.find(d => d.unit === unit && d.year === selectedYear && d.month === selectedMonth);
+                let hasAnyKm = false;
                 
-                // 3. Yatan Araç Şartı: Ay boyunca TÇG falan fark etmez, hiç KM girmemiş olacak (veya total km 0)
-                if (!vehicleRecord || vehicleRecord.hasAnyKm === false) {
+                if (unitDaily && unitDaily.records) {
+                    const vehicleRecords = unitDaily.records.filter(r => r.plate.replace(/\s/g, "").toUpperCase() === plateKey);
+                    hasAnyKm = vehicleRecords.some(r => {
+                        const km = parseFloat(String(r.km).replace(',', '.'));
+                        return !isNaN(km) && km > 0; 
+                    });
+                }
+                
+                if (!hasAnyKm) {
                     idleList.push({ unit, plate: vehicle.plate, type: vehicle.type, status: vehicle.status, owner: vehicle.owner });
                 }
             });
         });
 
         return idleList.sort((a,b) => a.unit.localeCompare(b.unit));
-    }, [allData, fleetMonthly, processedData, selectedYear, selectedMonth]);
+    }, [allData, fleetMonthly, fleetDailyKms, selectedYear, selectedMonth]);
 
     const filteredUnits = UNITS.filter((unit) => unit.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -137,16 +161,30 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
     return (
         <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen">
             <div className="bg-white dark:bg-slate-900 p-3 shadow-sm sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b dark:border-slate-700">
-                <div className="flex items-center gap-3">
-                    <button onClick={() => setSelectedUnit(null)}><ArrowLeft className="text-slate-600 dark:text-white" /></button>
-                    <h2 className="font-bold text-lg dark:text-white">{selectedUnit} - Günlük KM</h2>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors flex-shrink-0">
+                        <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
+                    </button>
+                    <div className="relative flex items-center w-full max-w-[250px]">
+                        <select 
+                            value={selectedUnit} 
+                            onChange={(e) => setSelectedUnit(e.target.value)} 
+                            className="appearance-none bg-transparent text-lg font-bold text-slate-800 dark:text-white w-full pr-8 outline-none cursor-pointer truncate py-1 z-10"
+                        >
+                            <option value="BÖLGE" className="dark:bg-slate-800 dark:text-white">TÜMÜ (BÖLGE)</option>
+                            {UNITS.filter(u => u !== "BÖLGE").map((u) => (
+                                <option key={u} value={u} className="dark:bg-slate-800 dark:text-white">{u}</option>
+                            ))}
+                        </select>
+                        <ChevronDown size={18} className="absolute right-0 text-slate-400 pointer-events-none" />
+                    </div>
                 </div>
-                <button onClick={() => setShowIdleModal(true)} className="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition">
+                <button onClick={() => setShowIdleModal(true)} className="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition flex-shrink-0">
                     <AlertTriangle size={14}/> Yatan Araçlar ({idleVehicles.length})
                 </button>
             </div>
 
-            <div className="p-3 bg-white dark:bg-slate-800 flex gap-2 overflow-x-auto border-b dark:border-slate-700">
+            <div className="p-3 bg-white dark:bg-slate-800 flex gap-2 overflow-x-auto border-b dark:border-slate-700 items-center">
                 <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-700 p-1.5 rounded text-sm font-bold dark:text-white outline-none border-none">
                     {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
@@ -155,6 +193,10 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                         {m}
                     </button>
                 ))}
+            </div>
+
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-[10px] text-blue-700 dark:text-blue-300 font-medium text-center border-b border-blue-100 dark:border-blue-900/50">
+                Sadece <strong>Kamyon/Kamyonet</strong> olan ve belirli statülere sahip araçlar listelenir. KM'si girilmeyen araçlar da listede görünür. Yatan araçların (Riskli) satırları kırmızıdır.
             </div>
 
             <div className="p-3 overflow-x-auto">
@@ -169,19 +211,32 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                         </tr>
                     </thead>
                     <tbody>
-                        {processedData.length > 0 ? processedData.map((row, i) => (
-                            <tr key={i} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                <td className="p-2 sticky left-0 bg-white dark:bg-slate-800 font-bold dark:text-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{row.unit}</td>
-                                <td className="p-2 sticky left-32 bg-white dark:bg-slate-800 font-mono text-xs dark:text-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{row.plate}</td>
-                                <td className="p-2 text-center font-bold text-blue-600 bg-blue-50/50 dark:bg-blue-900/20">{row.tcg}</td>
-                                <td className="p-2 text-center font-bold text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20">{row.ok}</td>
-                                {daysArray.map(d => (
-                                    <td key={d} className={`p-1 border-l dark:border-slate-700 text-center font-medium ${getIsSunday(d) ? 'bg-red-50/50 dark:bg-red-900/10 text-red-500' : 'dark:text-slate-400'}`}>
-                                        {row.days[d] || "-"}
+                        {processedData.length > 0 ? processedData.map((row, i) => {
+                            // Bu satırdaki araç yatan araç listesinde var mı?
+                            const isIdle = idleVehicles.some(iv => iv.unit === row.unit && iv.plate.replace(/\s/g, "").toUpperCase() === row.plate.replace(/\s/g, "").toUpperCase());
+                            
+                            return (
+                                <tr key={i} className={isIdle ? "border-b border-rose-200 dark:border-rose-800 bg-rose-100 dark:bg-rose-900/40 hover:bg-rose-200 dark:hover:bg-rose-900/60 transition-colors" : "border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"}>
+                                    <td className={`p-2 sticky left-0 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isIdle ? 'bg-rose-100 dark:bg-rose-900/90 text-rose-800 dark:text-rose-200' : 'bg-white dark:bg-slate-800 dark:text-white'}`}>
+                                        {row.unit}
                                     </td>
-                                ))}
-                            </tr>
-                        )) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Veri bulunamadı. Pazar günleri TÇG'ye dahil edilmez.</td></tr>}
+                                    <td className={`p-2 sticky left-32 font-mono text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isIdle ? 'bg-rose-100 dark:bg-rose-900/90 text-rose-700 dark:text-rose-300' : 'bg-white dark:bg-slate-800 dark:text-slate-300'}`} title={`${row.type} - ${row.status}`}>
+                                        {row.plate}
+                                    </td>
+                                    <td className={`p-2 text-center font-bold ${isIdle ? 'text-rose-700 dark:text-rose-300' : 'text-blue-600 bg-blue-50/50 dark:bg-blue-900/20'}`}>
+                                        {row.tcg}
+                                    </td>
+                                    <td className={`p-2 text-center font-bold ${isIdle ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20'}`}>
+                                        {row.ok}
+                                    </td>
+                                    {daysArray.map(d => (
+                                        <td key={d} className={`p-1 border-l dark:border-slate-700 text-center font-medium ${isIdle ? 'text-rose-600 dark:text-rose-400' : (getIsSunday(d) ? 'bg-red-50/50 dark:bg-red-900/10 text-red-500' : 'dark:text-slate-400')}`}>
+                                            {row.days[d] || "-"}
+                                        </td>
+                                    ))}
+                                </tr>
+                            );
+                        }) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Bu ay için filtrelere uygun araç bulunamadı.</td></tr>}
                     </tbody>
                 </table>
             </div>
@@ -195,7 +250,7 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                             <button onClick={() => setShowIdleModal(false)}><X size={20}/></button>
                         </div>
                         <div className="p-4 bg-rose-50 dark:bg-rose-900/20 text-xs text-rose-800 dark:text-rose-200 border-b dark:border-rose-900 shrink-0">
-                            İlgili ayda <strong>Nihai Teslim Performansı %95'in altında</strong> kalan birimlerde, Kamyon/Kamyonet harici ve belirtilen statülerdeki araçlar içinde o ay boyunca <strong>hiç KM girmemiş</strong> olan yatan araçlar listelenir. (1 km dahi girilmişse listeden düşer).
+                            İlgili ayda <strong>Nihai Teslim Performansı %95'in altında</strong> kalan birimlerde, Kamyon/Kamyonet olan ve belirlenen statülerdeki araçlar içinde o ay boyunca <strong>hiç KM girilmemiş</strong> araçlar yatan araç olarak listelenir. (1 km dahi girilmişse bu listeden çıkarılır).
                         </div>
                         <div className="overflow-y-auto p-4">
                             {idleVehicles.length > 0 ? (
@@ -206,12 +261,12 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                                     <tbody>
                                         {idleVehicles.map((v, i) => (
                                             <tr key={i} className="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:text-slate-300">
-                                                <td className="py-2 font-bold text-rose-600 dark:text-rose-400">{v.unit}</td><td className="py-2 font-mono text-xs">{v.plate}</td><td className="py-2 text-xs">{v.type}</td><td className="py-2 text-xs">{v.status}</td><td className="py-2 text-xs">{v.owner}</td>
+                                                <td className="py-2 font-bold text-rose-600 dark:text-rose-400">{v.unit}</td><td className="py-2 font-mono text-xs">{v.plate}</td><td className="py-2 text-xs">{v.type}</td><td className="py-2 text-xs text-purple-600">{v.status}</td><td className="py-2 text-xs">{v.owner}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
-                            ) : <p className="text-center text-slate-500 py-6">Kritere uyan yatan araç bulunamadı.</p>}
+                            ) : <p className="text-center text-slate-500 py-6">Bu ay için kritere uyan yatan araç bulunamadı.</p>}
                         </div>
                     </div>
                 </div>
