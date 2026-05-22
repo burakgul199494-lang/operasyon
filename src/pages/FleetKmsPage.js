@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, Search, ChevronRight, ChevronDown, Home, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Search, ChevronRight, ChevronDown, Home, X, AlertTriangle, CalendarDays, Calendar } from "lucide-react";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db, appId } from "../config/firebase";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -8,9 +10,7 @@ const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) 
 const checkVehicleFilter = (typeStr, statusStr) => {
     const t = String(typeStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
     const s = String(statusStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
-
     const isTypeMatch = t.includes("kamyon"); 
-    
     const isStatusMatch = 
         s.includes("acente kiralık") || s.includes("acente kiralik") ||
         s.includes("acente özmal") || s.includes("acente ozmal") ||
@@ -18,7 +18,6 @@ const checkVehicleFilter = (typeStr, statusStr) => {
         s.includes("şirket ozmal") || s.includes("sirket özmal") ||
         s.includes("şube kiralık") || s.includes("sube kiralik") || 
         s.includes("şube kiralik") || s.includes("sube kiralık");
-
     return isTypeMatch && isStatusMatch;
 };
 
@@ -28,6 +27,17 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [searchQuery, setSearchQuery] = useState("");
     const [showIdleModal, setShowIdleModal] = useState(false);
+    
+    // YENİ: Görünüm Modu ve ATS Verisi
+    const [viewMode, setViewMode] = useState("monthly"); // "monthly" | "yearly"
+    const [atsData, setAtsData] = useState([]);
+
+    useEffect(() => {
+        const unsub = onSnapshot(collection(db, "artifacts", appId, "public", "data", "fleet_ats"), (snap) => {
+            setAtsData(snap.docs.map(d => d.data()));
+        });
+        return () => unsub();
+    }, []);
 
     useEffect(() => {
         if (fleetDailyKms && fleetDailyKms.length > 0 && !selectedUnit) {
@@ -37,21 +47,25 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
         }
     }, [fleetDailyKms, selectedUnit]);
 
-    const getIsSunday = (day) => new Date(selectedYear, selectedMonth - 1, day).getDay() === 0;
+    const getIsSunday = (year, month, day) => new Date(year, month - 1, day).getDay() === 0;
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
     const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    const processedData = useMemo(() => {
+    // ============================================
+    // 1. AYLIK GÖRÜNÜM HESAPLAMALARI
+    // ============================================
+    const processedMonthlyData = useMemo(() => {
+        if (viewMode !== "monthly") return [];
         const vehicleInfoMap = {};
         
         fleetMonthly.forEach(fm => {
             if (fm.year === selectedYear && fm.month === selectedMonth) {
                 if (selectedUnit !== "BÖLGE" && fm.unit !== selectedUnit) return;
-                
                 fm.records.forEach(v => {
                     if (checkVehicleFilter(v.type, v.status)) {
                         const key = `${fm.unit}-${v.plate.replace(/\s/g, "").toUpperCase()}`;
-                        vehicleInfoMap[key] = { unit: fm.unit, plate: v.plate, type: v.type, status: v.status, days: {} };
+                        const isAtsMissing = atsData.some(a => a.plate === v.plate.replace(/\s/g, "").toUpperCase() && a.year === selectedYear && a.month === selectedMonth);
+                        vehicleInfoMap[key] = { unit: fm.unit, plate: v.plate, type: v.type, status: v.status, noAts: isAtsMissing, days: {} };
                     }
                 });
             }
@@ -62,7 +76,6 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
         fleetDailyKms.forEach(doc => {
             if (doc.year === selectedYear && doc.month === selectedMonth) {
                 if (selectedUnit !== "BÖLGE" && doc.unit !== selectedUnit) return;
-                
                 if (doc.records) {
                     doc.records.forEach(r => {
                         const key = `${doc.unit}-${r.plate.replace(/\s/g, "").toUpperCase()}`;
@@ -80,7 +93,7 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
             let totalKmForAvg = 0;
             
             Object.entries(item.days).forEach(([dayStr, km]) => {
-                if (!getIsSunday(parseInt(dayStr))) {
+                if (!getIsSunday(selectedYear, selectedMonth, parseInt(dayStr))) {
                     if (km >= 3) {
                         tcg += 1;
                         totalKmForAvg += km;
@@ -88,20 +101,74 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                 }
             });
 
-            return {
-                ...item,
-                tcg: tcg,
-                ok: tcg > 0 ? (totalKmForAvg / tcg).toFixed(1) : 0
-            };
+            return { ...item, tcg: tcg, ok: tcg > 0 ? (totalKmForAvg / tcg).toFixed(1) : 0 };
         }).sort((a, b) => a.unit.localeCompare(b.unit) || a.plate.localeCompare(b.plate));
 
-    }, [fleetDailyKms, fleetMonthly, selectedUnit, selectedYear, selectedMonth]);
+    }, [fleetDailyKms, fleetMonthly, atsData, selectedUnit, selectedYear, selectedMonth, viewMode]);
+
+    // ============================================
+    // 2. YILLIK 12 AY GÖRÜNÜM HESAPLAMALARI
+    // ============================================
+    const processedYearlyData = useMemo(() => {
+        if (viewMode !== "yearly") return [];
+        const yMap = {};
+
+        for (let m = 1; m <= 12; m++) {
+            fleetMonthly.forEach(fm => {
+                if (fm.year === selectedYear && fm.month === m) {
+                    if (selectedUnit !== "BÖLGE" && fm.unit !== selectedUnit) return;
+                    fm.records.forEach(v => {
+                        if (checkVehicleFilter(v.type, v.status)) {
+                            const key = `${fm.unit}-${v.plate.replace(/\s/g, "").toUpperCase()}`;
+                            if (!yMap[key]) yMap[key] = { unit: fm.unit, plate: v.plate, months: {} };
+                            if (!yMap[key].months[m]) yMap[key].months[m] = { days: {} };
+                        }
+                    });
+                }
+            });
+
+            fleetDailyKms.forEach(doc => {
+                if (doc.year === selectedYear && doc.month === m) {
+                    if (selectedUnit !== "BÖLGE" && doc.unit !== selectedUnit) return;
+                    if (doc.records) {
+                        doc.records.forEach(r => {
+                            const key = `${doc.unit}-${r.plate.replace(/\s/g, "").toUpperCase()}`;
+                            if (yMap[key] && yMap[key].months[m]) {
+                                const kmVal = parseFloat(String(r.km).replace(',', '.'));
+                                if (!isNaN(kmVal)) yMap[key].months[m].days[r.day] = kmVal;
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        return Object.values(yMap).map(item => {
+            const processedMonths = {};
+            for (let m = 1; m <= 12; m++) {
+                if (item.months[m]) {
+                    let tcg = 0;
+                    let totalKm = 0;
+                    Object.entries(item.months[m].days).forEach(([dayStr, km]) => {
+                        if (!getIsSunday(selectedYear, m, parseInt(dayStr))) {
+                            if (km >= 3) {
+                                tcg += 1;
+                                totalKm += km;
+                            }
+                        }
+                    });
+                    processedMonths[m] = { tcg, avg: tcg > 0 ? (totalKm / tcg).toFixed(1) : 0 };
+                }
+            }
+            return { ...item, processedMonths };
+        }).sort((a, b) => a.unit.localeCompare(b.unit) || a.plate.localeCompare(b.plate));
+
+    }, [fleetDailyKms, fleetMonthly, selectedUnit, selectedYear, viewMode]);
+
 
     const idleVehicles = useMemo(() => {
         if (!allData || !fleetMonthly || !fleetDailyKms) return [];
-        
         const underperformingUnits = allData.filter(d => d.year === selectedYear && d.month === selectedMonth && d.nihaiTeslim !== undefined && d.nihaiTeslim < 95).map(d => d.unit);
-
         const idleList = [];
 
         underperformingUnits.forEach(unit => {
@@ -109,8 +176,9 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
             
             unitMonthlyFleet.forEach(vehicle => {
                 if (!checkVehicleFilter(vehicle.type, vehicle.status)) return;
-                
                 const plateKey = vehicle.plate.replace(/\s/g, "").toUpperCase();
+                const isAtsMissing = atsData.some(a => a.plate === plateKey && a.year === selectedYear && a.month === selectedMonth);
+                
                 const unitDaily = fleetDailyKms.find(d => d.unit === unit && d.year === selectedYear && d.month === selectedMonth);
                 let hasAnyKm = false;
                 
@@ -123,13 +191,13 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                 }
                 
                 if (!hasAnyKm) {
-                    idleList.push({ unit, plate: vehicle.plate, type: vehicle.type, status: vehicle.status, owner: vehicle.owner });
+                    idleList.push({ unit, plate: vehicle.plate, type: vehicle.type, status: vehicle.status, owner: vehicle.owner, noAts: isAtsMissing });
                 }
             });
         });
 
         return idleList.sort((a,b) => a.unit.localeCompare(b.unit));
-    }, [allData, fleetMonthly, fleetDailyKms, selectedYear, selectedMonth]);
+    }, [allData, fleetMonthly, fleetDailyKms, atsData, selectedYear, selectedMonth]);
 
     const filteredUnits = UNITS.filter((unit) => unit.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -179,70 +247,124 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                         <ChevronDown size={18} className="absolute right-0 text-slate-400 pointer-events-none" />
                     </div>
                 </div>
-                <button onClick={() => setShowIdleModal(true)} className="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition flex-shrink-0">
-                    <AlertTriangle size={14}/> Yatan Araçlar ({idleVehicles.length})
+                {viewMode === "monthly" && (
+                    <button onClick={() => setShowIdleModal(true)} className="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition flex-shrink-0">
+                        <AlertTriangle size={14}/> Yatan Araçlar ({idleVehicles.length})
+                    </button>
+                )}
+            </div>
+
+            <div className="p-3 bg-white dark:bg-slate-800 flex flex-wrap gap-2 border-b dark:border-slate-700 items-center justify-between">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-700 p-1.5 rounded text-sm font-bold dark:text-white outline-none border-none">
+                        {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    {viewMode === "monthly" && MONTH_NAMES.map((m, i) => i !== 0 && (
+                        <button key={i} onClick={() => setSelectedMonth(i)} className={`px-3 py-1.5 rounded text-sm whitespace-nowrap font-medium transition-colors ${i === selectedMonth ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-700 dark:text-white'}`}>
+                            {m}
+                        </button>
+                    ))}
+                </div>
+                <button onClick={() => setViewMode(prev => prev === "monthly" ? "yearly" : "monthly")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ${viewMode === "yearly" ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-white dark:bg-slate-700'}`}>
+                    {viewMode === "yearly" ? <CalendarDays size={14}/> : <Calendar size={14}/>}
+                    {viewMode === "yearly" ? "Aylık Görünüme Dön" : "Yıllık (12 Ay) Görünüme Geç"}
                 </button>
             </div>
 
-            <div className="p-3 bg-white dark:bg-slate-800 flex gap-2 overflow-x-auto border-b dark:border-slate-700 items-center">
-                <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-700 p-1.5 rounded text-sm font-bold dark:text-white outline-none border-none">
-                    {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-                {MONTH_NAMES.map((m, i) => i !== 0 && (
-                    <button key={i} onClick={() => setSelectedMonth(i)} className={`px-3 py-1.5 rounded text-sm whitespace-nowrap font-medium ${i === selectedMonth ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-700 dark:text-white'}`}>
-                        {m}
-                    </button>
-                ))}
-            </div>
-
             <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-[10px] text-blue-700 dark:text-blue-300 font-medium text-center border-b border-blue-100 dark:border-blue-900/50">
-                Sadece <strong>Kamyon/Kamyonet</strong> olan ve belirli statülere sahip araçlar listelenir. KM'si girilmeyen araçlar da listede görünür. Yatan araçların (Riskli) satırları kırmızıdır.
+                Sadece <strong>Kamyon/Kamyonet</strong> olan ve belirli statülere sahip araçlar listelenir. Pazar günleri TÇG'ye ve ortalamaya dahil edilmez. 
+                {viewMode === "monthly" && " ATS Cihazı olmayanlar TURUNCU, yatan araçlar KIRMIZI görünür."}
+                {viewMode === "yearly" && " Format: OrtalamaKM(TÇG). Örn: 30.8(24)"}
             </div>
 
             <div className="p-3 overflow-x-auto">
                 <table className="w-full text-[11px] text-left border-collapse bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-hidden">
                     <thead className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
-                        <tr>
-                            <th className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-700 z-10 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Birim Adı</th>
-                            <th className="p-2 sticky left-32 bg-slate-200 dark:bg-slate-700 z-10 w-24 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Plaka</th>
-                            <th className="p-2 text-center text-blue-700 dark:text-blue-300">TÇG</th>
-                            <th className="p-2 text-center text-emerald-700 dark:text-emerald-300">Ort. KM</th>
-                            {daysArray.map(d => <th key={d} className={`p-1 border-l dark:border-slate-600 text-center ${getIsSunday(d) ? 'text-red-500' : ''}`}>{String(d).padStart(2,'0')}</th>)}
-                        </tr>
+                        {viewMode === "monthly" ? (
+                            <tr>
+                                <th className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-700 z-10 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Birim Adı</th>
+                                <th className="p-2 sticky left-32 bg-slate-200 dark:bg-slate-700 z-10 w-24 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Plaka</th>
+                                <th className="p-2 text-center text-blue-700 dark:text-blue-300">TÇG</th>
+                                <th className="p-2 text-center text-emerald-700 dark:text-emerald-300">Ort. KM</th>
+                                {daysArray.map(d => <th key={d} className={`p-1 border-l dark:border-slate-600 text-center ${getIsSunday(selectedYear, selectedMonth, d) ? 'text-red-500' : ''}`}>{String(d).padStart(2,'0')}</th>)}
+                            </tr>
+                        ) : (
+                            <tr>
+                                <th className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-700 z-10 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Birim Adı</th>
+                                <th className="p-2 sticky left-32 bg-slate-200 dark:bg-slate-700 z-10 w-24 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Plaka</th>
+                                {MONTH_NAMES.map((m, i) => i !== 0 && <th key={i} className="p-2 border-l dark:border-slate-600 text-center w-20">{m}</th>)}
+                            </tr>
+                        )}
                     </thead>
                     <tbody>
-                        {processedData.length > 0 ? processedData.map((row, i) => {
-                            // Bu satırdaki araç yatan araç listesinde var mı?
-                            const isIdle = idleVehicles.some(iv => iv.unit === row.unit && iv.plate.replace(/\s/g, "").toUpperCase() === row.plate.replace(/\s/g, "").toUpperCase());
-                            
-                            return (
-                                <tr key={i} className={isIdle ? "border-b border-rose-200 dark:border-rose-800 bg-rose-100 dark:bg-rose-900/40 hover:bg-rose-200 dark:hover:bg-rose-900/60 transition-colors" : "border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"}>
-                                    <td className={`p-2 sticky left-0 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isIdle ? 'bg-rose-100 dark:bg-rose-900/90 text-rose-800 dark:text-rose-200' : 'bg-white dark:bg-slate-800 dark:text-white'}`}>
-                                        {row.unit}
-                                    </td>
-                                    <td className={`p-2 sticky left-32 font-mono text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isIdle ? 'bg-rose-100 dark:bg-rose-900/90 text-rose-700 dark:text-rose-300' : 'bg-white dark:bg-slate-800 dark:text-slate-300'}`} title={`${row.type} - ${row.status}`}>
-                                        {row.plate}
-                                    </td>
-                                    <td className={`p-2 text-center font-bold ${isIdle ? 'text-rose-700 dark:text-rose-300' : 'text-blue-600 bg-blue-50/50 dark:bg-blue-900/20'}`}>
-                                        {row.tcg}
-                                    </td>
-                                    <td className={`p-2 text-center font-bold ${isIdle ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20'}`}>
-                                        {row.ok}
-                                    </td>
-                                    {daysArray.map(d => (
-                                        <td key={d} className={`p-1 border-l dark:border-slate-700 text-center font-medium ${isIdle ? 'text-rose-600 dark:text-rose-400' : (getIsSunday(d) ? 'bg-red-50/50 dark:bg-red-900/10 text-red-500' : 'dark:text-slate-400')}`}>
-                                            {row.days[d] || "-"}
-                                        </td>
-                                    ))}
+                        {viewMode === "monthly" && (
+                            processedMonthlyData.length > 0 ? processedMonthlyData.map((row, i) => {
+                                const isIdle = idleVehicles.some(iv => iv.unit === row.unit && iv.plate.replace(/\s/g, "").toUpperCase() === row.plate.replace(/\s/g, "").toUpperCase());
+                                
+                                let rowClass = "border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors";
+                                let tdClassUnit = "bg-white dark:bg-slate-800 dark:text-white";
+                                let tdClassPlate = "bg-white dark:bg-slate-800 dark:text-slate-300";
+                                let tdClassTcg = "text-blue-600 bg-blue-50/50 dark:bg-blue-900/20";
+                                let tdClassOk = "text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20";
+                                let tdClassNormalDay = "dark:text-slate-400";
+                                
+                                if (row.noAts) {
+                                    rowClass = "border-b border-orange-200 dark:border-orange-800/50 bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 transition-colors";
+                                    tdClassUnit = "bg-orange-50 dark:bg-orange-900/90 text-orange-900 dark:text-orange-200";
+                                    tdClassPlate = "bg-orange-50 dark:bg-orange-900/90 text-orange-800 dark:text-orange-300";
+                                    tdClassTcg = "text-orange-700 dark:text-orange-300";
+                                    tdClassOk = "text-orange-700 dark:text-orange-300";
+                                    tdClassNormalDay = "text-orange-700 dark:text-orange-400 font-bold";
+                                } else if (isIdle) {
+                                    rowClass = "border-b border-rose-200 dark:border-rose-800 bg-rose-100 dark:bg-rose-900/40 hover:bg-rose-200 transition-colors";
+                                    tdClassUnit = "bg-rose-100 dark:bg-rose-900/90 text-rose-800 dark:text-rose-200";
+                                    tdClassPlate = "bg-rose-100 dark:bg-rose-900/90 text-rose-700 dark:text-rose-300";
+                                    tdClassTcg = "text-rose-700 dark:text-rose-300";
+                                    tdClassOk = "text-rose-700 dark:text-rose-300";
+                                    tdClassNormalDay = "text-rose-600 dark:text-rose-400";
+                                }
+
+                                return (
+                                    <tr key={i} className={rowClass}>
+                                        <td className={`p-2 sticky left-0 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${tdClassUnit}`}>{row.unit}</td>
+                                        <td className={`p-2 sticky left-32 font-mono text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${tdClassPlate}`} title={`${row.type} - ${row.status}`}>{row.plate}</td>
+                                        <td className={`p-2 text-center font-bold ${tdClassTcg}`}>{row.tcg}</td>
+                                        <td className={`p-2 text-center font-bold ${tdClassOk}`}>{row.ok}</td>
+                                        {daysArray.map(d => (
+                                            <td key={d} className={`p-1 border-l dark:border-slate-700 text-center font-medium ${getIsSunday(selectedYear, selectedMonth, d) ? 'bg-red-50/50 dark:bg-red-900/10 text-red-500' : tdClassNormalDay}`}>
+                                                {row.days[d] || "-"}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                );
+                            }) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Bu ay için filtrelere uygun araç bulunamadı.</td></tr>
+                        )}
+
+                        {viewMode === "yearly" && (
+                            processedYearlyData.length > 0 ? processedYearlyData.map((row, i) => (
+                                <tr key={i} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                    <td className="p-2 sticky left-0 bg-white dark:bg-slate-800 font-bold dark:text-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{row.unit}</td>
+                                    <td className="p-2 sticky left-32 bg-white dark:bg-slate-800 font-mono text-xs dark:text-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{row.plate}</td>
+                                    {MONTH_NAMES.map((m, mIndex) => {
+                                        if (mIndex === 0) return null;
+                                        const monthData = row.processedMonths[mIndex];
+                                        return (
+                                            <td key={mIndex} className="p-2 border-l dark:border-slate-700 text-center font-medium text-slate-700 dark:text-slate-300">
+                                                {monthData ? (
+                                                    <span><span className="font-bold text-blue-600 dark:text-blue-400">{monthData.avg}</span><span className="text-[9px] text-slate-400 ml-0.5">({monthData.tcg})</span></span>
+                                                ) : "-"}
+                                            </td>
+                                        );
+                                    })}
                                 </tr>
-                            );
-                        }) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Bu ay için filtrelere uygun araç bulunamadı.</td></tr>}
+                            )) : <tr><td colSpan={14} className="p-8 text-center text-slate-400">Bu yıl için filtrelere uygun araç bulunamadı.</td></tr>
+                        )}
                     </tbody>
                 </table>
             </div>
 
             {/* YATAN ARAÇ MODALI */}
-            {showIdleModal && (
+            {showIdleModal && viewMode === "monthly" && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowIdleModal(false)}>
                     <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
                         <div className="p-4 bg-rose-600 text-white flex justify-between items-center shrink-0">
@@ -261,7 +383,14 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                                     <tbody>
                                         {idleVehicles.map((v, i) => (
                                             <tr key={i} className="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:text-slate-300">
-                                                <td className="py-2 font-bold text-rose-600 dark:text-rose-400">{v.unit}</td><td className="py-2 font-mono text-xs">{v.plate}</td><td className="py-2 text-xs">{v.type}</td><td className="py-2 text-xs text-purple-600">{v.status}</td><td className="py-2 text-xs">{v.owner}</td>
+                                                <td className="py-2 font-bold text-rose-600 dark:text-rose-400">{v.unit}</td>
+                                                <td className="py-2 font-mono text-xs">{v.plate}</td>
+                                                <td className="py-2 text-xs">{v.type}</td>
+                                                <td className="py-2 text-xs text-purple-600">
+                                                    {v.status}
+                                                    {v.noAts && <span className="ml-2 inline-block bg-orange-500 text-white px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider">ATS YOK</span>}
+                                                </td>
+                                                <td className="py-2 text-xs">{v.owner}</td>
                                             </tr>
                                         ))}
                                     </tbody>
