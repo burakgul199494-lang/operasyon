@@ -439,7 +439,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
       if (td === 0) {
         text += "• Teslim düşülen kargo adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
       } else {
-        text += `• Teslim düşülen kargo sayınız ${td} olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır. Bu konuda ilgili ayda hedef performansın mutlaka yakalanması gerekmektedir.\n`;
+        text += `• Teslim düşülen kargo sayınız ${td} olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır.\n`;
       }
     }
 
@@ -447,19 +447,19 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
       if (tg === 0) {
         text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
       } else {
-        text += `• Transferde gecikme sayınız ${tg} olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır. Bu konuda ilgili ayda hedef performansın mutlaka yakalanması gerekmektedir.\n`;
+        text += `• Transferde gecikme sayınız ${tg} olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır.\n`;
       }
     }
 
     if (r !== null) {
       if (r >= TARGETS.rotaOrani) text += "• Rota oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (r >= 80) text += "• Rota oranınız ortalama seviyelerde olup, iyileştirmeler yapılmalıdır.\n";
-      else text += "• Rota oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi gerekmektedir. Konu hakkında Bölge Müdürlüğü Operasyon Departmanından destek alınabilir.\n";
+      else text += "• Rota oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi gerekmektedir.\n";
     }
     if (tvs !== null) {
       if (tvs >= TARGETS.tvsOrani) text += "• TVS oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (tvs >= 90) text += "• TVS oranınız ortalama seviyelerde olup, iyileştirmeler yapılmalıdır.\n";
-      else text += "• TVS oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi gerekmektedir. Konu hakkında Bölge Müdürlüğü Operasyon Departmanından destek alınabilir.\n";
+      else text += "• TVS oranınız başarısızdır, dağıtım ve planlama süreçlerinin acilen gözden geçirilmesi gerekmektedir.\n";
     }
     if (c !== null) {
       if (c >= TARGETS.checkInOrani) text += "• Check-in oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
