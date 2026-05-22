@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Zap, Key, ClipboardList, Trash2, AlertTriangle, Users, Gauge, BarChart2, CheckCircle2, Package } from "lucide-react";
+import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Zap, Key, ClipboardList, Trash2, AlertTriangle, Users, Gauge, BarChart2, CheckCircle2, Package, SatelliteDish } from "lucide-react";
 import { UNITS, METRIC_TYPES, MONTH_NAMES } from "../utils/helpers";
 import { doc, writeBatch, collection, getDocs } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
@@ -17,6 +17,9 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
   const [fleetMonthlyGrid, setFleetMonthlyGrid] = useState([]); 
   const [fleetCountsGrid, setFleetCountsGrid] = useState({}); 
   const [nihaiTeslimGrid, setNihaiTeslimGrid] = useState([]);
+  
+  // YENİ: ATS Yok Grid State'i
+  const [atsGrid, setAtsGrid] = useState([]);
 
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
@@ -30,6 +33,11 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     { key: "plate", label: "Plaka", width: "w-32" },
     { key: "tarih", label: "Tarih (GG.AA.YYYY)", width: "w-32" },
     { key: "km", label: "KM", width: "w-24" }
+  ];
+
+  // YENİ: ATS Sütunu
+  const ATS_COLUMNS = [
+    { key: "plate", label: "ATS Cihazı Olmayan Plaka", width: "w-64" }
   ];
 
   const FLEET_MONTHLY_COLUMNS = [
@@ -78,7 +86,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     setSelectedYear(nextYear);
   };
 
-  // STANDART EKRAN TEMİZLEME FONKSİYONU
   const handleClearGrid = () => {
     if(!window.confirm("Ekrandaki hücreler temizlenecek (Kaydet butonuna basana kadar veritabanından silinmez). Onaylıyor musunuz?")) return;
     
@@ -98,6 +105,8 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
         setFleetMonthlyGrid(Array(50).fill({ unit: "", plate: "", owner: "", status: "", type: "", brand: "", model: "", year: "", volume: "" }));
     } else if (activeTab === "kms") {
         setKmsGrid(Array(50).fill({ unit: "", plate: "", tarih: "", km: "" }));
+    } else if (activeTab === "ats") {
+        setAtsGrid(Array(30).fill({ plate: "" }));
     } else if (activeTab === "nihaiTeslim") {
         setNihaiTeslimGrid(Array(50).fill({ unit: "", score: "" }));
     }
@@ -168,6 +177,30 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
         } catch (e) { console.error("KM verileri çekilemedi:", e); }
     };
     fetchLiveDailyKms();
+  }, [activeTab, selectedYear, selectedMonth, refreshTrigger]);
+
+  // YENİ: ATS Yükleme Motoru
+  useEffect(() => {
+    if (activeTab !== "ats") return;
+    const fetchAtsRecords = async () => {
+        try {
+            const snapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "fleet_ats"));
+            let loadedData = [];
+            snapshot.docs.forEach(docSnap => {
+                const docData = docSnap.data();
+                if (docData.year === parseInt(selectedYear) && docData.month === parseInt(selectedMonth)) {
+                    loadedData.push({ plate: docData.plate });
+                }
+            });
+            const emptyRow = { plate: "" };
+            const fillCount = 30 - loadedData.length;
+            if(fillCount > 0) { loadedData = [...loadedData, ...Array(fillCount).fill({ ...emptyRow })]; }
+            else { loadedData = [...loadedData, ...Array(10).fill({ ...emptyRow })]; }
+            setAtsGrid(loadedData);
+            setPendingChanges(false);
+        } catch(e) { console.error(e); }
+    };
+    fetchAtsRecords();
   }, [activeTab, selectedYear, selectedMonth, refreshTrigger]);
 
   useEffect(() => {
@@ -250,6 +283,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
   const handleInputChange = (unit, month, value) => { setGridData((prev) => ({ ...prev, [unit]: { ...prev[unit], [month]: value } })); setPendingChanges(true); };
   const handlePersonnelChange = (rowIndex, colKey, value) => { setPersonnelGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
   const handleKmsChange = (rowIndex, colKey, value) => { setKmsGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
+  const handleAtsChange = (rowIndex, colKey, value) => { setAtsGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
   const handleQuantitiesChange = (rowIndex, colKey, value) => { setQuantitiesGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
   const handleFleetCountsChange = (unit, colKey, value) => { setFleetCountsGrid((prev) => ({ ...prev, [unit]: { ...prev[unit], [colKey]: value } })); setPendingChanges(true); };
   const handleFleetMonthlyChange = (rowIndex, colKey, value) => { setFleetMonthlyGrid(prev => { const newData = [...prev]; newData[rowIndex] = { ...newData[rowIndex], [colKey]: value }; return newData; }); setPendingChanges(true); };
@@ -350,6 +384,24 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     setPendingChanges(true);
   };
 
+  const handleAtsPaste = (e, startRowIndex, startColIndex) => {
+    e.preventDefault();
+    const rows = e.clipboardData.getData("text").split(/\r\n|\n|\r/).filter((row) => row.trim() !== "");
+    setAtsGrid(prev => {
+        const newData = [...prev];
+        rows.forEach((row, rIndex) => {
+            const targetRowIndex = startRowIndex + rIndex;
+            while (!newData[targetRowIndex]) newData.push({ plate: "" });
+            row.split("\t").forEach((cellValue, cIndex) => {
+                const targetColIndex = startColIndex + cIndex;
+                if (targetColIndex < ATS_COLUMNS.length) newData[targetRowIndex] = { ...newData[targetRowIndex], [ATS_COLUMNS[targetColIndex].key]: cellValue.trim().toUpperCase() };
+            });
+        });
+        return newData;
+    });
+    setPendingChanges(true);
+  };
+
   const handleQuantitiesPaste = (e, startRowIndex, startColIndex) => {
     e.preventDefault();
     const rows = e.clipboardData.getData("text").split(/\r\n|\n|\r/).filter((row) => row.trim() !== "");
@@ -419,6 +471,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
         else if (activeTab === "fleetCounts") { setFleetCountsGrid(prev => { const d = { ...prev }; for(let r=minR; r<=maxR; r++) { const u = UNITS[r]; if(d[u]) { d[u] = {...d[u]}; for(let c=minC; c<=maxC; c++) d[u][FLEET_COUNTS_COLUMNS[c]] = ""; } } return d; }); } 
         else if (activeTab === "personnel") { setPersonnelGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][PERSONNEL_COLUMNS[c].key] = ""; } } } return d; }); }
         else if (activeTab === "kms") { setKmsGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][KMS_COLUMNS[c].key] = ""; } } } return d; }); }
+        else if (activeTab === "ats") { setAtsGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][ATS_COLUMNS[c].key] = ""; } } } return d; }); }
         else if (activeTab === "quantities") { setQuantitiesGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][QUANTITIES_COLUMNS[c].key] = ""; } } } return d; }); }
         else if (activeTab === "fleetMonthly") { setFleetMonthlyGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][FLEET_MONTHLY_COLUMNS[c].key] = ""; } } } return d; }); }
         else if (activeTab === "nihaiTeslim") { setNihaiTeslimGrid(prev => { const d = [...prev]; for(let r=minR; r<=maxR; r++) { if(d[r]) { d[r] = { ...d[r] }; for(let c=minC; c<=maxC; c++) { d[r][NIHAI_TESLIM_COLUMNS[c].key] = ""; } } } return d; }); }
@@ -431,6 +484,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     if (activeTab === "fleetCounts") maxCols = 6;
     if (activeTab === "personnel") { maxCols = 6; maxRows = personnelGrid.length; }
     if (activeTab === "kms") { maxCols = 4; maxRows = kmsGrid.length; }
+    if (activeTab === "ats") { maxCols = 1; maxRows = atsGrid.length; }
     if (activeTab === "quantities") { maxCols = 5; maxRows = quantitiesGrid.length; }
     if (activeTab === "fleetMonthly") { maxCols = 9; maxRows = fleetMonthlyGrid.length; }
     if (activeTab === "nihaiTeslim") { maxCols = 2; maxRows = nihaiTeslimGrid.length; }
@@ -448,6 +502,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
       else if (activeTab === "fleetCounts") colId = FLEET_COUNTS_COLUMNS[nextC]; 
       else if (activeTab === "personnel") colId = PERSONNEL_COLUMNS[nextC].key;
       else if (activeTab === "kms") colId = KMS_COLUMNS[nextC].key;
+      else if (activeTab === "ats") colId = ATS_COLUMNS[nextC].key;
       else if (activeTab === "quantities") colId = QUANTITIES_COLUMNS[nextC].key;
       else if (activeTab === "fleetMonthly") colId = FLEET_MONTHLY_COLUMNS[nextC].key;
       else if (activeTab === "nihaiTeslim") colId = NIHAI_TESLIM_COLUMNS[nextC].key;
@@ -457,7 +512,24 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     }
   };
 
-  // STANDART KAYDETME MOTORU (Eğer tablo tamamen boşaltılıp kaydet denilirse o dönemi SİLER)
+  const handleSafeDeleteMonthlyFleet = async () => {
+    if (!window.confirm(`DİKKAT: ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemine ait Araç Listesi (Excel) veritabanından SİLİNECEKTİR. Onaylıyor musunuz?`)) return;
+    try {
+        const batch = writeBatch(db);
+        UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_monthly", `${unit}-${selectedYear}-${selectedMonth}`)); });
+        await batch.commit(); setFleetMonthlyGrid(Array(50).fill({ unit: "", plate: "", owner: "", status: "", type: "", brand: "", model: "", year: "", volume: "" })); alert("Seçili ayın Araç Listesi silindi.");
+    } catch (e) { alert("Hata oluştu."); }
+  };
+
+  const handleSafeDeleteKms = async () => {
+    if (!window.confirm(`DİKKAT: ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemine ait Günlük KM verileri veritabanından SİLİNECEKTİR. Onaylıyor musunuz?`)) return;
+    try {
+        const batch = writeBatch(db);
+        UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_daily_kms", `${unit}-${selectedYear}-${selectedMonth}`)); });
+        await batch.commit(); setKmsGrid(Array(50).fill({ unit: "", plate: "", tarih: "", km: "" })); setRefreshTrigger(prev => prev + 1); alert("Seçili ayın KM verileri silindi.");
+    } catch (e) { alert("Hata oluştu."); }
+  };
+
   const handleSave = async () => {
     if (activeTab === "performance") {
         let recordsToUpdate = [];
@@ -469,7 +541,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             const origRec = allData.find((d) => d.unit === unit && d.year === parseInt(selectedYear) && d.month === month);
             const origVal = origRec ? origRec[selectedMetric] : null;
             let finalVal = null;
-            
             if (cleanStr !== "") {
               const p = parseFloat(cleanStr);
               const isCount = selectedMetric.includes("Kargo") || selectedMetric.includes("Adet") || selectedMetric.includes("Sikayet") || selectedMetric === "teslimDusulen" || selectedMetric === "transferGecikme";
@@ -494,12 +565,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                     const docId = `${unit}-${selectedYear}-${selectedMonth}`;
                     batch.set(doc(db, "artifacts", appId, "public", "data", "fleet_monthly_counts", docId), { 
                         unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth),
-                        ozmal: row.ozmal !== null && row.ozmal !== undefined ? row.ozmal : "", 
-                        ozMasHar: row.ozMasHar !== null && row.ozMasHar !== undefined ? row.ozMasHar : "", 
-                        kiralik: row.kiralik !== null && row.kiralik !== undefined ? row.kiralik : "", 
-                        destek: row.destek !== null && row.destek !== undefined ? row.destek : "", 
-                        motor: row.motor !== null && row.motor !== undefined ? row.motor : "", 
-                        parcaBasi: row.parcaBasi !== null && row.parcaBasi !== undefined ? row.parcaBasi : "" 
+                        ozmal: row.ozmal !== null && row.ozmal !== undefined ? row.ozmal : "", ozMasHar: row.ozMasHar !== null && row.ozMasHar !== undefined ? row.ozMasHar : "", kiralik: row.kiralik !== null && row.kiralik !== undefined ? row.kiralik : "", destek: row.destek !== null && row.destek !== undefined ? row.destek : "", motor: row.motor !== null && row.motor !== undefined ? row.motor : "", parcaBasi: row.parcaBasi !== null && row.parcaBasi !== undefined ? row.parcaBasi : "" 
                     }, { merge: true });
                     changeCount++;
                 }
@@ -512,23 +578,15 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
         const validRows = fleetMonthlyGrid.filter(row => row.plate && row.plate.trim() !== "" && row.unit);
         if(validRows.length === 0) {
             if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemine ait Araç Listesi tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
-            try {
-                const batch = writeBatch(db);
-                UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_monthly", `${unit}-${selectedYear}-${selectedMonth}`)); });
-                await batch.commit(); setPendingChanges(false); alert("Araç Listesi tamamen silindi."); return;
-            } catch(e) { return alert("Hata: " + e.message); }
+            try { const batch = writeBatch(db); UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_monthly", `${unit}-${selectedYear}-${selectedMonth}`)); }); await batch.commit(); setPendingChanges(false); alert("Araç Listesi tamamen silindi."); return; } catch(e) { return alert("Hata: " + e.message); }
         }
-        
         const grouped = {};
         validRows.forEach(r => {
             const unit = r.unit.trim().toUpperCase();
             const docId = `${unit}-${selectedYear}-${selectedMonth}`;
             if(!grouped[docId]) grouped[docId] = { unit, year: selectedYear, month: selectedMonth, records: [] };
-            grouped[docId].records.push({
-                plate: r.plate.trim().toUpperCase(), owner: r.owner || "", status: r.status || "", type: r.type || "", brand: r.brand || "", model: r.model || "", year: r.year || "", volume: r.volume || ""
-            });
+            grouped[docId].records.push({ plate: r.plate.trim().toUpperCase(), owner: r.owner || "", status: r.status || "", type: r.type || "", brand: r.brand || "", model: r.model || "", year: r.year || "", volume: r.volume || "" });
         });
-
         if(!window.confirm(`${validRows.length} adet aylık araç bilgisi kaydedilecek. Bu aya ait önceki liste tamamen silinip bu liste geçerli olacak. Onaylıyor musunuz?`)) return;
         try {
             const batch = writeBatch(db);
@@ -545,23 +603,18 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             const recordsToUpdate = [];
             UNITS.forEach(unit => {
                 const origRec = allData.find((d) => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
-                if (origRec && origRec.nihaiTeslim !== undefined && origRec.nihaiTeslim !== null) {
-                    recordsToUpdate.push({ id: `${unit}-${selectedYear}-${selectedMonth}`, unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), nihaiTeslim: null });
-                }
+                if (origRec && origRec.nihaiTeslim !== undefined && origRec.nihaiTeslim !== null) { recordsToUpdate.push({ id: `${unit}-${selectedYear}-${selectedMonth}`, unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), nihaiTeslim: null }); }
             });
             if(recordsToUpdate.length === 0) return alert("Değişiklik yok.");
             if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} Nihai Teslim Performansları tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
             try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert("Nihai Teslim verileri tamamen silindi."); return; } catch(e) { return alert("Hata oluştu."); }
         }
-
         const recordsToUpdate = [];
         validRows.forEach(r => {
             const unit = r.unit.trim().toUpperCase();
             let val = String(r.score).replace(/%/g, '').replace(/\s/g, '').replace(/,/g, '.');
             val = parseFloat(val);
-            if(!isNaN(val)) {
-                recordsToUpdate.push({ id: `${unit}-${selectedYear}-${selectedMonth}`, unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), nihaiTeslim: Number(val.toFixed(2)) });
-            }
+            if(!isNaN(val)) { recordsToUpdate.push({ id: `${unit}-${selectedYear}-${selectedMonth}`, unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), nihaiTeslim: Number(val.toFixed(2)) }); }
         });
         try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} için Nihai Teslim Performansları güncellendi.`); } catch(e) { alert("Hata oluştu."); }
 
@@ -571,15 +624,12 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             const recordsToUpdate = [];
             UNITS.forEach(unit => {
                 const existingRecord = allData.find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
-                if (existingRecord && existingRecord.personnel && existingRecord.personnel.length > 0) {
-                    recordsToUpdate.push({ id: `${unit}-${selectedYear}-${selectedMonth}`, unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), personnel: [] });
-                }
+                if (existingRecord && existingRecord.personnel && existingRecord.personnel.length > 0) { recordsToUpdate.push({ id: `${unit}-${selectedYear}-${selectedMonth}`, unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), personnel: [] }); }
             });
             if(recordsToUpdate.length === 0) return alert("Değişiklik yok.");
             if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} Personel Performansları tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
             try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert("Personel verileri tamamen silindi."); return; } catch(e) { return alert("Hata oluştu."); }
         }
-
         const groupedByUnit = {};
         validRows.forEach(r => {
             const unitName = r.unit.trim().toUpperCase(); 
@@ -597,9 +647,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             const recordId = `${unit}-${selectedYear}-${selectedMonth}`;
             const personnelList = groupedByUnit[unit] || []; 
             const existingRecord = allData.find(d => d.unit === unit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
-            if (personnelList.length > 0 || (existingRecord && existingRecord.personnel && existingRecord.personnel.length > 0)) {
-                recordsToUpdate.push({ id: recordId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), personnel: personnelList });
-            }
+            if (personnelList.length > 0 || (existingRecord && existingRecord.personnel && existingRecord.personnel.length > 0)) { recordsToUpdate.push({ id: recordId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), personnel: personnelList }); }
         });
         try { await onSaveBatch(recordsToUpdate); setPendingChanges(false); alert(`Personel verileri başarıyla kaydedildi!`); } catch(e) { alert("Hata oluştu."); }
 
@@ -607,13 +655,8 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
         const validRows = kmsGrid.filter(r => r.unit && r.plate && r.tarih && r.km !== "");
         if(validRows.length === 0) {
             if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} Günlük KM verileri tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
-            try {
-                const batch = writeBatch(db);
-                UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_daily_kms", `${unit}-${selectedYear}-${selectedMonth}`)); });
-                await batch.commit(); setPendingChanges(false); setRefreshTrigger(prev => prev + 1); alert("Günlük KM verileri tamamen silindi."); return;
-            } catch(e) { return alert("Hata: " + e.message); }
+            try { const batch = writeBatch(db); UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_daily_kms", `${unit}-${selectedYear}-${selectedMonth}`)); }); await batch.commit(); setPendingChanges(false); setRefreshTrigger(prev => prev + 1); alert("Günlük KM verileri tamamen silindi."); return; } catch(e) { return alert("Hata: " + e.message); }
         }
-
         const grouped = {};
         validRows.forEach(r => {
             const parts = String(r.tarih).split(/[./-]/);
@@ -635,6 +678,40 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             await batch.commit(); setPendingChanges(false); setRefreshTrigger(prev => prev + 1); alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} için Günlük KM verileri güncellendi.`);
         } catch(e) { alert("Hata: " + e.message); }
     
+    // YENİ: ATS KAYDETME MOTORU
+    } else if (activeTab === "ats") {
+        const validRows = atsGrid.filter(r => r.plate && r.plate.trim() !== "");
+        if(validRows.length === 0) {
+            if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemi ATS verileri tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
+            try {
+                const batch = writeBatch(db);
+                const snapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "fleet_ats"));
+                snapshot.docs.forEach(docSnap => {
+                    if (docSnap.data().year === parseInt(selectedYear) && docSnap.data().month === parseInt(selectedMonth)) {
+                        batch.delete(docSnap.ref);
+                    }
+                });
+                await batch.commit(); setPendingChanges(false); setRefreshTrigger(prev => prev + 1); alert("ATS verileri tamamen silindi."); return;
+            } catch(e) { return alert("Hata: " + e.message); }
+        }
+        if(!window.confirm(`${validRows.length} adet ATS'si olmayan plaka kaydedilecek. Önceki kayıtlar silinip bu liste geçerli olacak. Onaylıyor musunuz?`)) return;
+        try {
+            const batch = writeBatch(db);
+            const snapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "fleet_ats"));
+            snapshot.docs.forEach(docSnap => {
+                if (docSnap.data().year === parseInt(selectedYear) && docSnap.data().month === parseInt(selectedMonth)) {
+                    batch.delete(docSnap.ref);
+                }
+            });
+            validRows.forEach(r => {
+                const plateClean = r.plate.trim().toUpperCase();
+                const docId = `${plateClean}-${selectedYear}-${selectedMonth}`;
+                const ref = doc(db, "artifacts", appId, "public", "data", "fleet_ats", docId);
+                batch.set(ref, { plate: plateClean, year: parseInt(selectedYear), month: parseInt(selectedMonth) });
+            });
+            await batch.commit(); setPendingChanges(false); setRefreshTrigger(prev => prev + 1); alert(`ATS Cihazı Olmayanlar başarıyla kaydedildi.`);
+        } catch(e) { alert("Hata: " + e.message); }
+
     } else if (activeTab === "quantities") {
         const validRows = quantitiesGrid.filter(r => r.tarih && r.birim && r.name && r.count !== "");
         if(validRows.length === 0) {
@@ -643,15 +720,12 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             UNITS.forEach(unit => {
                 const docId = `${unit}-${selectedYear}-${selectedMonth}`;
                 const existingDoc = existingDocsForMonth.find(d => d.unit === unit);
-                if (existingDoc && existingDoc.records && existingDoc.records.length > 0) {
-                    recordsToUpdate.push({ id: docId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), records: [] });
-                }
+                if (existingDoc && existingDoc.records && existingDoc.records.length > 0) { recordsToUpdate.push({ id: docId, unit: unit, year: parseInt(selectedYear), month: parseInt(selectedMonth), records: [] }); }
             });
             if(recordsToUpdate.length === 0) return alert("Değişiklik yok.");
             if(!window.confirm(`Ekran boş. Kaydederseniz ${MONTH_NAMES[selectedMonth]} ${selectedYear} Personel Adet verileri tamamen SİLİNECEK. Onaylıyor musunuz?`)) return;
             try { await onSaveQuantities(recordsToUpdate); setPendingChanges(false); alert("Personel Adet verileri tamamen silindi."); return; } catch(e) { return alert("Hata: " + e.message); }
         }
-
         const grouped = {};
         validRows.forEach(r => {
             const parts = r.tarih.split(/[./-]/);
@@ -700,6 +774,8 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             <button onClick={() => setActiveTab("fleetCounts")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleetCounts" ? "bg-white text-orange-600 border-b-2 border-orange-600" : "text-slate-500 hover:bg-slate-200"}`}><Package size={16} /> Aylık Araç Adetleri</button>
             <button onClick={() => setActiveTab("fleetMonthly")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleetMonthly" ? "bg-white text-emerald-600 border-b-2 border-emerald-600" : "text-slate-500 hover:bg-slate-200"}`}><ClipboardList size={16} /> Aylık Araç Listesi</button>
             <button onClick={() => setActiveTab("kms")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "kms" ? "bg-white text-red-600 border-b-2 border-red-600" : "text-slate-500 hover:bg-slate-200"}`}><Gauge size={16} /> Araç KM Girişi (Günlük)</button>
+            {/* YENİ: ATS Modülü Tabı */}
+            <button onClick={() => setActiveTab("ats")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "ats" ? "bg-white text-teal-600 border-b-2 border-teal-600" : "text-slate-500 hover:bg-slate-200"}`}><SatelliteDish size={16} /> ATS Cihazı Olmayanlar</button>
             <button onClick={() => setActiveTab("nihaiTeslim")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "nihaiTeslim" ? "bg-white text-amber-600 border-b-2 border-amber-600" : "text-slate-500 hover:bg-slate-200"}`}><CheckCircle2 size={16} /> Nihai Teslim Performansı</button>
         </div>
         
@@ -715,8 +791,8 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             </>
         )}
 
-        {["personnel", "quantities", "fleetCounts", "fleetMonthly", "nihaiTeslim", "kms"].includes(activeTab) && (
-            <div className={`p-3 border-b flex items-center gap-4 flex-wrap ${activeTab==='fleetCounts'?'bg-orange-50 border-orange-100':activeTab==='fleetMonthly'?'bg-emerald-50 border-emerald-100':activeTab==='nihaiTeslim'?'bg-amber-50 border-amber-100':activeTab==='kms'?'bg-red-50 border-red-100':activeTab==='quantities'?'bg-pink-50 border-pink-100':'bg-slate-50'}`}>
+        {["personnel", "quantities", "fleetCounts", "fleetMonthly", "nihaiTeslim", "kms", "ats"].includes(activeTab) && (
+            <div className={`p-3 border-b flex items-center gap-4 flex-wrap ${activeTab==='fleetCounts'?'bg-orange-50 border-orange-100':activeTab==='fleetMonthly'?'bg-emerald-50 border-emerald-100':activeTab==='nihaiTeslim'?'bg-amber-50 border-amber-100':activeTab==='kms'?'bg-red-50 border-red-100':activeTab==='quantities'?'bg-pink-50 border-pink-100':activeTab==='ats'?'bg-teal-50 border-teal-100':'bg-slate-50'}`}>
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-600">YIL:</span>
                     <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-white border rounded px-2 py-1 text-sm font-bold outline-none">{availableYears.map((y) => <option key={y} value={y}>{y}</option>)}</select>
@@ -732,6 +808,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                 {activeTab === "fleetMonthly" && <span className="text-xs text-emerald-800 font-medium">(Birim Adı | Plaka | Araç Sahibi | Araç Statü | Araç Cinsi | Marka | Model | Model Yılı | Hacim)</span>}
                 {activeTab === "nihaiTeslim" && <span className="text-xs text-amber-800 font-medium">(Birim Adı | Nihai Teslim Performansı)</span>}
                 {activeTab === "kms" && <span className="text-xs text-red-800 font-medium">(Birim Adı | Plaka | Tarih | KM)</span>}
+                {activeTab === "ats" && <span className="text-xs text-teal-800 font-medium">Sadece Plaka kopyalayın. (Bu araçlar analiz ekranında "ATS YOK" olarak görünür).</span>}
 
                 <div className="ml-auto flex gap-2">
                     <button onClick={handleClearGrid} className="flex items-center gap-1 px-3 py-1.5 bg-white text-orange-600 rounded border border-orange-200 text-xs font-bold hover:bg-orange-50 transition-colors"><RotateCcw size={14} /> Ekranı Temizle</button>
@@ -762,6 +839,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
               {activeTab === "personnel" && (<>{PERSONNEL_COLUMNS.map((col) => <th key={col.key} className={`p-3 text-left font-bold text-slate-700 border-r border-slate-300 bg-slate-100 ${col.width}`}>{col.label}</th>)}<th className="bg-slate-50 border-none"></th></>)}
               {activeTab === "quantities" && (<>{QUANTITIES_COLUMNS.map((col) => <th key={col.key} className={`p-3 text-left font-bold text-slate-700 border-r border-slate-300 bg-slate-100 ${col.width}`}>{col.label}</th>)}<th className="bg-slate-50 border-none"></th></>)}
               {activeTab === "kms" && (<>{KMS_COLUMNS.map((col) => <th key={col.key} className={`p-3 text-left font-bold text-slate-700 border-r border-slate-300 bg-slate-100 ${col.width}`}>{col.label}</th>)}<th className="bg-slate-50 border-none"></th></>)}
+              {activeTab === "ats" && (<>{ATS_COLUMNS.map((col) => <th key={col.key} className={`p-3 text-left font-bold text-slate-700 border-r border-slate-300 bg-slate-100 ${col.width}`}>{col.label}</th>)}<th className="bg-slate-50 border-none"></th></>)}
             </tr>
           </thead>
           <tbody>
@@ -854,6 +932,22 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                         return (
                             <td key={col.key} className="p-0 border-r border-slate-100 relative">
                                 <input id={`cell-kms-${rIndex}-${col.key}`} type="text" className={`w-full h-full p-3 text-left outline-none focus:z-10 relative transition-all text-slate-700 font-mono font-bold cursor-default ${isSelected ? "bg-red-200 ring-1 ring-red-400" : "bg-transparent focus:ring-2 focus:ring-red-500 focus:bg-white"}`} placeholder={col.label} value={val} onChange={(e) => handleKmsChange(rIndex, col.key, e.target.value)} onPaste={(e) => handleKmsPaste(e, rIndex, cIndex)} onKeyDown={(e) => handleKeyDown(e, rIndex, cIndex)} onFocus={(e) => handleFocus(e, rIndex, cIndex)} onMouseDown={() => handleMouseDown(rIndex, cIndex)} onMouseEnter={() => handleMouseEnter(rIndex, cIndex)} autoComplete="off" />
+                           </td>
+                        );
+                   })}
+                   <td></td>
+                </tr>
+            ))}
+            
+            {/* YENİ: ATS GRID RENDER */}
+            {activeTab === "ats" && atsGrid.map((row, rIndex) => (
+                <tr key={rIndex} className="border-b border-slate-200 hover:bg-teal-50 transition-colors">
+                   {ATS_COLUMNS.map((col, cIndex) => {
+                        const isSelected = isCellSelected(rIndex, cIndex);
+                        const val = row[col.key] !== undefined && row[col.key] !== null ? row[col.key] : "";
+                        return (
+                            <td key={col.key} className="p-0 border-r border-slate-100 relative">
+                                <input id={`cell-ats-${rIndex}-${col.key}`} type="text" className={`w-full h-full p-3 text-left outline-none focus:z-10 relative transition-all text-slate-700 font-mono font-bold uppercase cursor-default ${isSelected ? "bg-teal-200 ring-1 ring-teal-400" : "bg-transparent focus:ring-2 focus:ring-teal-500 focus:bg-white"}`} placeholder="Örn: 35GA123" value={val} onChange={(e) => handleAtsChange(rIndex, col.key, e.target.value)} onPaste={(e) => handleAtsPaste(e, rIndex, cIndex)} onKeyDown={(e) => handleKeyDown(e, rIndex, cIndex)} onFocus={(e) => handleFocus(e, rIndex, cIndex)} onMouseDown={() => handleMouseDown(rIndex, cIndex)} onMouseEnter={() => handleMouseEnter(rIndex, cIndex)} autoComplete="off" />
                            </td>
                         );
                    })}
