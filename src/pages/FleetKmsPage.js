@@ -1,278 +1,354 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, Search, ChevronRight, ChevronDown, Home, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Calendar, ChevronDown, Search, Truck, AlertTriangle, List, CalendarDays } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
+import { collection, getDocs } from "firebase/firestore";
+import { db, appId } from "../config/firebase";
 
-const currentYear = new Date().getFullYear();
-const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
+// 3 KM Kriteri Sabiti
+const KM_CRITERION = 3;
 
-const checkVehicleFilter = (typeStr, statusStr) => {
-    const t = String(typeStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
-    const s = String(statusStr || "").toLocaleLowerCase('tr-TR').replace(/i̇/g, 'i').trim();
-
-    const isTypeMatch = t.includes("kamyon"); 
-    
-    const isStatusMatch = 
-        s.includes("acente kiralık") || s.includes("acente kiralik") ||
-        s.includes("acente özmal") || s.includes("acente ozmal") ||
-        s.includes("şirket özmal") || s.includes("sirket ozmal") || 
-        s.includes("şirket ozmal") || s.includes("sirket özmal") ||
-        s.includes("şube kiralık") || s.includes("sube kiralik") || 
-        s.includes("şube kiralik") || s.includes("sube kiralık");
-
-    return isTypeMatch && isStatusMatch;
+const parseMetric = (val) => {
+  if (val === undefined || val === null || val === "") return 0;
+  const cleanStr = String(val).replace(/,/g, '.').replace(/\s/g, '');
+  const num = parseFloat(cleanStr);
+  return isNaN(num) ? 0 : num;
 };
 
-const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onBack }) => {
-    const [selectedUnit, setSelectedUnit] = useState(null); 
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [showIdleModal, setShowIdleModal] = useState(false);
+const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList = [], onBack }) => {
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedUnit, setSelectedUnit] = useState("TÜMÜ");
+  const [showUnderperformingAudit, setShowUnderperformingAudit] = useState(false);
+  
+  // YENİ: Görünüm Modu ve ATS Verileri
+  const [viewMode, setViewMode] = useState("daily"); // "daily" | "yearly"
+  const [atsRecords, setAtsRecords] = useState([]);
 
-    useEffect(() => {
-        if (fleetDailyKms && fleetDailyKms.length > 0 && !selectedUnit) {
-            const sortedData = [...fleetDailyKms].sort((a, b) => (b.year !== a.year ? b.year - a.year : b.month - a.month));
-            setSelectedYear(sortedData[0].year);
-            setSelectedMonth(sortedData[0].month);
+  const availableYears = Array.from({ length: 3 }, (_, i) => 2024 + i);
+
+  const daysInMonth = useMemo(() => {
+    return new Date(selectedYear, selectedMonth, 0).getDate();
+  }, [selectedYear, selectedMonth]);
+
+  const daysArray = useMemo(() => {
+    return Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  }, [daysInMonth]);
+
+  useEffect(() => {
+    if (!fleetDailyKms || fleetDailyKms.length === 0) return;
+    const sortedLogs = [...fleetDailyKms].sort((a, b) => (b.year - a.year) || (b.month - a.month));
+    setSelectedYear(sortedLogs[0].year);
+    setSelectedMonth(sortedLogs[0].month);
+  }, [fleetDailyKms]);
+
+  // YENİ: ATS Cihazı Olmayan Araçları Veritabanından Çek
+  useEffect(() => {
+    const fetchAts = async () => {
+        try {
+            const snapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "fleet_ats"));
+            let loadedAts = [];
+            snapshot.docs.forEach(doc => {
+                const d = doc.data();
+                if(d.plate) {
+                    loadedAts.push({ plate: d.plate.replace(/\s/g, "").toUpperCase(), year: d.year, month: d.month });
+                }
+            });
+            setAtsRecords(loadedAts);
+        } catch(e) { console.error("ATS verileri alınamadı", e); }
+    };
+    fetchAts();
+  }, []);
+
+  const getIsSunday = (day) => {
+    const d = new Date(selectedYear, selectedMonth - 1, day);
+    return d.getDay() === 0;
+  };
+
+  const underperformingUnits = useMemo(() => {
+    const units = [];
+    allData.forEach(d => {
+      if (d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth)) {
+        const perf = parseMetric(d.teslimPerformansi);
+        if (perf > 0 && perf < 95) {
+          units.push(d.unit);
         }
-    }, [fleetDailyKms, selectedUnit]);
+      }
+    });
+    return units;
+  }, [allData, selectedYear, selectedMonth]);
 
-    const getIsSunday = (day) => new Date(selectedYear, selectedMonth - 1, day).getDay() === 0;
-    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-    const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  // --- GÜNLÜK PİVOT MOTORU ---
+  const dailyPivotData = useMemo(() => {
+    const recordsMap = {};
+    const atsForMonth = atsRecords.filter(a => a.year === parseInt(selectedYear) && a.month === parseInt(selectedMonth)).map(a => a.plate);
 
-    const processedData = useMemo(() => {
-        const vehicleInfoMap = {};
-        
-        fleetMonthly.forEach(fm => {
-            if (fm.year === selectedYear && fm.month === selectedMonth) {
-                if (selectedUnit !== "BÖLGE" && fm.unit !== selectedUnit) return;
-                
-                fm.records.forEach(v => {
-                    if (checkVehicleFilter(v.type, v.status)) {
-                        const key = `${fm.unit}-${v.plate.replace(/\s/g, "").toUpperCase()}`;
-                        vehicleInfoMap[key] = { unit: fm.unit, plate: v.plate, type: v.type, status: v.status, days: {} };
-                    }
-                });
-            }
-        });
+    fleetDailyKms.forEach(log => {
+      if (log.year !== parseInt(selectedYear) || log.month !== parseInt(selectedMonth)) return;
+      
+      const unitKey = log.unit;
+      const plateKey = log.plate ? log.plate.replace(/\s/g, "").toUpperCase() : "";
+      const compositeKey = `${unitKey}_${plateKey}`;
 
-        const map = { ...vehicleInfoMap }; 
+      if (!recordsMap[compositeKey]) {
+        recordsMap[compositeKey] = {
+          unit: unitKey,
+          plate: log.plate,
+          plateKey: plateKey,
+          days: {},
+          isLogged: true
+        };
+      }
+      recordsMap[compositeKey].days[log.day] = parseMetric(log.km);
+    });
 
-        fleetDailyKms.forEach(doc => {
-            if (doc.year === selectedYear && doc.month === selectedMonth) {
-                if (selectedUnit !== "BÖLGE" && doc.unit !== selectedUnit) return;
-                
-                if (doc.records) {
-                    doc.records.forEach(r => {
-                        const key = `${doc.unit}-${r.plate.replace(/\s/g, "").toUpperCase()}`;
-                        if (map[key]) {
-                            const kmVal = parseFloat(String(r.km).replace(',', '.'));
-                            if (!isNaN(kmVal)) map[key].days[r.day] = kmVal;
-                        }
-                    });
-                }
-            }
-        });
+    if (showUnderperformingAudit && fleetMasterList) {
+      fleetMasterList.forEach(vehicle => {
+        if ((vehicle.operationType || "").toLowerCase().includes("parça")) return;
+        if (!underperformingUnits.includes(vehicle.unit)) return;
 
-        return Object.values(map).map(item => {
-            let tcg = 0;
-            let totalKmForAvg = 0;
-            
-            Object.entries(item.days).forEach(([dayStr, km]) => {
-                if (!getIsSunday(parseInt(dayStr))) {
-                    if (km >= 3) {
-                        tcg += 1;
-                        totalKmForAvg += km;
-                    }
-                }
-            });
+        const plateKey = vehicle.plate ? vehicle.plate.replace(/\s/g, "").toUpperCase() : "";
+        const compositeKey = `${vehicle.unit}_${plateKey}`;
 
-            return {
-                ...item,
-                tcg: tcg,
-                ok: tcg > 0 ? (totalKmForAvg / tcg).toFixed(1) : 0
-            };
-        }).sort((a, b) => a.unit.localeCompare(b.unit) || a.plate.localeCompare(b.plate));
-
-    }, [fleetDailyKms, fleetMonthly, selectedUnit, selectedYear, selectedMonth]);
-
-    const idleVehicles = useMemo(() => {
-        if (!allData || !fleetMonthly || !fleetDailyKms) return [];
-        
-        const underperformingUnits = allData.filter(d => d.year === selectedYear && d.month === selectedMonth && d.nihaiTeslim !== undefined && d.nihaiTeslim < 95).map(d => d.unit);
-
-        const idleList = [];
-
-        underperformingUnits.forEach(unit => {
-            const unitMonthlyFleet = fleetMonthly.find(fm => fm.unit === unit && fm.year === selectedYear && fm.month === selectedMonth)?.records || [];
-            
-            unitMonthlyFleet.forEach(vehicle => {
-                if (!checkVehicleFilter(vehicle.type, vehicle.status)) return;
-                
-                const plateKey = vehicle.plate.replace(/\s/g, "").toUpperCase();
-                const unitDaily = fleetDailyKms.find(d => d.unit === unit && d.year === selectedYear && d.month === selectedMonth);
-                let hasAnyKm = false;
-                
-                if (unitDaily && unitDaily.records) {
-                    const vehicleRecords = unitDaily.records.filter(r => r.plate.replace(/\s/g, "").toUpperCase() === plateKey);
-                    hasAnyKm = vehicleRecords.some(r => {
-                        const km = parseFloat(String(r.km).replace(',', '.'));
-                        return !isNaN(km) && km > 0; 
-                    });
-                }
-                
-                if (!hasAnyKm) {
-                    idleList.push({ unit, plate: vehicle.plate, type: vehicle.type, status: vehicle.status, owner: vehicle.owner });
-                }
-            });
-        });
-
-        return idleList.sort((a,b) => a.unit.localeCompare(b.unit));
-    }, [allData, fleetMonthly, fleetDailyKms, selectedYear, selectedMonth]);
-
-    const filteredUnits = UNITS.filter((unit) => unit.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    if (!selectedUnit) {
-        return (
-            <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen">
-                <div className="sticky top-0 bg-white dark:bg-slate-900 p-4 shadow-sm z-10">
-                    <button onClick={onBack} className="mb-4 text-slate-500"><Home size={24}/></button>
-                    <h1 className="text-xl font-bold mb-4 dark:text-white">Günlük Filo KM Analizi</h1>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-                        <input type="text" placeholder="Birim Ara..." className="w-full pl-10 p-2 bg-slate-100 dark:bg-slate-800 rounded-lg outline-none dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                    </div>
-                </div>
-                <div className="p-4">
-                    <div onClick={() => setSelectedUnit("BÖLGE")} className="bg-blue-600 text-white p-4 rounded-xl flex justify-between items-center mb-4 cursor-pointer shadow-md">
-                        <span className="font-bold">TÜMÜNÜ GÖR (BÖLGE)</span> <ChevronRight />
-                    </div>
-                    {filteredUnits.map((u, i) => u !== "BÖLGE" && (
-                        <div key={i} onClick={() => setSelectedUnit(u)} className="bg-white dark:bg-slate-800 p-4 rounded-xl flex justify-between items-center mb-2 cursor-pointer shadow-sm border border-slate-100 dark:border-slate-700">
-                            <span className="font-semibold dark:text-white">{u}</span> <ChevronRight className="text-slate-400" />
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
+        if (!recordsMap[compositeKey]) {
+          recordsMap[compositeKey] = {
+            unit: vehicle.unit,
+            plate: vehicle.plate,
+            plateKey: plateKey,
+            days: {},
+            isLogged: false
+          };
+        }
+      });
     }
 
-    return (
-        <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen">
-            <div className="bg-white dark:bg-slate-900 p-3 shadow-sm sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b dark:border-slate-700">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <button onClick={() => setSelectedUnit(null)} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors flex-shrink-0">
-                        <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
-                    </button>
-                    <div className="relative flex items-center w-full max-w-[250px]">
-                        <select 
-                            value={selectedUnit} 
-                            onChange={(e) => setSelectedUnit(e.target.value)} 
-                            className="appearance-none bg-transparent text-lg font-bold text-slate-800 dark:text-white w-full pr-8 outline-none cursor-pointer truncate py-1 z-10"
-                        >
-                            <option value="BÖLGE" className="dark:bg-slate-800 dark:text-white">TÜMÜ (BÖLGE)</option>
-                            {UNITS.filter(u => u !== "BÖLGE").map((u) => (
-                                <option key={u} value={u} className="dark:bg-slate-800 dark:text-white">{u}</option>
-                            ))}
-                        </select>
-                        <ChevronDown size={18} className="absolute right-0 text-slate-400 pointer-events-none" />
-                    </div>
-                </div>
-                <button onClick={() => setShowIdleModal(true)} className="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition flex-shrink-0">
-                    <AlertTriangle size={14}/> Yatan Araçlar ({idleVehicles.length})
-                </button>
-            </div>
+    return Object.values(recordsMap).map(row => {
+      let tcg = 0; 
+      let totalKm = 0; 
+      const hasAts = !atsForMonth.includes(row.plateKey); // ATS'si var mı?
 
-            <div className="p-3 bg-white dark:bg-slate-800 flex gap-2 overflow-x-auto border-b dark:border-slate-700 items-center">
-                <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-700 p-1.5 rounded text-sm font-bold dark:text-white outline-none border-none">
-                    {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-                {MONTH_NAMES.map((m, i) => i !== 0 && (
-                    <button key={i} onClick={() => setSelectedMonth(i)} className={`px-3 py-1.5 rounded text-sm whitespace-nowrap font-medium ${i === selectedMonth ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-700 dark:text-white'}`}>
-                        {m}
-                    </button>
-                ))}
-            </div>
+      daysArray.forEach(day => {
+        const kmVal = row.days[day] || 0;
+        if (kmVal >= KM_CRITERION) {
+          tcg += 1;
+          totalKm += kmVal;
+        }
+      });
 
-            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-[10px] text-blue-700 dark:text-blue-300 font-medium text-center border-b border-blue-100 dark:border-blue-900/50">
-                Sadece <strong>Kamyon/Kamyonet</strong> olan ve belirli statülere sahip araçlar listelenir. KM'si girilmeyen araçlar da listede görünür. Yatan araçların (Riskli) satırları kırmızıdır.
-            </div>
+      const ok = tcg > 0 ? (totalKm / tcg) : 0; 
 
-            <div className="p-3 overflow-x-auto">
-                <table className="w-full text-[11px] text-left border-collapse bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-hidden">
-                    <thead className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
-                        <tr>
-                            <th className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-700 z-10 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Birim Adı</th>
-                            <th className="p-2 sticky left-32 bg-slate-200 dark:bg-slate-700 z-10 w-24 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Plaka</th>
-                            <th className="p-2 text-center text-blue-700 dark:text-blue-300">TÇG</th>
-                            <th className="p-2 text-center text-emerald-700 dark:text-emerald-300">Ort. KM</th>
-                            {daysArray.map(d => <th key={d} className={`p-1 border-l dark:border-slate-600 text-center ${getIsSunday(d) ? 'text-red-500' : ''}`}>{String(d).padStart(2,'0')}</th>)}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {processedData.length > 0 ? processedData.map((row, i) => {
-                            // Bu satırdaki araç yatan araç listesinde var mı?
-                            const isIdle = idleVehicles.some(iv => iv.unit === row.unit && iv.plate.replace(/\s/g, "").toUpperCase() === row.plate.replace(/\s/g, "").toUpperCase());
-                            
-                            return (
-                                <tr key={i} className={isIdle ? "border-b border-rose-200 dark:border-rose-800 bg-rose-100 dark:bg-rose-900/40 hover:bg-rose-200 dark:hover:bg-rose-900/60 transition-colors" : "border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"}>
-                                    <td className={`p-2 sticky left-0 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isIdle ? 'bg-rose-100 dark:bg-rose-900/90 text-rose-800 dark:text-rose-200' : 'bg-white dark:bg-slate-800 dark:text-white'}`}>
-                                        {row.unit}
-                                    </td>
-                                    <td className={`p-2 sticky left-32 font-mono text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isIdle ? 'bg-rose-100 dark:bg-rose-900/90 text-rose-700 dark:text-rose-300' : 'bg-white dark:bg-slate-800 dark:text-slate-300'}`} title={`${row.type} - ${row.status}`}>
-                                        {row.plate}
-                                    </td>
-                                    <td className={`p-2 text-center font-bold ${isIdle ? 'text-rose-700 dark:text-rose-300' : 'text-blue-600 bg-blue-50/50 dark:bg-blue-900/20'}`}>
-                                        {row.tcg}
-                                    </td>
-                                    <td className={`p-2 text-center font-bold ${isIdle ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20'}`}>
-                                        {row.ok}
-                                    </td>
-                                    {daysArray.map(d => (
-                                        <td key={d} className={`p-1 border-l dark:border-slate-700 text-center font-medium ${isIdle ? 'text-rose-600 dark:text-rose-400' : (getIsSunday(d) ? 'bg-red-50/50 dark:bg-red-900/10 text-red-500' : 'dark:text-slate-400')}`}>
-                                            {row.days[d] || "-"}
-                                        </td>
-                                    ))}
-                                </tr>
-                            );
-                        }) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Bu ay için filtrelere uygun araç bulunamadı.</td></tr>}
-                    </tbody>
-                </table>
-            </div>
+      return { ...row, tcg, ok, hasAts, hasActivity: tcg > 0 };
+    });
+  }, [fleetDailyKms, fleetMasterList, selectedYear, selectedMonth, daysArray, showUnderperformingAudit, underperformingUnits, atsRecords]);
 
-            {/* YATAN ARAÇ MODALI */}
-            {showIdleModal && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowIdleModal(false)}>
-                    <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
-                        <div className="p-4 bg-rose-600 text-white flex justify-between items-center shrink-0">
-                            <h3 className="font-bold flex items-center gap-2 text-sm sm:text-base"><AlertTriangle size={18}/> Yatan Araçlar (Nihai Teslim {"<"} %95)</h3>
-                            <button onClick={() => setShowIdleModal(false)}><X size={20}/></button>
-                        </div>
-                        <div className="p-4 bg-rose-50 dark:bg-rose-900/20 text-xs text-rose-800 dark:text-rose-200 border-b dark:border-rose-900 shrink-0">
-                            İlgili ayda <strong>Nihai Teslim Performansı %95'in altında</strong> kalan birimlerde, Kamyon/Kamyonet olan ve belirlenen statülerdeki araçlar içinde o ay boyunca <strong>hiç KM girilmemiş</strong> araçlar yatan araç olarak listelenir. (1 km dahi girilmişse bu listeden çıkarılır).
-                        </div>
-                        <div className="overflow-y-auto p-4">
-                            {idleVehicles.length > 0 ? (
-                                <table className="w-full text-left text-sm">
-                                    <thead><tr className="border-b dark:border-slate-700 dark:text-slate-300">
-                                        <th className="pb-2">Birim</th><th className="pb-2">Plaka</th><th className="pb-2">Tip</th><th className="pb-2">Statü</th><th className="pb-2">Araç Sahibi</th>
-                                    </tr></thead>
-                                    <tbody>
-                                        {idleVehicles.map((v, i) => (
-                                            <tr key={i} className="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:text-slate-300">
-                                                <td className="py-2 font-bold text-rose-600 dark:text-rose-400">{v.unit}</td><td className="py-2 font-mono text-xs">{v.plate}</td><td className="py-2 text-xs">{v.type}</td><td className="py-2 text-xs text-purple-600">{v.status}</td><td className="py-2 text-xs">{v.owner}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : <p className="text-center text-slate-500 py-6">Bu ay için kritere uyan yatan araç bulunamadı.</p>}
-                        </div>
-                    </div>
-                </div>
-            )}
+  // --- YILLIK PİVOT MOTORU ---
+  const yearlyPivotData = useMemo(() => {
+      const recordsMap = {};
+      
+      fleetDailyKms.forEach(log => {
+          if (log.year !== parseInt(selectedYear)) return;
+          
+          const plateKey = log.plate ? log.plate.replace(/\s/g, "").toUpperCase() : "";
+          const compositeKey = `${log.unit}_${plateKey}`;
+          
+          if (!recordsMap[compositeKey]) {
+              recordsMap[compositeKey] = { unit: log.unit, plate: log.plate, plateKey: plateKey, months: {} };
+          }
+          if (!recordsMap[compositeKey].months[log.month]) {
+              recordsMap[compositeKey].months[log.month] = { tcg: 0, totalKm: 0 };
+          }
+          
+          const kmVal = parseMetric(log.km);
+          if (kmVal >= KM_CRITERION) {
+              recordsMap[compositeKey].months[log.month].tcg += 1;
+              recordsMap[compositeKey].months[log.month].totalKm += kmVal;
+          }
+      });
+
+      return Object.values(recordsMap);
+  }, [fleetDailyKms, selectedYear]);
+
+  // ARAMA VE FİLTRELEME
+  const filteredDailyData = useMemo(() => {
+    return dailyPivotData.filter(row => {
+      if (selectedUnit !== "TÜMÜ" && row.unit !== selectedUnit) return false;
+      const searchMatch = row.unit.toLocaleUpperCase("tr-TR").includes(searchTerm.toLocaleUpperCase("tr-TR")) || row.plate.toUpperCase().includes(searchTerm.toUpperCase());
+      if (!searchMatch) return false;
+      if (showUnderperformingAudit) {
+        if (!underperformingUnits.includes(row.unit)) return false;
+        if (row.tcg > 0) return false; 
+      }
+      return true;
+    }).sort((a, b) => a.unit.localeCompare(b.unit, 'tr-TR') || a.plate.localeCompare(b.plate, 'tr-TR'));
+  }, [dailyPivotData, selectedUnit, searchTerm, showUnderperformingAudit, underperformingUnits]);
+
+  const filteredYearlyData = useMemo(() => {
+      return yearlyPivotData.filter(row => {
+          if (selectedUnit !== "TÜMÜ" && row.unit !== selectedUnit) return false;
+          const searchMatch = row.unit.toLocaleUpperCase("tr-TR").includes(searchTerm.toLocaleUpperCase("tr-TR")) || row.plate.toUpperCase().includes(searchTerm.toUpperCase());
+          return searchMatch;
+      }).sort((a, b) => a.unit.localeCompare(b.unit, 'tr-TR') || a.plate.localeCompare(b.plate, 'tr-TR'));
+  }, [yearlyPivotData, selectedUnit, searchTerm]);
+
+  return (
+    <div className="bg-slate-50 dark:bg-slate-900 min-h-screen pb-24 transition-colors duration-300">
+      <div className="bg-white dark:bg-slate-900 sticky top-0 z-30 shadow-sm border-b border-slate-200 dark:border-slate-800">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+              <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="bg-indigo-100 dark:bg-indigo-900/30 p-2 rounded-lg text-indigo-600 dark:text-indigo-400">
+                <Truck size={20} />
+              </div>
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">Filo Kilometre Analizi</h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+              {viewMode === "daily" && (
+                  <button onClick={() => setShowUnderperformingAudit(!showUnderperformingAudit)} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-all ${showUnderperformingAudit ? 'bg-rose-600 text-white animate-pulse' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`}>
+                    <AlertTriangle size={14} />
+                    {showUnderperformingAudit ? "Denetim Modu Açık (%95 Altı Atıl Araçlar)" : "Çalışmayan Araçları Denetle"}
+                  </button>
+              )}
+              {/* YENİ: Görünüm Modu Geçiş Butonu */}
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button onClick={() => setViewMode("daily")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "daily" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                      <CalendarDays size={14}/> Günlük
+                  </button>
+                  <button onClick={() => setViewMode("yearly")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "yearly" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                      <List size={14}/> Yıllık
+                  </button>
+              </div>
+          </div>
         </div>
-    );
+
+        <div className="px-4 pb-3 flex flex-wrap gap-3 items-center">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 border border-slate-200 dark:border-slate-700">
+            <Calendar size={14} className="text-slate-500 mr-2" />
+            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-transparent text-slate-800 dark:text-slate-200 font-bold text-sm py-1.5 border-none outline-none focus:ring-0">
+              {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+
+          {viewMode === "daily" && (
+              <div className="flex gap-1 overflow-x-auto no-scrollbar py-0.5 max-w-full sm:max-w-md">
+                {MONTH_NAMES.map((m, i) => {
+                  if (i === 0) return null;
+                  return (
+                    <button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border ${i === selectedMonth ? "bg-indigo-600 text-white border-transparent" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500"}`}>{m}</button>
+                  );
+                })}
+              </div>
+          )}
+
+          <div className="relative w-full sm:w-[240px]">
+            <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="appearance-none w-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-2 pl-3 pr-8 rounded-xl border-none outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="TÜMÜ">TÜMÜ (BÖLGE GENELİ)</option>
+              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          </div>
+
+          <div className="relative flex-1 max-w-xs w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input type="text" placeholder="Şube veya plaka ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white dark:bg-slate-800 pl-9 pr-4 py-1.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white" />
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 max-w-[100vw] overflow-x-auto">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="max-h-[70vh] overflow-y-auto overflow-x-auto no-scrollbar relative">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-bold sticky top-0 z-20 shadow-sm">
+                <tr>
+                  <th className="p-3 sticky left-0 bg-slate-100 dark:bg-slate-900 z-30 min-w-[140px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Birim Adı</th>
+                  <th className="p-3 sticky left-[140px] bg-slate-100 dark:bg-slate-900 z-30 min-w-[90px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Plaka</th>
+                  
+                  {viewMode === "daily" ? (
+                      <>
+                        <th className="p-3 text-center bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 font-black min-w-[50px]">TÇG</th>
+                        <th className="p-3 text-center bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 font-black min-w-[65px]">OK (KM)</th>
+                        {daysArray.map(day => (
+                            <th key={day} className={`p-1 text-center min-w-[32px] ${getIsSunday(day) ? 'bg-red-50 dark:bg-red-950/30 text-red-500' : ''}`}>
+                                {String(day).padStart(2, '0')}
+                            </th>
+                        ))}
+                      </>
+                  ) : (
+                      <>
+                        {MONTH_NAMES.map((m, i) => i !== 0 && (
+                            <th key={i} className="p-3 text-center min-w-[90px]">{m}</th>
+                        ))}
+                      </>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                {viewMode === "daily" ? (
+                    filteredDailyData.length > 0 ? (
+                      filteredDailyData.map((row, idx) => (
+                        <tr key={idx} className={`transition-colors ${!row.hasAts ? "bg-orange-50/60 dark:bg-orange-950/20 hover:bg-orange-100 dark:hover:bg-orange-900/30" : "hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] truncate max-w-[140px] ${!row.hasAts ? "bg-orange-50 dark:bg-slate-800 text-orange-800 dark:text-orange-400" : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"}`}>{row.unit}</td>
+                          <td className={`p-3 font-black sticky left-[140px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${!row.hasAts ? "bg-orange-50 dark:bg-slate-800 text-orange-800 dark:text-orange-400" : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
+                              {row.plate}
+                              {!row.hasAts && <span className="block text-[8px] text-orange-600 bg-orange-100 px-1 py-0.5 rounded uppercase mt-0.5 w-max">ATS CİHAZI YOK</span>}
+                          </td>
+                          <td className="p-3 text-center font-bold bg-indigo-50/30 dark:bg-indigo-950/10 text-indigo-600 dark:text-indigo-400">{!row.hasAts ? "-" : `${row.tcg} Gün`}</td>
+                          <td className="p-3 text-center font-black bg-blue-50/30 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400">{!row.hasAts ? "-" : row.ok.toFixed(1)}</td>
+                          {daysArray.map(day => {
+                            const km = row.days[day];
+                            const isSunday = getIsSunday(day);
+                            let cellBg = "";
+                            if (!row.hasAts) {
+                                cellBg = "bg-orange-50/30 text-orange-400";
+                            } else if (km !== undefined) {
+                              cellBg = km >= KM_CRITERION ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 font-bold" : "bg-slate-100 dark:bg-slate-700/40 text-slate-400";
+                            } else if (isSunday) {
+                              cellBg = "bg-red-50/30 dark:bg-red-950/10";
+                            }
+                            return (
+                              <td key={day} className={`p-1 text-center border-r border-slate-100 dark:border-slate-700/40 ${cellBg}`}>
+                                {!row.hasAts ? "-" : (km !== undefined ? (km === 0 ? "-" : km.toFixed(0)) : "-")}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={daysInMonth + 4} className="p-8 text-center text-sm text-slate-400 dark:text-slate-500 font-medium">{showUnderperformingAudit ? "Tebrikler! Hedef altı şubelerde yatan / çalışmayan araç tespit edilmedi." : "Kriterlere uygun araç kilometre kaydı bulunamadı."}</td></tr>
+                    )
+                ) : (
+                    // YILLIK GÖRÜNÜM
+                    filteredYearlyData.length > 0 ? (
+                        filteredYearlyData.map((row, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                                <td className="p-3 font-bold text-slate-800 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] truncate max-w-[140px]">{row.unit}</td>
+                                <td className="p-3 font-black text-slate-700 dark:text-slate-300 sticky left-[140px] bg-white dark:bg-slate-800 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{row.plate}</td>
+                                {MONTH_NAMES.map((m, i) => {
+                                    if(i === 0) return null;
+                                    const mData = row.months[i];
+                                    return (
+                                        <td key={i} className={`p-3 text-center border-r border-slate-100 dark:border-slate-700/40 ${mData && mData.tcg > 0 ? "font-bold text-indigo-700 bg-indigo-50/30" : "text-slate-400"}`}>
+                                            {mData && mData.tcg > 0 ? `${(mData.totalKm / mData.tcg).toFixed(1)}(${mData.tcg})` : "-"}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))
+                    ) : (
+                        <tr><td colSpan={14} className="p-8 text-center text-sm text-slate-400 dark:text-slate-500 font-medium">Bu yıla ait araç kaydı bulunmamaktadır.</td></tr>
+                    )
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
-export default FleetKmsPage;
+export default FleetKmAnalysisPage;
