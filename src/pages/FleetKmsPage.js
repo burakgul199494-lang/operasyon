@@ -20,7 +20,7 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUnit, setSelectedUnit] = useState("TÜMÜ");
   const [showUnderperformingAudit, setShowUnderperformingAudit] = useState(false);
-  
+
   // YENİ: Görünüm Modu ve ATS Verileri
   const [viewMode, setViewMode] = useState("daily"); // "daily" | "yearly"
   const [atsRecords, setAtsRecords] = useState([]);
@@ -78,8 +78,8 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
     return units;
   }, [allData, selectedYear, selectedMonth]);
 
-  // --- GÜNLÜK PİVOT MOTORU ---
-  const dailyPivotData = useMemo(() => {
+  // --- GÜNLÜK PİVOT MOTORU (Orijinal Kod + ATS Kontrolü) ---
+  const pivotData = useMemo(() => {
     const recordsMap = {};
     const atsForMonth = atsRecords.filter(a => a.year === parseInt(selectedYear) && a.month === parseInt(selectedMonth)).map(a => a.plate);
 
@@ -125,7 +125,7 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
     return Object.values(recordsMap).map(row => {
       let tcg = 0; 
       let totalKm = 0; 
-      const hasAts = !atsForMonth.includes(row.plateKey); // ATS'si var mı?
+      const hasAts = !atsForMonth.includes(row.plateKey); // ATS listesinde varsa false döner
 
       daysArray.forEach(day => {
         const kmVal = row.days[day] || 0;
@@ -137,57 +137,67 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
 
       const ok = tcg > 0 ? (totalKm / tcg) : 0; 
 
-      return { ...row, tcg, ok, hasAts, hasActivity: tcg > 0 };
+      return {
+        ...row,
+        tcg,
+        ok,
+        hasAts,
+        hasActivity: tcg > 0
+      };
     });
   }, [fleetDailyKms, fleetMasterList, selectedYear, selectedMonth, daysArray, showUnderperformingAudit, underperformingUnits, atsRecords]);
 
-  // --- YILLIK PİVOT MOTORU ---
+  // --- YILLIK PİVOT MOTORU (Yeni) ---
   const yearlyPivotData = useMemo(() => {
-      const recordsMap = {};
-      
-      fleetDailyKms.forEach(log => {
-          if (log.year !== parseInt(selectedYear)) return;
-          
-          const plateKey = log.plate ? log.plate.replace(/\s/g, "").toUpperCase() : "";
-          const compositeKey = `${log.unit}_${plateKey}`;
-          
-          if (!recordsMap[compositeKey]) {
-              recordsMap[compositeKey] = { unit: log.unit, plate: log.plate, plateKey: plateKey, months: {} };
-          }
-          if (!recordsMap[compositeKey].months[log.month]) {
-              recordsMap[compositeKey].months[log.month] = { tcg: 0, totalKm: 0 };
-          }
-          
-          const kmVal = parseMetric(log.km);
-          if (kmVal >= KM_CRITERION) {
-              recordsMap[compositeKey].months[log.month].tcg += 1;
-              recordsMap[compositeKey].months[log.month].totalKm += kmVal;
-          }
-      });
+    const recordsMap = {};
+    
+    fleetDailyKms.forEach(log => {
+        if (log.year !== parseInt(selectedYear)) return;
+        
+        const plateKey = log.plate ? log.plate.replace(/\s/g, "").toUpperCase() : "";
+        const compositeKey = `${log.unit}_${plateKey}`;
+        
+        if (!recordsMap[compositeKey]) {
+            recordsMap[compositeKey] = { unit: log.unit, plate: log.plate, plateKey: plateKey, months: {} };
+        }
+        if (!recordsMap[compositeKey].months[log.month]) {
+            recordsMap[compositeKey].months[log.month] = { tcg: 0, totalKm: 0 };
+        }
+        
+        const kmVal = parseMetric(log.km);
+        if (kmVal >= KM_CRITERION) {
+            recordsMap[compositeKey].months[log.month].tcg += 1;
+            recordsMap[compositeKey].months[log.month].totalKm += kmVal;
+        }
+    });
 
-      return Object.values(recordsMap);
+    return Object.values(recordsMap);
   }, [fleetDailyKms, selectedYear]);
 
-  // ARAMA VE FİLTRELEME
-  const filteredDailyData = useMemo(() => {
-    return dailyPivotData.filter(row => {
+  // ARAMA VE FİLTRELEME 
+  const filteredData = useMemo(() => {
+    return pivotData.filter(row => {
       if (selectedUnit !== "TÜMÜ" && row.unit !== selectedUnit) return false;
-      const searchMatch = row.unit.toLocaleUpperCase("tr-TR").includes(searchTerm.toLocaleUpperCase("tr-TR")) || row.plate.toUpperCase().includes(searchTerm.toUpperCase());
+
+      const searchMatch = row.unit.toLocaleUpperCase("tr-TR").includes(searchTerm.toLocaleUpperCase("tr-TR")) ||
+                          row.plate.toUpperCase().includes(searchTerm.toUpperCase());
       if (!searchMatch) return false;
+
       if (showUnderperformingAudit) {
         if (!underperformingUnits.includes(row.unit)) return false;
         if (row.tcg > 0) return false; 
       }
+
       return true;
     }).sort((a, b) => a.unit.localeCompare(b.unit, 'tr-TR') || a.plate.localeCompare(b.plate, 'tr-TR'));
-  }, [dailyPivotData, selectedUnit, searchTerm, showUnderperformingAudit, underperformingUnits]);
+  }, [pivotData, selectedUnit, searchTerm, showUnderperformingAudit, underperformingUnits]);
 
   const filteredYearlyData = useMemo(() => {
-      return yearlyPivotData.filter(row => {
-          if (selectedUnit !== "TÜMÜ" && row.unit !== selectedUnit) return false;
-          const searchMatch = row.unit.toLocaleUpperCase("tr-TR").includes(searchTerm.toLocaleUpperCase("tr-TR")) || row.plate.toUpperCase().includes(searchTerm.toUpperCase());
-          return searchMatch;
-      }).sort((a, b) => a.unit.localeCompare(b.unit, 'tr-TR') || a.plate.localeCompare(b.plate, 'tr-TR'));
+    return yearlyPivotData.filter(row => {
+        if (selectedUnit !== "TÜMÜ" && row.unit !== selectedUnit) return false;
+        const searchMatch = row.unit.toLocaleUpperCase("tr-TR").includes(searchTerm.toLocaleUpperCase("tr-TR")) || row.plate.toUpperCase().includes(searchTerm.toUpperCase());
+        return searchMatch;
+    }).sort((a, b) => a.unit.localeCompare(b.unit, 'tr-TR') || a.plate.localeCompare(b.plate, 'tr-TR'));
   }, [yearlyPivotData, selectedUnit, searchTerm]);
 
   return (
@@ -206,21 +216,24 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-              {viewMode === "daily" && (
-                  <button onClick={() => setShowUnderperformingAudit(!showUnderperformingAudit)} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-all ${showUnderperformingAudit ? 'bg-rose-600 text-white animate-pulse' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`}>
-                    <AlertTriangle size={14} />
-                    {showUnderperformingAudit ? "Denetim Modu Açık (%95 Altı Atıl Araçlar)" : "Çalışmayan Araçları Denetle"}
-                  </button>
-              )}
-              {/* YENİ: Görünüm Modu Geçiş Butonu */}
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <button onClick={() => setViewMode("daily")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "daily" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                      <CalendarDays size={14}/> Günlük
-                  </button>
-                  <button onClick={() => setViewMode("yearly")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "yearly" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                      <List size={14}/> Yıllık
-                  </button>
-              </div>
+            {viewMode === "daily" && (
+                <button 
+                  onClick={() => setShowUnderperformingAudit(!showUnderperformingAudit)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-all ${showUnderperformingAudit ? 'bg-rose-600 text-white animate-pulse' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`}
+                >
+                  <AlertTriangle size={14} />
+                  {showUnderperformingAudit ? "Denetim Modu Açık (%95 Altı Atıl Araçlar)" : "Çalışmayan Araçları Denetle"}
+                </button>
+            )}
+            
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                <button onClick={() => setViewMode("daily")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "daily" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                    <CalendarDays size={14}/> Günlük
+                </button>
+                <button onClick={() => setViewMode("yearly")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "yearly" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                    <List size={14}/> Yıllık
+                </button>
+            </div>
           </div>
         </div>
 
@@ -237,14 +250,24 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
                 {MONTH_NAMES.map((m, i) => {
                   if (i === 0) return null;
                   return (
-                    <button key={i} onClick={() => setSelectedMonth(i)} className={`shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border ${i === selectedMonth ? "bg-indigo-600 text-white border-transparent" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500"}`}>{m}</button>
+                    <button 
+                      key={i} 
+                      onClick={() => setSelectedMonth(i)}
+                      className={`shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border ${i === selectedMonth ? "bg-indigo-600 text-white border-transparent" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500"}`}
+                    >
+                      {m}
+                    </button>
                   );
                 })}
               </div>
           )}
 
           <div className="relative w-full sm:w-[240px]">
-            <select value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} className="appearance-none w-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-2 pl-3 pr-8 rounded-xl border-none outline-none focus:ring-2 focus:ring-indigo-500">
+            <select 
+              value={selectedUnit} 
+              onChange={(e) => setSelectedUnit(e.target.value)}
+              className="appearance-none w-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-sm py-2 pl-3 pr-8 rounded-xl border-none outline-none focus:ring-2 focus:ring-indigo-500"
+            >
               <option value="TÜMÜ">TÜMÜ (BÖLGE GENELİ)</option>
               {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
@@ -253,7 +276,13 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
 
           <div className="relative flex-1 max-w-xs w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input type="text" placeholder="Şube veya plaka ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white dark:bg-slate-800 pl-9 pr-4 py-1.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white" />
+            <input 
+              type="text" 
+              placeholder="Şube veya plaka ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-white dark:bg-slate-800 pl-9 pr-4 py-1.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
+            />
           </div>
         </div>
       </div>
@@ -269,27 +298,27 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
                   
                   {viewMode === "daily" ? (
                       <>
-                        <th className="p-3 text-center bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 font-black min-w-[50px]">TÇG</th>
-                        <th className="p-3 text-center bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 font-black min-w-[65px]">OK (KM)</th>
-                        {daysArray.map(day => (
+                          <th className="p-3 text-center bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 font-black min-w-[50px]">TÇG</th>
+                          <th className="p-3 text-center bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 font-black min-w-[65px]">OK (KM)</th>
+                          {daysArray.map(day => (
                             <th key={day} className={`p-1 text-center min-w-[32px] ${getIsSunday(day) ? 'bg-red-50 dark:bg-red-950/30 text-red-500' : ''}`}>
-                                {String(day).padStart(2, '0')}
+                              {String(day).padStart(2, '0')}
                             </th>
-                        ))}
+                          ))}
                       </>
                   ) : (
                       <>
-                        {MONTH_NAMES.map((m, i) => i !== 0 && (
+                          {MONTH_NAMES.map((m, i) => i !== 0 && (
                             <th key={i} className="p-3 text-center min-w-[90px]">{m}</th>
-                        ))}
+                          ))}
                       </>
                   )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                 {viewMode === "daily" ? (
-                    filteredDailyData.length > 0 ? (
-                      filteredDailyData.map((row, idx) => (
+                    filteredData.length > 0 ? (
+                      filteredData.map((row, idx) => (
                         <tr key={idx} className={`transition-colors ${!row.hasAts ? "bg-orange-50/60 dark:bg-orange-950/20 hover:bg-orange-100 dark:hover:bg-orange-900/30" : "hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}>
                           <td className={`p-3 font-bold sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] truncate max-w-[140px] ${!row.hasAts ? "bg-orange-50 dark:bg-slate-800 text-orange-800 dark:text-orange-400" : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"}`}>{row.unit}</td>
                           <td className={`p-3 font-black sticky left-[140px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${!row.hasAts ? "bg-orange-50 dark:bg-slate-800 text-orange-800 dark:text-orange-400" : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
@@ -303,7 +332,7 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
                             const isSunday = getIsSunday(day);
                             let cellBg = "";
                             if (!row.hasAts) {
-                                cellBg = "bg-orange-50/30 text-orange-400";
+                                cellBg = "bg-orange-50/30 text-orange-400 dark:bg-orange-950/10";
                             } else if (km !== undefined) {
                               cellBg = km >= KM_CRITERION ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 font-bold" : "bg-slate-100 dark:bg-slate-700/40 text-slate-400";
                             } else if (isSunday) {
@@ -318,10 +347,14 @@ const FleetKmAnalysisPage = ({ allData = [], fleetDailyKms = [], fleetMasterList
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan={daysInMonth + 4} className="p-8 text-center text-sm text-slate-400 dark:text-slate-500 font-medium">{showUnderperformingAudit ? "Tebrikler! Hedef altı şubelerde yatan / çalışmayan araç tespit edilmedi." : "Kriterlere uygun araç kilometre kaydı bulunamadı."}</td></tr>
+                      <tr>
+                        <td colSpan={daysInMonth + 4} className="p-8 text-center text-sm text-slate-400 dark:text-slate-500 font-medium">
+                          {showUnderperformingAudit ? "Tebrikler! Hedef altı şubelerde yatan / çalışmayan araç tespit edilmedi." : "Kriterlere uygun araç kilometre kaydı bulunamadı."}
+                        </td>
+                      </tr>
                     )
                 ) : (
-                    // YILLIK GÖRÜNÜM
+                    // YILLIK GÖRÜNÜM RENDERI
                     filteredYearlyData.length > 0 ? (
                         filteredYearlyData.map((row, idx) => (
                             <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
