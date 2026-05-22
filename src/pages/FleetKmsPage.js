@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, Search, ChevronRight, ChevronDown, Home, X, AlertTriangle, CalendarDays, Calendar } from "lucide-react";
+import { ArrowLeft, Search, ChevronRight, ChevronDown, Home, X, AlertTriangle, CalendarDays, Calendar, FileDown, Filter } from "lucide-react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
@@ -21,6 +21,14 @@ const checkVehicleFilter = (typeStr, statusStr) => {
     return isTypeMatch && isStatusMatch;
 };
 
+// JSZip / jsPDF yardımcı fonksiyonu (Türkçe karakter ve PDF üretimi için)
+const getBase64 = (blob) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+});
+
 const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onBack }) => {
     const [selectedUnit, setSelectedUnit] = useState(null); 
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -28,9 +36,12 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
     const [searchQuery, setSearchQuery] = useState("");
     const [showIdleModal, setShowIdleModal] = useState(false);
     
-    // YENİ: Görünüm Modu ve ATS Verisi
+    // YENİ STATE'LER
     const [viewMode, setViewMode] = useState("monthly"); // "monthly" | "yearly"
     const [atsData, setAtsData] = useState([]);
+    const [plateSearchQuery, setPlateSearchQuery] = useState(""); // Tablo içi plaka arama
+    const [showMissingDaysKiralik, setShowMissingDaysKiralik] = useState(false); // Eksik gün kiralık filtresi
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     useEffect(() => {
         const unsub = onSnapshot(collection(db, "artifacts", appId, "public", "data", "fleet_ats"), (snap) => {
@@ -50,6 +61,17 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
     const getIsSunday = (year, month, day) => new Date(year, month - 1, day).getDay() === 0;
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
     const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+    // O aydaki Pazar hariç Toplam Çalışma Günü Sayısını bulma (Örn: 26 gün)
+    const totalWorkingDaysInMonth = useMemo(() => {
+        let count = 0;
+        for (let d = 1; d <= daysInMonth; d++) {
+            if (!getIsSunday(selectedYear, selectedMonth, d)) {
+                count++;
+            }
+        }
+        return count;
+    }, [selectedYear, selectedMonth, daysInMonth]);
 
     // ============================================
     // 1. AYLIK GÖRÜNÜM HESAPLAMALARI
@@ -120,7 +142,7 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                     fm.records.forEach(v => {
                         if (checkVehicleFilter(v.type, v.status)) {
                             const key = `${fm.unit}-${v.plate.replace(/\s/g, "").toUpperCase()}`;
-                            if (!yMap[key]) yMap[key] = { unit: fm.unit, plate: v.plate, months: {} };
+                            if (!yMap[key]) yMap[key] = { unit: fm.unit, plate: v.plate, type: v.type, status: v.status, months: {} };
                             if (!yMap[key].months[m]) yMap[key].months[m] = { days: {} };
                         }
                     });
@@ -166,6 +188,7 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
     }, [fleetDailyKms, fleetMonthly, selectedUnit, selectedYear, viewMode]);
 
 
+    // YATAN ARAÇ KURALI: NİHAİ TESLİM < %95 VE (Kamyon/Kamyonet + Özel Statü) VE O AY HİÇ KM'Sİ YOK
     const idleVehicles = useMemo(() => {
         if (!allData || !fleetMonthly || !fleetDailyKms) return [];
         const underperformingUnits = allData.filter(d => d.year === selectedYear && d.month === selectedMonth && d.nihaiTeslim !== undefined && d.nihaiTeslim < 95).map(d => d.unit);
@@ -198,6 +221,150 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
 
         return idleList.sort((a,b) => a.unit.localeCompare(b.unit));
     }, [allData, fleetMonthly, fleetDailyKms, atsData, selectedYear, selectedMonth]);
+
+
+    // ============================================
+    // VERİ FİLTRELEME (Plaka Arama ve Eksik Gün)
+    // ============================================
+    const finalMonthlyData = useMemo(() => {
+        return processedMonthlyData.filter(row => {
+            // Plaka Filtresi
+            if (plateSearchQuery && !row.plate.toLocaleLowerCase('tr-TR').includes(plateSearchQuery.toLocaleLowerCase('tr-TR'))) {
+                return false;
+            }
+            // Kiralık Eksik Gün Filtresi
+            if (showMissingDaysKiralik) {
+                const s = String(row.status || "").toLocaleLowerCase('tr-TR');
+                const isKiralik = s.includes("kiralık") || s.includes("kiralik");
+                // Kiralık değilse veya gün sayısı tamsa gösterme
+                if (!isKiralik || row.tcg >= totalWorkingDaysInMonth) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }, [processedMonthlyData, plateSearchQuery, showMissingDaysKiralik, totalWorkingDaysInMonth]);
+
+    const finalYearlyData = useMemo(() => {
+        return processedYearlyData.filter(row => {
+            if (plateSearchQuery && !row.plate.toLocaleLowerCase('tr-TR').includes(plateSearchQuery.toLocaleLowerCase('tr-TR'))) {
+                return false;
+            }
+            return true;
+        });
+    }, [processedYearlyData, plateSearchQuery]);
+
+
+    // ============================================
+    // PDF ÇIKTISI OLUŞTURMA
+    // ============================================
+    const generatePDF = async () => {
+        setIsGeneratingPdf(true);
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape', 'mm', 'a4'); 
+
+            try {
+                const response = await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/fonts/Roboto/Roboto-Regular.ttf");
+                const blob = await response.blob();
+                const base64Font = await getBase64(blob);
+                doc.addFileToVFS("Roboto.ttf", base64Font);
+                doc.addFont("Roboto.ttf", "Roboto", "normal");
+                doc.addFont("Roboto.ttf", "Roboto", "bold");
+                doc.setFont("Roboto");
+            } catch (e) {
+                console.warn("Font indirilemedi.");
+            }
+
+            doc.setFontSize(16);
+            doc.setTextColor(30, 58, 138);
+            
+            const title = viewMode === "monthly" 
+                ? (showMissingDaysKiralik ? "EKSİK GÜN ÇALIŞAN KİRALIK ARAÇLAR" : "GÜNLÜK FİLO KM ANALİZİ")
+                : "YILLIK ARAÇ KM VE ÇALIŞMA GÜNÜ ANALİZİ";
+                
+            doc.text(title, 14, 20);
+
+            doc.setFontSize(10);
+            doc.setTextColor(60);
+            const birimText = selectedUnit === "BÖLGE" ? "TÜM BÖLGE" : selectedUnit;
+            doc.text(`Birim: ${birimText}`, 14, 28);
+            if (viewMode === "monthly") {
+                doc.text(`Dönem: ${MONTH_NAMES[selectedMonth]} ${selectedYear}`, 14, 33);
+                if (showMissingDaysKiralik) {
+                    doc.text(`İlgili Ayın Net Çalışma Günü: ${totalWorkingDaysInMonth} Gün`, 14, 38);
+                }
+            } else {
+                doc.text(`Dönem: ${selectedYear} Yılı Genel Görünümü`, 14, 33);
+            }
+
+            let tableHead = [];
+            let tableBody = [];
+
+            if (viewMode === "monthly") {
+                tableHead = [['Birim Adı', 'Plaka', 'Araç Statü', 'TÇG', 'Ort. KM', ...daysArray.map(d => String(d).padStart(2, '0'))]];
+                finalMonthlyData.forEach(row => {
+                    const rowData = [row.unit, row.plate, row.status, row.tcg, row.ok];
+                    daysArray.forEach(d => rowData.push(row.days[d] || "-"));
+                    tableBody.push(rowData);
+                });
+            } else {
+                tableHead = [['Birim Adı', 'Plaka', 'Araç Statü', ...MONTH_NAMES.filter((_, i) => i !== 0)]];
+                finalYearlyData.forEach(row => {
+                    const rowData = [row.unit, row.plate, row.status];
+                    MONTH_NAMES.forEach((_, i) => {
+                        if (i === 0) return;
+                        const mData = row.processedMonths[i];
+                        rowData.push(mData ? `${mData.avg}(${mData.tcg})` : "-");
+                    });
+                    tableBody.push(rowData);
+                });
+            }
+
+            doc.autoTable({
+                startY: viewMode === "monthly" && showMissingDaysKiralik ? 42 : 38,
+                head: tableHead,
+                body: tableBody,
+                theme: 'grid',
+                styles: { font: 'Roboto', fontSize: viewMode === "monthly" ? 6 : 8, cellPadding: 1, halign: 'center' },
+                headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255] },
+                columnStyles: {
+                    0: { halign: 'left', cellWidth: 25, fontStyle: 'bold' },
+                    1: { halign: 'left', cellWidth: 20, fontStyle: 'bold' },
+                    2: { halign: 'left', cellWidth: 25 },
+                    3: { fontStyle: 'bold', textColor: [30, 58, 138] },
+                    4: { fontStyle: 'bold', textColor: [16, 185, 129] }
+                },
+                didParseCell: function(data) {
+                    if (data.section === 'head' && viewMode === "monthly") {
+                        const colIdx = data.column.index;
+                        if (colIdx >= 5) {
+                            const day = daysArray[colIdx - 5];
+                            if (getIsSunday(selectedYear, selectedMonth, day)) {
+                                data.cell.styles.fillColor = [220, 38, 38]; 
+                            }
+                        }
+                    } else if (data.section === 'body' && viewMode === "monthly") {
+                        const colIdx = data.column.index;
+                        if (colIdx >= 5) {
+                            const day = daysArray[colIdx - 5];
+                            if (getIsSunday(selectedYear, selectedMonth, day)) {
+                                data.cell.styles.fillColor = [254, 226, 226]; 
+                                data.cell.styles.textColor = [185, 28, 28];
+                            }
+                        }
+                    }
+                }
+            });
+
+            doc.save(`${selectedUnit}_Arac_Analizi_${viewMode === "monthly" ? MONTH_NAMES[selectedMonth] : "Yillik"}_${selectedYear}.pdf`);
+        } catch (error) {
+            console.error("PDF oluşturulurken hata:", error);
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
 
     const filteredUnits = UNITS.filter((unit) => unit.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -247,34 +414,61 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                         <ChevronDown size={18} className="absolute right-0 text-slate-400 pointer-events-none" />
                     </div>
                 </div>
-                {viewMode === "monthly" && (
-                    <button onClick={() => setShowIdleModal(true)} className="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition flex-shrink-0">
-                        <AlertTriangle size={14}/> Yatan Araçlar ({idleVehicles.length})
+                
+                <div className="flex items-center gap-2">
+                    <button onClick={generatePDF} disabled={isGeneratingPdf} className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition disabled:opacity-50 flex-shrink-0">
+                        <FileDown size={14}/> PDF İndir
                     </button>
-                )}
+                    {viewMode === "monthly" && (
+                        <button onClick={() => setShowIdleModal(true)} className="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition flex-shrink-0">
+                            <AlertTriangle size={14}/> Yatan Araçlar ({idleVehicles.length})
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="p-3 bg-white dark:bg-slate-800 flex flex-wrap gap-2 border-b dark:border-slate-700 items-center justify-between">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                    <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-700 p-1.5 rounded text-sm font-bold dark:text-white outline-none border-none">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto pb-1 md:pb-0">
+                    <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="bg-slate-100 dark:bg-slate-700 p-1.5 rounded text-sm font-bold dark:text-white outline-none border-none shrink-0">
                         {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                     {viewMode === "monthly" && MONTH_NAMES.map((m, i) => i !== 0 && (
-                        <button key={i} onClick={() => setSelectedMonth(i)} className={`px-3 py-1.5 rounded text-sm whitespace-nowrap font-medium transition-colors ${i === selectedMonth ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-700 dark:text-white'}`}>
+                        <button key={i} onClick={() => setSelectedMonth(i)} className={`px-3 py-1.5 rounded text-sm whitespace-nowrap font-medium transition-colors shrink-0 ${i === selectedMonth ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-700 dark:text-white'}`}>
                             {m}
                         </button>
                     ))}
                 </div>
-                <button onClick={() => setViewMode(prev => prev === "monthly" ? "yearly" : "monthly")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ${viewMode === "yearly" ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-white dark:bg-slate-700'}`}>
-                    {viewMode === "yearly" ? <CalendarDays size={14}/> : <Calendar size={14}/>}
-                    {viewMode === "yearly" ? "Aylık Görünüme Dön" : "Yıllık (12 Ay) Görünüme Geç"}
-                </button>
+                
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400" size={14} />
+                        <input 
+                            type="text" 
+                            placeholder="Plaka Ara..." 
+                            value={plateSearchQuery} 
+                            onChange={e => setPlateSearchQuery(e.target.value)} 
+                            className="w-full pl-8 pr-2 py-1.5 bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white uppercase"
+                        />
+                        {plateSearchQuery && <button onClick={() => setPlateSearchQuery("")} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400"><X size={12}/></button>}
+                    </div>
+
+                    {viewMode === "monthly" && (
+                        <button onClick={() => setShowMissingDaysKiralik(!showMissingDaysKiralik)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm shrink-0 border ${showMissingDaysKiralik ? 'bg-orange-100 text-orange-700 border-orange-300' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>
+                            <Filter size={14}/> 
+                            Eksik Gün (Kiralık)
+                        </button>
+                    )}
+
+                    <button onClick={() => setViewMode(prev => prev === "monthly" ? "yearly" : "monthly")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm shrink-0 ${viewMode === "yearly" ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-white dark:bg-slate-700'}`}>
+                        {viewMode === "yearly" ? <CalendarDays size={14}/> : <Calendar size={14}/>}
+                        {viewMode === "yearly" ? "Aylık Görünüme Dön" : "Yıllık (12 Ay)"}
+                    </button>
+                </div>
             </div>
 
-            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-[10px] text-blue-700 dark:text-blue-300 font-medium text-center border-b border-blue-100 dark:border-blue-900/50">
-                Sadece <strong>Kamyon/Kamyonet</strong> olan ve belirli statülere sahip araçlar listelenir. Pazar günleri TÇG'ye ve ortalamaya dahil edilmez. 
-                {viewMode === "monthly" && " ATS Cihazı olmayanlar TURUNCU, yatan araçlar KIRMIZI görünür."}
-                {viewMode === "yearly" && " Format: OrtalamaKM(TÇG). Örn: 30.8(24)"}
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-[10px] text-blue-700 dark:text-blue-300 font-medium text-center border-b border-blue-100 dark:border-blue-900/50 flex items-center justify-center gap-2">
+                <span>Sadece <strong>Kamyon/Kamyonet</strong> olan ve belirli statülere sahip araçlar listelenir. Pazar günleri TÇG'ye dahil edilmez.</span>
+                {viewMode === "monthly" && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded font-bold">ATS YOK</span>}
             </div>
 
             <div className="p-3 overflow-x-auto">
@@ -284,7 +478,8 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                             <tr>
                                 <th className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-700 z-10 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Birim Adı</th>
                                 <th className="p-2 sticky left-32 bg-slate-200 dark:bg-slate-700 z-10 w-24 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Plaka</th>
-                                <th className="p-2 text-center text-blue-700 dark:text-blue-300">TÇG</th>
+                                <th className="p-2 w-32">Araç Statü</th>
+                                <th className="p-2 text-center text-blue-700 dark:text-blue-300" title={`Pazar hariç o ayın net çalışma günü: ${totalWorkingDaysInMonth}`}>TÇG <span className="text-[9px] font-normal">/{totalWorkingDaysInMonth}</span></th>
                                 <th className="p-2 text-center text-emerald-700 dark:text-emerald-300">Ort. KM</th>
                                 {daysArray.map(d => <th key={d} className={`p-1 border-l dark:border-slate-600 text-center ${getIsSunday(selectedYear, selectedMonth, d) ? 'text-red-500' : ''}`}>{String(d).padStart(2,'0')}</th>)}
                             </tr>
@@ -292,13 +487,14 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                             <tr>
                                 <th className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-700 z-10 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Birim Adı</th>
                                 <th className="p-2 sticky left-32 bg-slate-200 dark:bg-slate-700 z-10 w-24 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Plaka</th>
+                                <th className="p-2 w-32">Araç Statü</th>
                                 {MONTH_NAMES.map((m, i) => i !== 0 && <th key={i} className="p-2 border-l dark:border-slate-600 text-center w-20">{m}</th>)}
                             </tr>
                         )}
                     </thead>
                     <tbody>
                         {viewMode === "monthly" && (
-                            processedMonthlyData.length > 0 ? processedMonthlyData.map((row, i) => {
+                            finalMonthlyData.length > 0 ? finalMonthlyData.map((row, i) => {
                                 const isIdle = idleVehicles.some(iv => iv.unit === row.unit && iv.plate.replace(/\s/g, "").toUpperCase() === row.plate.replace(/\s/g, "").toUpperCase());
                                 
                                 let rowClass = "border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors";
@@ -312,22 +508,23 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                                     rowClass = "border-b border-orange-200 dark:border-orange-800/50 bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 transition-colors";
                                     tdClassUnit = "bg-orange-50 dark:bg-orange-900/90 text-orange-900 dark:text-orange-200";
                                     tdClassPlate = "bg-orange-50 dark:bg-orange-900/90 text-orange-800 dark:text-orange-300";
-                                    tdClassTcg = "text-orange-700 dark:text-orange-300";
-                                    tdClassOk = "text-orange-700 dark:text-orange-300";
+                                    tdClassTcg = "text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/50";
+                                    tdClassOk = "text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/50";
                                     tdClassNormalDay = "text-orange-700 dark:text-orange-400 font-bold";
                                 } else if (isIdle) {
                                     rowClass = "border-b border-rose-200 dark:border-rose-800 bg-rose-100 dark:bg-rose-900/40 hover:bg-rose-200 transition-colors";
                                     tdClassUnit = "bg-rose-100 dark:bg-rose-900/90 text-rose-800 dark:text-rose-200";
                                     tdClassPlate = "bg-rose-100 dark:bg-rose-900/90 text-rose-700 dark:text-rose-300";
-                                    tdClassTcg = "text-rose-700 dark:text-rose-300";
-                                    tdClassOk = "text-rose-700 dark:text-rose-300";
+                                    tdClassTcg = "text-rose-700 dark:text-rose-300 bg-rose-200/50 dark:bg-rose-900/50";
+                                    tdClassOk = "text-rose-700 dark:text-rose-300 bg-rose-200/50 dark:bg-rose-900/50";
                                     tdClassNormalDay = "text-rose-600 dark:text-rose-400";
                                 }
 
                                 return (
                                     <tr key={i} className={rowClass}>
                                         <td className={`p-2 sticky left-0 font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${tdClassUnit}`}>{row.unit}</td>
-                                        <td className={`p-2 sticky left-32 font-mono text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${tdClassPlate}`} title={`${row.type} - ${row.status}`}>{row.plate}</td>
+                                        <td className={`p-2 sticky left-32 font-mono text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${tdClassPlate}`}>{row.plate}</td>
+                                        <td className={`p-2 font-medium text-[10px] ${row.noAts ? 'text-orange-800 dark:text-orange-300' : isIdle ? 'text-rose-700 dark:text-rose-300' : 'text-slate-600 dark:text-slate-400'}`}>{row.status}</td>
                                         <td className={`p-2 text-center font-bold ${tdClassTcg}`}>{row.tcg}</td>
                                         <td className={`p-2 text-center font-bold ${tdClassOk}`}>{row.ok}</td>
                                         {daysArray.map(d => (
@@ -337,14 +534,15 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                                         ))}
                                     </tr>
                                 );
-                            }) : <tr><td colSpan={daysArray.length + 4} className="p-8 text-center text-slate-400">Bu ay için filtrelere uygun araç bulunamadı.</td></tr>
+                            }) : <tr><td colSpan={daysArray.length + 5} className="p-8 text-center text-slate-400">Bu ay için filtrelere uygun araç bulunamadı.</td></tr>
                         )}
 
                         {viewMode === "yearly" && (
-                            processedYearlyData.length > 0 ? processedYearlyData.map((row, i) => (
+                            finalYearlyData.length > 0 ? finalYearlyData.map((row, i) => (
                                 <tr key={i} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                     <td className="p-2 sticky left-0 bg-white dark:bg-slate-800 font-bold dark:text-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{row.unit}</td>
                                     <td className="p-2 sticky left-32 bg-white dark:bg-slate-800 font-mono text-xs dark:text-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{row.plate}</td>
+                                    <td className="p-2 font-medium text-[10px] text-slate-600 dark:text-slate-400">{row.status}</td>
                                     {MONTH_NAMES.map((m, mIndex) => {
                                         if (mIndex === 0) return null;
                                         const monthData = row.processedMonths[mIndex];
@@ -357,7 +555,7 @@ const FleetKmsPage = ({ allData = [], fleetMonthly = [], fleetDailyKms = [], onB
                                         );
                                     })}
                                 </tr>
-                            )) : <tr><td colSpan={14} className="p-8 text-center text-slate-400">Bu yıl için filtrelere uygun araç bulunamadı.</td></tr>
+                            )) : <tr><td colSpan={15} className="p-8 text-center text-slate-400">Bu yıl için filtrelere uygun araç bulunamadı.</td></tr>
                         )}
                     </tbody>
                 </table>
