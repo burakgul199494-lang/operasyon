@@ -1031,7 +1031,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
   ];
 
   return (
-    <div key={selectedUnit} className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+    <div className="pb-24 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-20 shadow-sm border-b border-slate-200 dark:border-slate-800">
         <div className="px-4 py-3 flex items-center gap-3">
           <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors">
