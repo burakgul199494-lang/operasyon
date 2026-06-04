@@ -178,7 +178,7 @@ export default function App() {
         <Route path="/fleet-kms" element={<FleetKmsPage allData={allData} fleetMonthly={fleetMonthly} fleetDailyKms={fleetDailyKms} onBack={() => navigate("/")} />} />
         
         <Route path="/personnel-defense" element={<PersonnelDefensePage allData={allData} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
-        <Route path="/personnel-quantities" element={<PersonnelQuantitiesPage allData={allData} quantitiesData={quantitiesData} onBack={() => navigate("/")} />} />
+        <Route path="/personnel-quantities" element={<PersonnelQuantitiesPage allData={allData} quantitiesData={quantitiesData} fleetMonthlyCounts={fleetMonthlyCounts} onBack={() => navigate("/")} />} />
         <Route path="/admin" element={
           <AdminPanel
             allData={allData}
