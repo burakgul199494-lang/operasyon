@@ -36,7 +36,7 @@ const COL1_WIDTH = "w-[120px] min-w-[120px] max-w-[120px] sm:w-[150px] sm:min-w-
 const COL2_WIDTH = "w-[40px] min-w-[40px] max-w-[40px] sm:w-[50px] sm:min-w-[50px] sm:max-w-[50px]";
 const COL2_LEFT = "left-[120px] sm:left-[150px]";
 
-const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData = [], onBack }) => {
+const PersonnelQuantitiesPage = ({ allData = [], fleetMonthlyCounts = [], quantitiesData = [], onBack }) => {
     const [selectedUnit, setSelectedUnit] = useState(null); 
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -66,7 +66,15 @@ const PersonnelQuantitiesPage = ({ allData = [], unitInfo = {}, quantitiesData =
         return d.getDay() === 0;
     };
 
-    const currentVehicles = selectedUnit && unitInfo ? unitInfo[selectedUnit] : null;
+    // FİLO DURUMU DİNAMİK HALE GETİRİLDİ
+    const currentVehicles = useMemo(() => {
+        if (!fleetMonthlyCounts || fleetMonthlyCounts.length === 0 || !selectedUnit) return null;
+        return fleetMonthlyCounts.find(d => 
+            d.unit === selectedUnit && 
+            d.year === parseInt(selectedYear) && 
+            d.month === parseInt(selectedMonth)
+        );
+    }, [fleetMonthlyCounts, selectedUnit, selectedYear, selectedMonth]);
 
     const currentData = useMemo(() => {
         if (!selectedUnit || !allData) return null;
