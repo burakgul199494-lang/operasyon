@@ -22,6 +22,7 @@ const METRICS = [
   { key: "musteriSikayet", label: "Müşteri Şikayeti", color: "#ef4444", target: 0, isPercent: false },
   { key: "teslimDusulen", label: "Teslim Düşülen", color: "#ef4444", target: 0, isPercent: false },
   { key: "transferGecikme", label: "Transfer Gecikme", color: "#f97316", target: 0, isPercent: false },
+  { key: "vmhOrani", label: "VMH Oranı", color: "#ef4444", target: 1, isPercent: true },
   { key: "olcumTartim", label: "Ölçüm Tartım", color: "#84cc16", target: 20, isPercent: false },
   { key: "gelenKargo", label: "Gelen Kargo (Belge)", color: "#0ea5e9", target: null, isPercent: false },
   { key: "gidenKargo", label: "Giden Kargo (Belge)", color: "#0d9488", target: null, isPercent: false },
@@ -34,7 +35,6 @@ const parseMetric = (val) => {
   return isNaN(num) ? null : num;
 };
 
-// Eğilim (Trend) Hesaplama
 const getTrendStatus = (dataArray, metricKey) => {
     if (!dataArray) return null;
     const validData = dataArray.filter(d => d.current !== null && d.current !== undefined);
@@ -53,7 +53,8 @@ const getTrendStatus = (dataArray, metricKey) => {
     
     const slope = (n * sumXY - sumX * sumY) / denominator;
     
-    const isReverseMetric = ["musteriSikayet", "teslimDusulen", "transferGecikme", "olcumTartim"].includes(metricKey);
+    // VMH Oranı eklendi. (Düşmesi iyi olan metrikler)
+    const isReverseMetric = ["musteriSikayet", "teslimDusulen", "transferGecikme", "olcumTartim", "vmhOrani"].includes(metricKey);
     const isVolumeMetric = ["gelenKargo", "gidenKargo"].includes(metricKey);
 
     if (slope > 0.1) {
@@ -165,7 +166,7 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
             const originalPadding = element.style.padding;
             const originalBackground = element.style.background;
 
-            element.className = 'grid grid-cols-4 gap-4';
+            element.className = 'grid grid-cols-4 gap-4 content-start';
             element.style.width = '1600px'; 
             element.style.height = '850px'; 
             element.style.padding = '25px';
@@ -224,6 +225,9 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
 
         await capturePage('pdf-page-1', 1);
         await capturePage('pdf-page-2', 2);
+        if (document.getElementById('pdf-page-3')) {
+            await capturePage('pdf-page-3', 3);
+        }
 
         pdf.save(`${selectedUnit}_Trend_Analizi_${selectedYear}.pdf`);
         
@@ -255,18 +259,15 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
       return (
           <div 
               key={metric.key} 
-              // GÜNCELLENDİ: Sadece ekran 768px (md) ve üzerindeyse tıklanabilir olsun.
               onClick={() => {
                   if (window.innerWidth >= 768) {
                       setExpandedMetric(metric);
                   }
               }}
-              // GÜNCELLENDİ: hover ve cursor efektleri sadece "md:" (Masaüstü/Tablet) cihazlar için eklendi.
               className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-4 sm:p-5 relative overflow-hidden transition-all md:hover:-translate-y-1 md:hover:shadow-xl md:cursor-pointer group block"
           >
               <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: metric.color }}></div>
               
-              {/* GÜNCELLENDİ: Büyütme ikonu mobilde "hidden" yapılarak gizlendi */}
               <div className="absolute top-3 right-3 opacity-0 md:group-hover:opacity-100 transition-opacity bg-slate-100 dark:bg-slate-700 p-1.5 rounded-md text-slate-500 dark:text-slate-300 hidden md:block">
                  <Maximize2 size={14} />
               </div>
@@ -386,9 +387,14 @@ const TrendAnalysisPage = ({ allData = [], onBack }) => {
               <div id="pdf-page-1" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-4 sm:mb-6">
                   {METRICS.slice(0, 8).map(renderCard)}
               </div>
-              <div id="pdf-page-2" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              <div id="pdf-page-2" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-4 sm:mb-6">
                   {METRICS.slice(8, 16).map(renderCard)}
               </div>
+              {METRICS.length > 16 && (
+                  <div id="pdf-page-3" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                      {METRICS.slice(16).map(renderCard)}
+                  </div>
+              )}
           </div>
       </div>
 
