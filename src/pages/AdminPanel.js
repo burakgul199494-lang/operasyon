@@ -18,7 +18,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
   const [fleetCountsGrid, setFleetCountsGrid] = useState({}); 
   const [nihaiTeslimGrid, setNihaiTeslimGrid] = useState([]);
   
-  // YENİ: ATS Yok Grid State'i
   const [atsGrid, setAtsGrid] = useState([]);
 
   const [pendingChanges, setPendingChanges] = useState(false);
@@ -35,7 +34,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     { key: "km", label: "KM", width: "w-24" }
   ];
 
-  // YENİ: ATS Sütunu
   const ATS_COLUMNS = [
     { key: "plate", label: "ATS Cihazı Olmayan Plaka", width: "w-64" }
   ];
@@ -74,10 +72,12 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     { key: "count", label: "Adet", width: "w-24" }
   ];
 
+  // YENİ EKLENEN: vmhOrani sisteme dahil ediliyor
   const EXTENDED_METRICS = [
     ...METRIC_TYPES,
     ...(METRIC_TYPES.some(m => m.id === "teslimDusulen") ? [] : [{ id: "teslimDusulen", label: "Teslim Düşülen" }]),
-    ...(METRIC_TYPES.some(m => m.id === "transferGecikme") ? [] : [{ id: "transferGecikme", label: "Transfer Gecikme" }])
+    ...(METRIC_TYPES.some(m => m.id === "transferGecikme") ? [] : [{ id: "transferGecikme", label: "Transfer Gecikme" }]),
+    ...(METRIC_TYPES.some(m => m.id === "vmhOrani") ? [] : [{ id: "vmhOrani", label: "VMH Oranı" }])
   ];
 
   const handleAddYear = () => {
@@ -179,7 +179,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     fetchLiveDailyKms();
   }, [activeTab, selectedYear, selectedMonth, refreshTrigger]);
 
-  // YENİ: ATS Yükleme Motoru
   useEffect(() => {
     if (activeTab !== "ats") return;
     const fetchAtsRecords = async () => {
@@ -512,24 +511,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     }
   };
 
-  const handleSafeDeleteMonthlyFleet = async () => {
-    if (!window.confirm(`DİKKAT: ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemine ait Araç Listesi (Excel) veritabanından SİLİNECEKTİR. Onaylıyor musunuz?`)) return;
-    try {
-        const batch = writeBatch(db);
-        UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_monthly", `${unit}-${selectedYear}-${selectedMonth}`)); });
-        await batch.commit(); setFleetMonthlyGrid(Array(50).fill({ unit: "", plate: "", owner: "", status: "", type: "", brand: "", model: "", year: "", volume: "" })); alert("Seçili ayın Araç Listesi silindi.");
-    } catch (e) { alert("Hata oluştu."); }
-  };
-
-  const handleSafeDeleteKms = async () => {
-    if (!window.confirm(`DİKKAT: ${MONTH_NAMES[selectedMonth]} ${selectedYear} dönemine ait Günlük KM verileri veritabanından SİLİNECEKTİR. Onaylıyor musunuz?`)) return;
-    try {
-        const batch = writeBatch(db);
-        UNITS.forEach(unit => { batch.delete(doc(db, "artifacts", appId, "public", "data", "fleet_daily_kms", `${unit}-${selectedYear}-${selectedMonth}`)); });
-        await batch.commit(); setKmsGrid(Array(50).fill({ unit: "", plate: "", tarih: "", km: "" })); setRefreshTrigger(prev => prev + 1); alert("Seçili ayın KM verileri silindi.");
-    } catch (e) { alert("Hata oluştu."); }
-  };
-
   const handleSave = async () => {
     if (activeTab === "performance") {
         let recordsToUpdate = [];
@@ -678,7 +659,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             await batch.commit(); setPendingChanges(false); setRefreshTrigger(prev => prev + 1); alert(`${MONTH_NAMES[selectedMonth]} ${selectedYear} için Günlük KM verileri güncellendi.`);
         } catch(e) { alert("Hata: " + e.message); }
     
-    // YENİ: ATS KAYDETME MOTORU
     } else if (activeTab === "ats") {
         const validRows = atsGrid.filter(r => r.plate && r.plate.trim() !== "");
         if(validRows.length === 0) {
@@ -774,7 +754,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
             <button onClick={() => setActiveTab("fleetCounts")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleetCounts" ? "bg-white text-orange-600 border-b-2 border-orange-600" : "text-slate-500 hover:bg-slate-200"}`}><Package size={16} /> Aylık Araç Adetleri</button>
             <button onClick={() => setActiveTab("fleetMonthly")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "fleetMonthly" ? "bg-white text-emerald-600 border-b-2 border-emerald-600" : "text-slate-500 hover:bg-slate-200"}`}><ClipboardList size={16} /> Aylık Araç Listesi</button>
             <button onClick={() => setActiveTab("kms")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "kms" ? "bg-white text-red-600 border-b-2 border-red-600" : "text-slate-500 hover:bg-slate-200"}`}><Gauge size={16} /> Araç KM Girişi (Günlük)</button>
-            {/* YENİ: ATS Modülü Tabı */}
             <button onClick={() => setActiveTab("ats")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "ats" ? "bg-white text-teal-600 border-b-2 border-teal-600" : "text-slate-500 hover:bg-slate-200"}`}><SatelliteDish size={16} /> ATS Cihazı Olmayanlar</button>
             <button onClick={() => setActiveTab("nihaiTeslim")} className={`flex-shrink-0 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === "nihaiTeslim" ? "bg-white text-amber-600 border-b-2 border-amber-600" : "text-slate-500 hover:bg-slate-200"}`}><CheckCircle2 size={16} /> Nihai Teslim Performansı</button>
         </div>
@@ -939,7 +918,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
                 </tr>
             ))}
             
-            {/* YENİ: ATS GRID RENDER */}
             {activeTab === "ats" && atsGrid.map((row, rIndex) => (
                 <tr key={rIndex} className="border-b border-slate-200 hover:bg-teal-50 transition-colors">
                    {ATS_COLUMNS.map((col, cIndex) => {
