@@ -7,7 +7,7 @@ const TARGETS = {
   teslimPerformansi: 96, adresAlimOrani: 90, musteriSikayet: 0,
   rotaOrani: 85, tvsOrani: 95, checkInOrani: 90, smsOrani: 70,
   eAtfOrani: 95, htfOrani: 90, kontrolSende: 90, olcumTartim: 20,
-  teslimDusulen: 0, transferGecikme: 0 
+  teslimDusulen: 0, transferGecikme: 0, vmhOrani: 1
 };
 
 const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN", "BÖLGE"];
@@ -46,7 +46,7 @@ const getPenaltyScore = (val) => {
     return 0;
 };
 
-const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "teslimDusulen", "transferGecikme"];
+const metricsList = ["teslimPerformansi", "adresAlimOrani", "musteriSikayet", "rotaOrani", "tvsOrani", "checkInOrani", "smsOrani", "eAtfOrani", "htfOrani", "kontrolSende", "olcumTartim", "gelenKargo", "gidenKargo", "gelenAdet", "gidenAdet", "teslimDusulen", "transferGecikme", "vmhOrani"];
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
@@ -126,12 +126,10 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
     }
   }, [allData, selectedUnit]); 
 
-  // AYLIK FİLO ADETLERİ
   const currentVehicles = useMemo(() => {
      return fleetMonthlyCounts.find(d => d.unit === selectedUnit && d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth));
   }, [fleetMonthlyCounts, selectedUnit, selectedYear, selectedMonth]);
 
-  // AYLIK FİLO LİSTESİ (Filtresiz, sadece Statü -> Plaka sıralı)
   const unitFleet = useMemo(() => {
     const rawFleet = fleetMonthly.find(fm => fm.unit === selectedUnit && fm.year === selectedYear && fm.month === selectedMonth)?.records || [];
     
@@ -144,7 +142,6 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
     });
   }, [fleetMonthly, selectedUnit, selectedYear, selectedMonth]);
 
-  // AYLIK 3KM KURALI (Pazar Hariç) ORTALAMALAR
   const calculatedFleetKms = useMemo(() => {
     if (!fleetDailyKms || fleetDailyKms.length === 0) return {};
     
@@ -162,7 +159,6 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
                 const plateKey = r.plate.replace(/\s/g, "").toUpperCase();
                 const kmVal = parseFloat(String(r.km).replace(',', '.'));
                 
-                // Pazar gününü atla
                 const dDate = new Date(doc.year, doc.month - 1, r.day);
                 if (dDate.getDay() !== 0) {
                     if (!isNaN(kmVal) && kmVal >= 3) {
@@ -329,6 +325,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
   const isMusteriSikayetBasarisiz = displayData && parseMetric(displayData.musteriSikayet) > TARGETS.musteriSikayet;
   const isTeslimDusulenBasarisiz = displayData && parseMetric(displayData.teslimDusulen) > TARGETS.teslimDusulen;
   const isTransferGecikmeBasarisiz = displayData && parseMetric(displayData.transferGecikme) > TARGETS.transferGecikme;
+  const isVmhBasarisiz = displayData && parseMetric(displayData.vmhOrani) >= TARGETS.vmhOrani;
   const hasValidData = displayData && metricsList.some(m => displayData[m] !== null && displayData[m] !== undefined && displayData[m] !== "");
 
   const { personelList, parcabasiList, totalPersonel, totalParca, daysArray, dailyTotals } = useMemo(() => {
@@ -422,6 +419,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
     const ot = parseMetric(data.olcumTartim);
     const td = parseMetric(data.teslimDusulen);
     const tg = parseMetric(data.transferGecikme);
+    const vmh = parseMetric(data.vmhOrani);
 
     let text = "Sayın Yönetici,\n\nİlgili dönem içerisinde sahada gerçekleştirmiş olduğunuz operasyonel faaliyetlere ait performans verileriniz aşağıda tarafınıza sunulmuştur:\n\n";
 
@@ -448,6 +446,14 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
         text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
       } else {
         text += `• Transferde gecikme sayınız ${tg} olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır.\n`;
+      }
+    }
+    
+    if (vmh !== null) {
+      if (vmh < TARGETS.vmhOrani) {
+        text += "• Varış Merkezi Hatası (VMH) oranınız hedeflenen %1'in altında gerçekleşerek başarılı olmuştur.\n";
+      } else {
+        text += `• Varış Merkezi Hatası (VMH) oranınız %${vmh} olarak gerçekleşmiş olup, hedeflenen %1'in üzerindedir. Bu alanda aksiyon alınması gerekmektedir.\n`;
       }
     }
 
@@ -557,6 +563,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
       ["Ölçüm Tartım", formatDisplayMetric(targetData.olcumTartim, false), `${TARGETS.olcumTartim} Adet`],
       ["Teslim Düşülen", formatDisplayMetric(targetData.teslimDusulen, false), `${TARGETS.teslimDusulen} Adet`],
       ["Transfer Gecikme", formatDisplayMetric(targetData.transferGecikme, false), `${TARGETS.transferGecikme} Adet`],
+      ["VMH Oranı", `%${formatDisplayMetric(targetData.vmhOrani, true)}`, `< %${TARGETS.vmhOrani}`],
       ["Gelen Kargo (Belge)", formatDisplayMetric(targetData.gelenKargo, false), "-"],
       ["Giden Kargo (Belge)", formatDisplayMetric(targetData.gidenKargo, false), "-"],
     ];
@@ -578,6 +585,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
             metricName === "Adres Alım Oranı" ? "adresAlimOrani" :
             metricName === "Teslim Düşülen" ? "teslimDusulen" :
             metricName === "Transfer Gecikme" ? "transferGecikme" :
+            metricName === "VMH Oranı" ? "vmhOrani" :
             metricName === "Rota Oranı" ? "rotaOrani" : 
             metricName === "TVS Oranı" ? "tvsOrani" : 
             metricName === "Check-in Oranı" ? "checkInOrani" : 
@@ -591,6 +599,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
           if (metricName === "Adres Alım Oranı" && rVal !== null && rVal < TARGETS.adresAlimOrani) isFail = true;
           if (metricName === "Teslim Düşülen" && rVal !== null && rVal > TARGETS.teslimDusulen) isFail = true;
           if (metricName === "Transfer Gecikme" && rVal !== null && rVal > TARGETS.transferGecikme) isFail = true;
+          if (metricName === "VMH Oranı" && rVal !== null && rVal >= TARGETS.vmhOrani) isFail = true;
           if (metricName === "Rota Oranı" && rVal !== null && rVal < TARGETS.rotaOrani) isFail = true;
           if (metricName === "TVS Oranı" && rVal !== null && rVal < TARGETS.tvsOrani) isFail = true;
           if (metricName === "Check-in Oranı" && rVal !== null && rVal < TARGETS.checkInOrani) isFail = true;
@@ -1152,7 +1161,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 mb-4">
               <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isTeslimBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                 <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
                   <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Teslim Per. Oranı" : "Teslim Per. Oranı"}</p>
@@ -1172,6 +1181,13 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
                   <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. Şikayet Sayısı" : "Şikayet Sayısı"}</p>
                   <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.musteriSikayet, false)}</h2>
                   <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: {TARGETS.musteriSikayet}</span></div>
+                </div>
+              </div>
+              <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white`}>
+                <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
+                  <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Pb D/O</p>
+                  <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
+                  <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Dağıtım Oranı</span></div>
                 </div>
               </div>
             </div>
@@ -1216,11 +1232,11 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
                     </div>
                   </div>
 
-                  <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white`}>
+                  <div className={`rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden flex flex-col text-center ${isVmhBasarisiz ? "bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-700 dark:to-red-900 text-white" : "bg-gradient-to-br from-emerald-400 to-teal-600 dark:from-emerald-600 dark:to-teal-800 text-white"}`}>
                     <div className="p-1.5 sm:p-4 flex-1 flex flex-col justify-center">
-                      <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Pb D/O</p>
-                      <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{pbRatioData.ratio !== null ? `${formatDisplayMetric(pbRatioData.ratio, true)}%` : "-"}</h2>
-                      <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Dağıtım Oranı</span></div>
+                      <p className="text-[7px] sm:text-xs font-bold uppercase tracking-widest opacity-90 mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{showYearAvg ? "Ort. VMH Oranı" : "VMH Oranı"}</p>
+                      <h2 className="text-sm sm:text-3xl font-extrabold tracking-tight leading-none mb-1">{formatDisplayMetric(displayData?.vmhOrani, true)}%</h2>
+                      <div className="mt-auto"><span className="text-[6px] sm:text-[10px] font-medium px-1 sm:px-2 py-0.5 rounded-full bg-black/20 backdrop-blur-sm whitespace-nowrap">Hedef: %{TARGETS.vmhOrani} Altı</span></div>
                     </div>
                   </div>
               </div>
