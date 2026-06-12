@@ -53,7 +53,6 @@ const getComplaintScore = (val) => {
     return 0;
 };
 
-// YENİ: Teslim Düşülen ve Transfer Gecikme İçin Özel Puanlama Motoru
 const getPenaltyScore = (val) => {
     if (val === null || val === undefined) return 0;
     if (val === 0) return 5;
@@ -135,7 +134,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             const unitGroups = {};
             yearData.forEach(d => {
                 if (!unitGroups[d.unit]) {
-                    unitGroups[d.unit] = { metrics: {}, musteriSikayet: { total: 0, count: 0 }, gelenKargo: { total: 0, count: 0 }, teslimDusulen: { total: 0, count: 0 }, transferGecikme: { total: 0, count: 0 } };
+                    unitGroups[d.unit] = { metrics: {}, musteriSikayet: { total: 0, count: 0 }, gelenKargo: { total: 0, count: 0 }, teslimDusulen: { total: 0, count: 0 }, transferGecikme: { total: 0, count: 0 }, vmhOrani: { total: 0, count: 0 } };
                     RANK_METRICS.forEach(m => unitGroups[d.unit].metrics[m.key] = { total: 0, count: 0 });
                 }
                 const g = unitGroups[d.unit];
@@ -156,6 +155,10 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
                 const tGecikme = parseMetric(d.transferGecikme);
                 if (tGecikme !== null) { g.transferGecikme.total += tGecikme; g.transferGecikme.count += 1; }
+                
+                // VMH Oranı
+                const vmh = parseMetric(d.vmhOrani);
+                if (vmh !== null) { g.vmhOrani.total += vmh; g.vmhOrani.count += 1; }
             });
 
             targetData = Object.keys(unitGroups).map(unit => {
@@ -168,6 +171,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                 res.gelenKargo = g.gelenKargo.count > 0 ? (g.gelenKargo.total / g.gelenKargo.count) : null;
                 res.teslimDusulen = g.teslimDusulen.count > 0 ? Math.round(g.teslimDusulen.total / g.teslimDusulen.count) : null;
                 res.transferGecikme = g.transferGecikme.count > 0 ? Math.round(g.transferGecikme.total / g.transferGecikme.count) : null;
+                res.vmhOrani = g.vmhOrani.count > 0 ? (g.vmhOrani.total / g.vmhOrani.count) : null;
                 return res;
             });
 
@@ -216,7 +220,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             if (compVal !== null) finalScore += compScore;
             details.musteriSikayet = { val: compVal, score: compScore };
 
-            // YENİ: Teslim Düşülen ve Transfer Gecikme Puanları
             const tdVal = parseMetric(record.teslimDusulen);
             const tdScore = getPenaltyScore(tdVal);
             if (tdVal !== null) finalScore += tdScore;
@@ -226,6 +229,15 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             const tgScore = getPenaltyScore(tgVal);
             if (tgVal !== null) finalScore += tgScore;
             details.transferGecikme = { val: tgVal, score: tgScore };
+            
+            // YENİ: VMH Oranı Puanlaması (%1 altı ise +5, %1 ve üstü ise -5)
+            const vmhVal = parseMetric(record.vmhOrani);
+            let vmhScore = 0;
+            if (vmhVal !== null) {
+                vmhScore = vmhVal < 1 ? 5 : -5;
+                finalScore += vmhScore;
+            }
+            details.vmhOrani = { val: vmhVal, score: vmhScore };
 
             const incoming = parseMetric(record.gelenKargo) || 0;
             const volumeScore = regionalTotalIncoming > 0 ? (incoming / regionalTotalIncoming) * 100 : 0;
@@ -273,7 +285,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         const tableHead = [[
             'Sıra', 'Birim Adı', 'Puan', 'Ek Puan',
             ...RANK_METRICS.map(m => `${m.label}`),
-            'Şik.', 'Düşülen', 'T.Gecikme', 'Hacim'
+            'Şik.', 'Düşülen', 'T.Gecikme', 'VMH P.', 'Hacim'
         ]];
 
         const tableBody = rankingData.map((row, idx) => {
@@ -287,6 +299,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             rowData.push(row.details.musteriSikayet?.val !== null ? `${row.details.musteriSikayet?.score}P` : "-");
             rowData.push(row.details.teslimDusulen?.val !== null ? `${row.details.teslimDusulen?.score}P` : "-");
             rowData.push(row.details.transferGecikme?.val !== null ? `${row.details.transferGecikme?.score}P` : "-");
+            rowData.push(row.details.vmhOrani?.val !== null ? `${row.details.vmhOrani?.score > 0 ? '+' : ''}${row.details.vmhOrani?.score}P` : "-");
             rowData.push(row.details.volume != null ? Number(row.details.volume).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-");
             return rowData;
         });
@@ -318,7 +331,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         const headers = [
             'Sıra', 'Birim Adı', 'Nihai Puan', 'Ek Puan',
             ...RANK_METRICS.map(m => `${m.label} %${(m.weight*100).toFixed(0)}`),
-            'Şikayet P.', 'Teslim Düşülen P.', 'Transfer Gecikme P.', 'Hacim P.'
+            'Şikayet P.', 'Teslim Düşülen P.', 'Transfer Gecikme P.', 'VMH P.', 'Hacim P.'
         ];
         const dataRows = rankingData.map((row, idx) => {
             const rowData = [
@@ -331,12 +344,13 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             rowData.push(row.details.musteriSikayet?.val !== null ? `${row.details.musteriSikayet?.score} P.` : "-");
             rowData.push(row.details.teslimDusulen?.val !== null ? `${row.details.teslimDusulen?.score} P.` : "-");
             rowData.push(row.details.transferGecikme?.val !== null ? `${row.details.transferGecikme?.score} P.` : "-");
+            rowData.push(row.details.vmhOrani?.val !== null ? `${row.details.vmhOrani?.score > 0 ? '+' : ''}${row.details.vmhOrani?.score} P.` : "-");
             rowData.push(row.details.volume != null ? Number(row.details.volume).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-");
             return rowData;
         });
 
         const worksheet = XLSXLib.utils.aoa_to_sheet([headers, ...dataRows]);
-        const wscols = [{ wch: 6 }, { wch: 22 }, { wch: 12 }, { wch: 10 }, ...RANK_METRICS.map(() => ({ wch: 14 })), { wch: 12 }, { wch: 15 }, { wch: 16 }, { wch: 12 }];
+        const wscols = [{ wch: 6 }, { wch: 22 }, { wch: 12 }, { wch: 10 }, ...RANK_METRICS.map(() => ({ wch: 14 })), { wch: 12 }, { wch: 15 }, { wch: 16 }, { wch: 10 }, { wch: 12 }];
         worksheet['!cols'] = wscols;
         const workbook = XLSXLib.utils.book_new();
         XLSXLib.utils.book_append_sheet(workbook, worksheet, "Başarı Sıralaması");
@@ -388,6 +402,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                   <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Şikayet P.</th>
                                   <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Tes. Düş. P.</th>
                                   <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Gecikme P.</th>
+                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">VMH P.</th>
                                   <th className="p-2 sm:p-3 font-bold text-blue-600 dark:text-blue-400 text-center border-b border-slate-200 dark:border-slate-700">Hacim P.</th>
                               </tr>
                           </thead>
@@ -422,6 +437,9 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                           </td>
                                           <td className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
                                               {row.details.transferGecikme?.val !== null ? `${row.details.transferGecikme?.score} P.` : "-"}
+                                          </td>
+                                          <td className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
+                                              {row.details.vmhOrani?.val !== null ? `${row.details.vmhOrani?.score > 0 ? '+' : ''}${row.details.vmhOrani?.score} P.` : "-"}
                                           </td>
                                           <td className="p-2 sm:p-3 text-center font-black text-blue-600 dark:text-blue-400 border-b border-slate-100 dark:border-slate-700/50">
                                               {row.details.volume != null ? Number(row.details.volume).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
