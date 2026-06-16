@@ -435,7 +435,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
     
     if (td !== null) {
       if (td === 0) {
-        text += "• Teslim düşülen kargo adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
+        text += "• Teslim düşülen kargo adetiniz 0 olarak gerçekleşmiştir.\n";
       } else {
         text += `• Teslim düşülen kargo sayınız ${td} olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır.\n`;
       }
@@ -443,7 +443,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
 
     if (tg !== null) {
       if (tg === 0) {
-        text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiştir. Diğer aylarda da aynı performansın sağlanması gerekmektedir.\n";
+        text += "• Transferde gecikme adetiniz 0 olarak gerçekleşmiştir.\n";
       } else {
         text += `• Transferde gecikme sayınız ${tg} olarak gerçekleşmiştir. İlgili oran hedefimiz 0'dır.\n`;
       }
@@ -475,7 +475,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
     if (s !== null) {
       if (s >= TARGETS.smsOrani) text += "• SMS ile teslimat oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (s >= 65) text += "• SMS ile teslimat oranınız ortalama seviyelerde olup, iyileştirmeler yapılmalıdır.\n";
-      else text += "• SMS ile teslimat oranınız başarısızdır, Mutlaka kargo teslimatlarında Sms Kodu ile teslimat işleminin kurye tararafından gerçekleştirilmesi gerekmektedir.\n";
+      else text += "• SMS ile teslimat oranınız başarısızdır.\n";
     }
     if (eatf !== null) {
       if (eatf >= TARGETS.eAtfOrani) text += "• E-atf oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
@@ -485,12 +485,12 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
     if (htf !== null) {
       if (htf >= TARGETS.htfOrani) text += "• HTF oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (htf >= 85) text += "• HTF oranınız ortalama seviyelerde olup, iyileştirmeler yapılmalıdır.\n";
-      else text += "• HTF oranınız başarısızdır, Mutlaka Birime gelen tüm hasarlı kargoların kontrollerinin yapılarak, Hasar Tespit Formlarının tutulması gerekmektedir.\n";
+      else text += "• HTF oranınız başarısızdır.\n";
     }
     if (ks !== null) {
       if (ks >= TARGETS.kontrolSende) text += "• Kontrol Sende uygulamasını kullanım oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (ks >= 80) text += "• Kontrol Sende kullanım oranınız ortalama seviyelerde olup, iyileştirmeler yapılmalıdır.\n";
-      else text += "• Kontrol Sende oranınız başarısızdır, Mutlaka Teslimat süreçlerinde Adresimdeyim, Kapıma Bırak, Komşuma Bırak seçeneklerine dikkat edilerek teslimat süreçleri gerçekleştirilmelidir.\n";
+      else text += "• Kontrol Sende oranınız başarısızdır.\n";
     }
     if (ot !== null) {
       if (ot <= TARGETS.olcumTartim) text += "• Ölçüm/Tartım farkı kaynaklı işlemleriniz kabul edilebilir (başarılı) seviyededir.\n";
