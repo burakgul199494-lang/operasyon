@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { ArrowLeft, Calendar, FileDown, Trophy, Medal, AlertTriangle, Loader2, FileSpreadsheet, TrendingUp } from "lucide-react";
+import { ArrowLeft, Calendar, FileDown, Trophy, Medal, AlertTriangle, Loader2, FileSpreadsheet, TrendingUp, Activity } from "lucide-react";
 import { UNITS, MONTH_NAMES } from "../utils/helpers";
 
 const currentYear = new Date().getFullYear();
@@ -95,6 +95,60 @@ const formatPdfScore = (base, rp) => {
     } catch(e) { return "-"; }
 };
 
+// ANALİZ MODU YARDIMCI FONKSİYONLARI
+const isValueRed = (key, val) => {
+    if (val === null || val === undefined) return false;
+    switch (key) {
+        case 'teslimPerformansi': return val < 95;
+        case 'adresAlimOrani': return val < 90;
+        case 'rotaOrani': return val < 85;
+        case 'tvsOrani': return val < 95;
+        case 'checkInOrani': return val < 90;
+        case 'smsOrani': return val < 70;
+        case 'eAtfOrani': return val < 90;
+        case 'htfOrani': return val < 90;
+        case 'elektronikIhbar': return val < 90;
+        case 'kontrolSende': return val < 90;
+        case 'musteriSikayet': return val >= 1;
+        case 'teslimDusulen': return val >= 1;
+        case 'transferGecikme': return val > 3;
+        case 'vmhOrani': return val >= 1;
+        default: return false;
+    }
+};
+
+const getCommentForUnit = (rawRecord) => {
+    const keysToCheck = [
+      { key: 'teslimPerformansi', type: 'percent', min: 95, close: 92.5 },
+      { key: 'adresAlimOrani', type: 'percent', min: 90, close: 87.5 },
+      { key: 'rotaOrani', type: 'percent', min: 85, close: 82.5 },
+      { key: 'tvsOrani', type: 'percent', min: 95, close: 92.5 },
+      { key: 'smsOrani', type: 'percent', min: 70, close: 67.5 },
+      { key: 'eAtfOrani', type: 'percent', min: 90, close: 87.5 },
+      { key: 'musteriSikayet', type: 'count', max: 0, close: 1 }
+    ];
+
+    let hasBad = false;
+    let hasClose = false;
+
+    for (let rule of keysToCheck) {
+       const val = rawRecord[rule.key];
+       if (val === null || val === undefined) continue;
+
+       if (rule.type === 'percent') {
+          if (val < rule.close) hasBad = true;
+          else if (val < rule.min) hasClose = true;
+       } else if (rule.type === 'count') {
+          if (val > rule.close) hasBad = true;
+          else if (val > rule.max) hasClose = true;
+       }
+    }
+
+    if (hasBad) return { text: "İncelenmeli", color: "text-rose-600 bg-rose-50 border-rose-200 dark:bg-rose-900/30 dark:border-rose-800" };
+    if (hasClose) return { text: "Orta Seviye", color: "text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800" };
+    return { text: "İyi Durumda", color: "text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800" };
+};
+
 const COL1_WIDTH = "w-[120px] min-w-[120px] max-w-[120px] sm:w-[150px] sm:min-w-[150px] sm:max-w-[150px]";
 const COL2_WIDTH = "w-[80px] min-w-[80px] max-w-[80px] sm:w-[90px] sm:min-w-[90px] sm:max-w-[90px]";
 const COL2_LEFT = "left-[120px] sm:left-[150px]";
@@ -103,6 +157,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [isShowYearAvg, setIsShowYearAvg] = useState(false);
+  const [isAnalysisMode, setIsAnalysisMode] = useState(false); // YENİ ANALİZ MODU DURUMU
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const [isInitialLoaded, setIsInitialLoaded] = useState(false);
@@ -156,7 +211,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                 const tGecikme = parseMetric(d.transferGecikme);
                 if (tGecikme !== null) { g.transferGecikme.total += tGecikme; g.transferGecikme.count += 1; }
                 
-                // VMH Oranı
                 const vmh = parseMetric(d.vmhOrani);
                 if (vmh !== null) { g.vmhOrani.total += vmh; g.vmhOrani.count += 1; }
             });
@@ -206,6 +260,16 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             let finalScore = 0;
             let totalRankBonus = 0; 
             const details = {};
+            
+            // Analiz Modu için orijinal/ham sayıları kaydediyoruz
+            const rawRecord = { ...record };
+            RANK_METRICS.forEach(m => {
+                rawRecord[m.key] = parseMetric(record[m.key]);
+            });
+            rawRecord.musteriSikayet = parseMetric(record.musteriSikayet);
+            rawRecord.teslimDusulen = parseMetric(record.teslimDusulen);
+            rawRecord.transferGecikme = parseMetric(record.transferGecikme);
+            rawRecord.vmhOrani = parseMetric(record.vmhOrani);
 
             RANK_METRICS.forEach(m => {
                 const val = parseMetric(record[m.key]);
@@ -230,7 +294,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             if (tgVal !== null) finalScore += tgScore;
             details.transferGecikme = { val: tgVal, score: tgScore };
             
-            // YENİ: VMH Oranı Puanlaması (%1 altı ise +5, %1 ve üstü ise -5)
             const vmhVal = parseMetric(record.vmhOrani);
             let vmhScore = 0;
             if (vmhVal !== null) {
@@ -244,15 +307,18 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             finalScore += volumeScore;
             details.volume = volumeScore;
 
-            finalList.push({ unit: record.unit, finalScore, totalRankBonus, details });
+            finalList.push({ unit: record.unit, finalScore, totalRankBonus, details, rawRecord });
         });
 
+        if (isAnalysisMode) {
+            return finalList.sort((a, b) => a.unit.localeCompare(b.unit));
+        }
         return finalList.sort((a, b) => b.finalScore - a.finalScore);
     } catch(e) {
         console.error("Sıralama hesaplanırken hata:", e);
         return [];
     }
-  }, [allData, selectedYear, selectedMonth, isShowYearAvg]);
+  }, [allData, selectedYear, selectedMonth, isShowYearAvg, isAnalysisMode]);
 
   const reportTitleStr = isShowYearAvg ? "YILLIK ORTALAMA BAŞARI SIRALAMASI" : "NİHAİ BAŞARI SIRALAMASI";
   const donemTextStr = isShowYearAvg ? `Yıllık Ortalama (${selectedYear})` : `${MONTH_NAMES[selectedMonth]} ${selectedYear}`;
@@ -364,9 +430,18 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                   <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full flex-shrink-0 transition-colors"><ArrowLeft size={22} className="text-slate-600 dark:text-slate-300" /></button>
-                  <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2"><Trophy className="text-amber-500" size={24} /> Nihai Başarı Sıralaması</h1>
+                  <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                      {isAnalysisMode ? <Activity className="text-blue-500" size={24} /> : <Trophy className="text-amber-500" size={24} />} 
+                      {isAnalysisMode ? "Performans Analizi" : "Nihai Başarı Sıralaması"}
+                  </h1>
               </div>
               <div className="flex items-center gap-2">
+                  <button 
+                      onClick={() => setIsAnalysisMode(!isAnalysisMode)} 
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-all ${isAnalysisMode ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"}`}>
+                      <Activity size={16} />
+                      <span className="hidden sm:inline">{isAnalysisMode ? "Sıralamaya Dön" : "Analiz Görünümü"}</span>
+                  </button>
                   <button onClick={generateExcel} disabled={isGeneratingExcel || rankingData.length === 0} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50"><Loader2 size={16} className={isGeneratingExcel ? "animate-spin" : "hidden"} />{!isGeneratingExcel && <FileSpreadsheet size={16} />}<span className="hidden sm:inline">Excel Aktar</span></button>
                   <button onClick={generatePDF} disabled={isGeneratingPdf || rankingData.length === 0} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-colors disabled:opacity-50"><Loader2 size={16} className={isGeneratingPdf ? "animate-spin" : "hidden"} />{!isGeneratingPdf && <FileDown size={16} />}<span className="hidden sm:inline">PDF Aktar</span></button>
               </div>
@@ -383,7 +458,12 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
           {rankingData.length > 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0 overflow-hidden">
                   <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap gap-2 justify-between items-center shrink-0">
-                      <h3 className="text-sm font-bold text-slate-800 dark:text-white">{isShowYearAvg ? "Yıllık Ortalama Sıralama Tablosu" : "Aylık Sıralama Tablosu"}</h3>
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                          {isAnalysisMode 
+                              ? (isShowYearAvg ? "Yıllık Ortalama Ham Veri Analizi" : "Aylık Ham Veri Analizi") 
+                              : (isShowYearAvg ? "Yıllık Ortalama Sıralama Tablosu" : "Aylık Sıralama Tablosu")
+                          }
+                      </h3>
                       <span className="text-xs font-semibold text-slate-500 bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-600">{rankingData.length} Birim Listelendi</span>
                   </div>
                   
@@ -392,58 +472,124 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                           <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-40 shadow-sm">
                               <tr>
                                   <th className={`p-2 sm:p-3 font-extrabold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 truncate ${COL1_WIDTH}`}>Birim Adı</th>
-                                  <th className={`p-2 sm:p-3 font-extrabold text-red-600 dark:text-red-400 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Nihai Puan</th>
-                                  <th className="p-2 sm:p-3 font-bold text-indigo-600 dark:text-indigo-400 text-center border-b border-slate-200 dark:border-slate-700">Ek Puanlar</th>
+                                  
+                                  {isAnalysisMode ? (
+                                      <th className={`p-2 sm:p-3 font-extrabold text-slate-700 dark:text-slate-300 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                          Yorum
+                                      </th>
+                                  ) : (
+                                      <>
+                                          <th className={`p-2 sm:p-3 font-extrabold text-red-600 dark:text-red-400 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Nihai Puan</th>
+                                          <th className="p-2 sm:p-3 font-bold text-indigo-600 dark:text-indigo-400 text-center border-b border-slate-200 dark:border-slate-700">Ek Puanlar</th>
+                                      </>
+                                  )}
+
                                   {RANK_METRICS.map(m => (
                                       <th key={m.key} className="p-2 sm:p-3 font-bold text-slate-600 dark:text-slate-400 text-center border-b border-slate-200 dark:border-slate-700">
-                                          {m.label} <span className="text-[8px] text-slate-400 block">%{(m.weight*100).toFixed(0)}</span>
+                                          {m.label} {!isAnalysisMode && <span className="text-[8px] text-slate-400 block">%{(m.weight*100).toFixed(0)}</span>}
                                       </th>
                                   ))}
-                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Şikayet P.</th>
-                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Tes. Düş. P.</th>
-                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">Gecikme P.</th>
-                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">VMH P.</th>
-                                  <th className="p-2 sm:p-3 font-bold text-blue-600 dark:text-blue-400 text-center border-b border-slate-200 dark:border-slate-700">Hacim P.</th>
+                                  
+                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">{isAnalysisMode ? "Şikayet" : "Şikayet P."}</th>
+                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">{isAnalysisMode ? "Tes. Düş." : "Tes. Düş. P."}</th>
+                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">{isAnalysisMode ? "Gecikme" : "Gecikme P."}</th>
+                                  <th className="p-2 sm:p-3 font-bold text-amber-600 dark:text-amber-400 text-center border-b border-slate-200 dark:border-slate-700">{isAnalysisMode ? "VMH" : "VMH P."}</th>
+                                  
+                                  {!isAnalysisMode && <th className="p-2 sm:p-3 font-bold text-blue-600 dark:text-blue-400 text-center border-b border-slate-200 dark:border-slate-700">Hacim P.</th>}
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                               {rankingData.map((row, idx) => {
                                   let rankIcon = <span className="text-slate-400 font-bold mr-1 sm:mr-2">{idx + 1}.</span>;
-                                  if (idx === 0) rankIcon = <Medal className="inline text-yellow-500 mr-1 sm:mr-2" size={16} />;
-                                  else if (idx === 1) rankIcon = <Medal className="inline text-slate-400 mr-1 sm:mr-2" size={16} />;
-                                  else if (idx === 2) rankIcon = <Medal className="inline text-amber-700 mr-1 sm:mr-2" size={16} />;
+                                  if (!isAnalysisMode) {
+                                      if (idx === 0) rankIcon = <Medal className="inline text-yellow-500 mr-1 sm:mr-2" size={16} />;
+                                      else if (idx === 1) rankIcon = <Medal className="inline text-slate-400 mr-1 sm:mr-2" size={16} />;
+                                      else if (idx === 2) rankIcon = <Medal className="inline text-amber-700 mr-1 sm:mr-2" size={16} />;
+                                  }
 
                                   return (
                                       <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
                                           <td className={`p-2 sm:p-3 font-bold text-slate-800 dark:text-slate-200 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 truncate ${COL1_WIDTH}`}>
                                               <div className="flex items-center">{rankIcon} {row.unit}</div>
                                           </td>
-                                          <td className={`p-2 sm:p-3 text-center font-black text-sm sm:text-base text-rose-600 dark:text-rose-400 sticky z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
-                                              {row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
-                                          </td>
-                                          <td className={`p-2 sm:p-3 text-center font-bold text-sm sm:text-base border-b border-slate-100 dark:border-slate-700/50 ${row.totalRankBonus > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>
-                                              {row.totalRankBonus > 0 ? "+" : ""}{row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                          </td>
-                                          {RANK_METRICS.map(m => (
-                                              <td key={m.key} className="p-2 sm:p-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700/50">
-                                                  {formatScoreDisplay(row.details[m.key]?.base, row.details[m.key]?.rp)}
+                                          
+                                          {isAnalysisMode ? (
+                                              <td className={`p-2 sm:p-3 text-center sticky z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                                  {(() => {
+                                                      const comment = getCommentForUnit(row.rawRecord);
+                                                      return <span className={`px-2 py-1 rounded-md text-[9px] sm:text-[10px] font-bold border ${comment.color}`}>{comment.text}</span>;
+                                                  })()}
                                               </td>
-                                          ))}
-                                          <td className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
-                                              {row.details.musteriSikayet?.val !== null ? `${row.details.musteriSikayet?.score} P.` : "-"}
-                                          </td>
-                                          <td className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
-                                              {row.details.teslimDusulen?.val !== null ? `${row.details.teslimDusulen?.score} P.` : "-"}
-                                          </td>
-                                          <td className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
-                                              {row.details.transferGecikme?.val !== null ? `${row.details.transferGecikme?.score} P.` : "-"}
-                                          </td>
-                                          <td className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
-                                              {row.details.vmhOrani?.val !== null ? `${row.details.vmhOrani?.score > 0 ? '+' : ''}${row.details.vmhOrani?.score} P.` : "-"}
-                                          </td>
-                                          <td className="p-2 sm:p-3 text-center font-black text-blue-600 dark:text-blue-400 border-b border-slate-100 dark:border-slate-700/50">
-                                              {row.details.volume != null ? Number(row.details.volume).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
-                                          </td>
+                                          ) : (
+                                              <>
+                                                  <td className={`p-2 sm:p-3 text-center font-black text-sm sm:text-base text-rose-600 dark:text-rose-400 sticky z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                                      {row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
+                                                  </td>
+                                                  <td className={`p-2 sm:p-3 text-center font-bold text-sm sm:text-base border-b border-slate-100 dark:border-slate-700/50 ${row.totalRankBonus > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>
+                                                      {row.totalRankBonus > 0 ? "+" : ""}{row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                  </td>
+                                              </>
+                                          )}
+
+                                          {RANK_METRICS.map(m => {
+                                              if (isAnalysisMode) {
+                                                  const val = row.rawRecord[m.key];
+                                                  const isRed = isValueRed(m.key, val);
+                                                  return (
+                                                      <td key={m.key} className={`p-2 sm:p-3 text-center font-semibold border-b border-slate-100 dark:border-slate-700/50 ${isRed ? 'text-rose-600 font-bold dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                          {val !== null ? `%${Number(val).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
+                                                      </td>
+                                                  );
+                                              } else {
+                                                  return (
+                                                      <td key={m.key} className="p-2 sm:p-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700/50">
+                                                          {formatScoreDisplay(row.details[m.key]?.base, row.details[m.key]?.rp)}
+                                                      </td>
+                                                  );
+                                              }
+                                          })}
+
+                                          {['musteriSikayet', 'teslimDusulen', 'transferGecikme'].map(key => {
+                                              if (isAnalysisMode) {
+                                                  const val = row.rawRecord[key];
+                                                  const isRed = isValueRed(key, val);
+                                                  return (
+                                                      <td key={key} className={`p-2 sm:p-3 text-center font-bold border-b border-slate-100 dark:border-slate-700/50 ${isRed ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-500'}`}>
+                                                          {val !== null ? Math.round(val) : "-"}
+                                                      </td>
+                                                  );
+                                              } else {
+                                                  return (
+                                                      <td key={key} className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
+                                                          {row.details[key]?.val !== null ? `${row.details[key]?.score} P.` : "-"}
+                                                      </td>
+                                                  );
+                                              }
+                                          })}
+
+                                          {(() => {
+                                              if (isAnalysisMode) {
+                                                  const val = row.rawRecord.vmhOrani;
+                                                  const isRed = isValueRed('vmhOrani', val);
+                                                  return (
+                                                      <td className={`p-2 sm:p-3 text-center font-bold border-b border-slate-100 dark:border-slate-700/50 ${isRed ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                          {val !== null ? `%${Number(val).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
+                                                      </td>
+                                                  );
+                                              } else {
+                                                  return (
+                                                      <td className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
+                                                          {row.details.vmhOrani?.val !== null ? `${row.details.vmhOrani?.score > 0 ? '+' : ''}${row.details.vmhOrani?.score} P.` : "-"}
+                                                      </td>
+                                                  );
+                                              }
+                                          })()}
+
+                                          {!isAnalysisMode && (
+                                              <td className="p-2 sm:p-3 text-center font-black text-blue-600 dark:text-blue-400 border-b border-slate-100 dark:border-slate-700/50">
+                                                  {row.details.volume != null ? Number(row.details.volume).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
+                                              </td>
+                                          )}
                                       </tr>
                                   );
                               })}
