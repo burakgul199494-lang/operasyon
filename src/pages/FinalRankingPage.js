@@ -5,7 +5,8 @@ import { UNITS, MONTH_NAMES } from "../utils/helpers";
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN", "BÖLGE"];
+// BÖLGE'yi özel olarak işleyeceğimiz için hariç tutulanlar listesinden çıkardık.
+const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN"];
 
 const parseMetric = (val) => {
   if (val === undefined || val === null || val === "") return null;
@@ -65,12 +66,12 @@ const getPenaltyScore = (val) => {
     return 0;
 };
 
-const formatScoreDisplay = (base, rp) => {
+const formatScoreDisplay = (base, rp, isBolge) => {
     try {
         if (base === null || base === undefined) return "-";
         const total = Number(base) + Number(rp || 0);
         const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        if (!rp) return totalStr;
+        if (!rp || isBolge) return totalStr; // Bölge için ek puanı göstermeye gerek yok
         
         const rpNum = Number(rp);
         const rpStr = rpNum > 0 ? `+${rpNum.toLocaleString('tr-TR')}` : rpNum.toLocaleString('tr-TR');
@@ -83,12 +84,12 @@ const formatScoreDisplay = (base, rp) => {
     } catch (e) { return "-"; }
 };
 
-const formatPdfScore = (base, rp) => {
+const formatPdfScore = (base, rp, isBolge) => {
     try {
         if (base === null || base === undefined) return "-";
         const total = Number(base) + Number(rp || 0);
         const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        if (!rp) return totalStr;
+        if (!rp || isBolge) return totalStr;
         const rpNum = Number(rp);
         const rpStr = rpNum > 0 ? `+${rpNum.toLocaleString('tr-TR')}` : rpNum.toLocaleString('tr-TR');
         return `${totalStr} (${rpStr})`;
@@ -132,7 +133,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
   useEffect(() => {
     if (allData && allData.length > 0 && !isInitialLoaded) {
-      const validRecords = allData.filter(d => !EXCLUDED_UNITS.includes(d.unit));
+      const validRecords = allData.filter(d => !EXCLUDED_UNITS.includes(d.unit) && d.unit !== "BÖLGE");
       if (validRecords.length > 0) {
         const sortedRecords = [...validRecords].sort((a, b) => {
           if (a.year !== b.year) return b.year - a.year;
@@ -151,7 +152,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         let targetData = [];
 
         if (isShowYearAvg) {
-            // Analiz modundaysa tüm birimleri dahil et, değilse hariç tutulanları filtrele
             const yearData = allData.filter(d => d.year === parseInt(selectedYear) && (isAnalysisMode || !EXCLUDED_UNITS.includes(d.unit)));
             if (yearData.length === 0) return [];
 
@@ -199,17 +199,19 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             });
 
         } else {
-            // Analiz modundaysa tüm birimleri dahil et, değilse hariç tutulanları filtrele
             targetData = allData.filter(d => d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth) && (isAnalysisMode || !EXCLUDED_UNITS.includes(d.unit)));
         }
         
         if (targetData.length === 0) return [];
 
-        const regionalTotalIncoming = targetData.reduce((acc, curr) => acc + (parseMetric(curr.gelenKargo) || 0), 0);
+        // BÖLGE'yi ek puan ve bölgesel hacim hesaplamalarından (rekabetten) soyutluyoruz.
+        const normalBranches = targetData.filter(d => d.unit !== "BÖLGE");
+        
+        const regionalTotalIncoming = normalBranches.reduce((acc, curr) => acc + (parseMetric(curr.gelenKargo) || 0), 0);
         const rankPointsMap = {};
         
         RANK_METRICS.forEach(m => {
-            const validUnits = targetData.filter(d => parseMetric(d[m.key]) !== null).map(d => ({ unit: d.unit, val: parseMetric(d[m.key]) }));
+            const validUnits = normalBranches.filter(d => parseMetric(d[m.key]) !== null).map(d => ({ unit: d.unit, val: parseMetric(d[m.key]) }));
             validUnits.sort((a, b) => b.val - a.val);
 
             rankPointsMap[m.key] = {};
@@ -226,16 +228,16 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         });
 
         const finalList = [];
+        let bolgeProcessed = null;
+
         targetData.forEach(record => {
+            const isBolge = record.unit === "BÖLGE";
             let finalScore = 0;
             let totalRankBonus = 0; 
             const details = {};
             
-            // Analiz Modu için orijinal/ham sayıları kaydediyoruz
             const rawRecord = { ...record };
-            RANK_METRICS.forEach(m => {
-                rawRecord[m.key] = parseMetric(record[m.key]);
-            });
+            RANK_METRICS.forEach(m => { rawRecord[m.key] = parseMetric(record[m.key]); });
             rawRecord.musteriSikayet = parseMetric(record.musteriSikayet);
             rawRecord.teslimDusulen = parseMetric(record.teslimDusulen);
             rawRecord.transferGecikme = parseMetric(record.transferGecikme);
@@ -244,7 +246,8 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             RANK_METRICS.forEach(m => {
                 const val = parseMetric(record[m.key]);
                 const base = val !== null ? val * m.weight : null;
-                const rp = (rankPointsMap[m.key] && rankPointsMap[m.key][record.unit]) ? rankPointsMap[m.key][record.unit] : 0;
+                // Bölge rekabet dışı olduğu için ek sıralama puanı (rp) almaz
+                const rp = (!isBolge && rankPointsMap[m.key] && rankPointsMap[m.key][record.unit]) ? rankPointsMap[m.key][record.unit] : 0;
                 if (base !== null) { finalScore += (base + rp); totalRankBonus += rp; }
                 details[m.key] = { base, rp };
             });
@@ -277,13 +280,28 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             finalScore += volumeScore;
             details.volume = volumeScore;
 
-            finalList.push({ unit: record.unit, finalScore, totalRankBonus, details, rawRecord });
+            const resultObj = { unit: record.unit, isBolge, finalScore, totalRankBonus, details, rawRecord };
+            
+            if (isBolge) {
+                bolgeProcessed = resultObj;
+            } else {
+                finalList.push(resultObj);
+            }
         });
 
+        // Kalan normal şubeleri sırala
         if (isAnalysisMode) {
-            return finalList.sort((a, b) => a.unit.localeCompare(b.unit));
+            finalList.sort((a, b) => a.unit.localeCompare(b.unit));
+        } else {
+            finalList.sort((a, b) => b.finalScore - a.finalScore);
         }
-        return finalList.sort((a, b) => b.finalScore - a.finalScore);
+
+        // BÖLGE'yi her zaman en başa ekle (Sıralama dışı olarak)
+        if (bolgeProcessed) {
+            finalList.unshift(bolgeProcessed);
+        }
+
+        return finalList;
     } catch(e) {
         console.error("Sıralama hesaplanırken hata:", e);
         return [];
@@ -324,14 +342,17 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             'Şik.', 'Düşülen', 'T.Gecikme', 'VMH P.', 'Hacim'
         ]];
 
+        const hasBolge = rankingData.length > 0 && rankingData[0].isBolge;
+
         const tableBody = rankingData.map((row, idx) => {
+            const currentRank = row.isBolge ? "-" : (hasBolge ? idx : idx + 1);
             const rowData = [
-                idx + 1,
+                currentRank,
                 row.unit || "-",
                 row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-",
                 row.totalRankBonus > 0 ? `+${row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
             ];
-            RANK_METRICS.forEach(m => rowData.push(formatPdfScore(row.details[m.key]?.base, row.details[m.key]?.rp)));
+            RANK_METRICS.forEach(m => rowData.push(formatPdfScore(row.details[m.key]?.base, row.details[m.key]?.rp, row.isBolge)));
             rowData.push(row.details.musteriSikayet?.val !== null ? `${row.details.musteriSikayet?.score}P` : "-");
             rowData.push(row.details.teslimDusulen?.val !== null ? `${row.details.teslimDusulen?.score}P` : "-");
             rowData.push(row.details.transferGecikme?.val !== null ? `${row.details.transferGecikme?.score}P` : "-");
@@ -369,14 +390,18 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             ...RANK_METRICS.map(m => `${m.label} %${(m.weight*100).toFixed(0)}`),
             'Şikayet P.', 'Teslim Düşülen P.', 'Transfer Gecikme P.', 'VMH P.', 'Hacim P.'
         ];
+        
+        const hasBolge = rankingData.length > 0 && rankingData[0].isBolge;
+
         const dataRows = rankingData.map((row, idx) => {
+            const currentRank = row.isBolge ? "-" : (hasBolge ? idx : idx + 1);
             const rowData = [
-                idx + 1,
+                currentRank,
                 row.unit || "-",
                 row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-",
                 row.totalRankBonus > 0 ? `+${row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
             ];
-            RANK_METRICS.forEach(m => rowData.push(formatPdfScore(row.details[m.key]?.base, row.details[m.key]?.rp)));
+            RANK_METRICS.forEach(m => rowData.push(formatPdfScore(row.details[m.key]?.base, row.details[m.key]?.rp, row.isBolge)));
             rowData.push(row.details.musteriSikayet?.val !== null ? `${row.details.musteriSikayet?.score} P.` : "-");
             rowData.push(row.details.teslimDusulen?.val !== null ? `${row.details.teslimDusulen?.score} P.` : "-");
             rowData.push(row.details.transferGecikme?.val !== null ? `${row.details.transferGecikme?.score} P.` : "-");
@@ -466,25 +491,36 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                               {rankingData.map((row, idx) => {
-                                  let rankIcon = <span className="text-slate-400 font-bold mr-1 sm:mr-2">{idx + 1}.</span>;
-                                  if (!isAnalysisMode) {
-                                      if (idx === 0) rankIcon = <Medal className="inline text-yellow-500 mr-1 sm:mr-2" size={16} />;
-                                      else if (idx === 1) rankIcon = <Medal className="inline text-slate-400 mr-1 sm:mr-2" size={16} />;
-                                      else if (idx === 2) rankIcon = <Medal className="inline text-amber-700 mr-1 sm:mr-2" size={16} />;
+                                  const hasBolge = rankingData.length > 0 && rankingData[0].isBolge;
+                                  const currentRank = row.isBolge ? null : (hasBolge ? idx : idx + 1);
+
+                                  let rankIcon = null;
+                                  if (row.isBolge) {
+                                      // Bölge için numara veya madalya yerine bir tire (-) veya boşluk gösteriyoruz
+                                      rankIcon = <span className="text-indigo-500 dark:text-indigo-400 font-black mr-1 sm:mr-2">-</span>;
+                                  } else {
+                                      if (!isAnalysisMode) {
+                                          if (currentRank === 1) rankIcon = <Medal className="inline text-yellow-500 mr-1 sm:mr-2" size={16} />;
+                                          else if (currentRank === 2) rankIcon = <Medal className="inline text-slate-400 mr-1 sm:mr-2" size={16} />;
+                                          else if (currentRank === 3) rankIcon = <Medal className="inline text-amber-700 mr-1 sm:mr-2" size={16} />;
+                                          else rankIcon = <span className="text-slate-400 font-bold mr-1 sm:mr-2">{currentRank}.</span>;
+                                      } else {
+                                          rankIcon = <span className="text-slate-400 font-bold mr-1 sm:mr-2">{currentRank}.</span>;
+                                      }
                                   }
 
                                   return (
-                                      <tr key={idx} className="group bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                                          <td className={`p-2 sm:p-3 font-bold text-slate-800 dark:text-slate-200 sticky left-0 z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 truncate ${COL1_WIDTH}`}>
+                                      <tr key={idx} className={`group ${row.isBolge ? 'bg-indigo-50/60 dark:bg-indigo-900/20' : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80'} transition-colors`}>
+                                          <td className={`p-2 sm:p-3 font-bold sticky left-0 z-20 border-b border-slate-100 dark:border-slate-700/50 truncate ${COL1_WIDTH} ${row.isBolge ? 'bg-indigo-50/60 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400' : 'bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 text-slate-800 dark:text-slate-200'}`}>
                                               <div className="flex items-center">{rankIcon} {row.unit}</div>
                                           </td>
                                           
                                           {!isAnalysisMode && (
                                               <>
-                                                  <td className={`p-2 sm:p-3 text-center font-black text-sm sm:text-base text-rose-600 dark:text-rose-400 sticky z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
+                                                  <td className={`p-2 sm:p-3 text-center font-black text-sm sm:text-base sticky z-20 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT} ${row.isBolge ? 'bg-indigo-50/60 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400' : 'bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 text-rose-600 dark:text-rose-400'}`}>
                                                       {row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
                                                   </td>
-                                                  <td className={`p-2 sm:p-3 text-center font-bold text-sm sm:text-base border-b border-slate-100 dark:border-slate-700/50 ${row.totalRankBonus > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>
+                                                  <td className={`p-2 sm:p-3 text-center font-bold text-sm sm:text-base border-b border-slate-100 dark:border-slate-700/50 ${row.totalRankBonus > 0 ? 'text-indigo-600 dark:text-indigo-400' : (row.isBolge ? 'text-indigo-400' : 'text-slate-500')}`}>
                                                       {row.totalRankBonus > 0 ? "+" : ""}{row.totalRankBonus.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                   </td>
                                               </>
@@ -495,14 +531,14 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                                   const val = row.rawRecord[m.key];
                                                   const isRed = isValueRed(m.key, val);
                                                   return (
-                                                      <td key={m.key} className={`p-2 sm:p-3 text-center font-semibold border-b border-slate-100 dark:border-slate-700/50 ${isRed ? 'text-rose-600 font-bold dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                      <td key={m.key} className={`p-2 sm:p-3 text-center font-semibold border-b border-slate-100 dark:border-slate-700/50 ${isRed ? 'text-rose-600 font-bold dark:text-rose-400' : (row.isBolge ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300')}`}>
                                                           {val !== null ? `%${Number(val).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
                                                       </td>
                                                   );
                                               } else {
                                                   return (
-                                                      <td key={m.key} className="p-2 sm:p-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700/50">
-                                                          {formatScoreDisplay(row.details[m.key]?.base, row.details[m.key]?.rp)}
+                                                      <td key={m.key} className={`p-2 sm:p-3 text-center font-semibold border-b border-slate-100 dark:border-slate-700/50 ${row.isBolge ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                          {formatScoreDisplay(row.details[m.key]?.base, row.details[m.key]?.rp, row.isBolge)}
                                                       </td>
                                                   );
                                               }
@@ -513,13 +549,13 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                                   const val = row.rawRecord[key];
                                                   const isRed = isValueRed(key, val);
                                                   return (
-                                                      <td key={key} className={`p-2 sm:p-3 text-center font-bold border-b border-slate-100 dark:border-slate-700/50 ${isRed ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-500'}`}>
+                                                      <td key={key} className={`p-2 sm:p-3 text-center font-bold border-b border-slate-100 dark:border-slate-700/50 ${isRed ? 'text-rose-600 dark:text-rose-400' : (row.isBolge ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-500')}`}>
                                                           {val !== null ? Math.round(val) : "-"}
                                                       </td>
                                                   );
                                               } else {
                                                   return (
-                                                      <td key={key} className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
+                                                      <td key={key} className={`p-2 sm:p-3 text-center font-bold border-b border-slate-100 dark:border-slate-700/50 ${row.isBolge ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-500'}`}>
                                                           {row.details[key]?.val !== null ? `${row.details[key]?.score} P.` : "-"}
                                                       </td>
                                                   );
@@ -531,13 +567,13 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                                   const val = row.rawRecord.vmhOrani;
                                                   const isRed = isValueRed('vmhOrani', val);
                                                   return (
-                                                      <td className={`p-2 sm:p-3 text-center font-bold border-b border-slate-100 dark:border-slate-700/50 ${isRed ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                      <td className={`p-2 sm:p-3 text-center font-bold border-b border-slate-100 dark:border-slate-700/50 ${isRed ? 'text-rose-600 dark:text-rose-400' : (row.isBolge ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300')}`}>
                                                           {val !== null ? `%${Number(val).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
                                                       </td>
                                                   );
                                               } else {
                                                   return (
-                                                      <td className="p-2 sm:p-3 text-center font-bold text-amber-600 dark:text-amber-500 border-b border-slate-100 dark:border-slate-700/50">
+                                                      <td className={`p-2 sm:p-3 text-center font-bold border-b border-slate-100 dark:border-slate-700/50 ${row.isBolge ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-500'}`}>
                                                           {row.details.vmhOrani?.val !== null ? `${row.details.vmhOrani?.score > 0 ? '+' : ''}${row.details.vmhOrani?.score} P.` : "-"}
                                                       </td>
                                                   );
@@ -545,7 +581,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                           })()}
 
                                           {!isAnalysisMode && (
-                                              <td className="p-2 sm:p-3 text-center font-black text-blue-600 dark:text-blue-400 border-b border-slate-100 dark:border-slate-700/50">
+                                              <td className={`p-2 sm:p-3 text-center font-black border-b border-slate-100 dark:border-slate-700/50 ${row.isBolge ? 'text-indigo-600 dark:text-indigo-400' : 'text-blue-600 dark:text-blue-400'}`}>
                                                   {row.details.volume != null ? Number(row.details.volume).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
                                               </td>
                                           )}
