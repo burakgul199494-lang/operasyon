@@ -95,7 +95,7 @@ const formatPdfScore = (base, rp) => {
     } catch(e) { return "-"; }
 };
 
-// ANALİZ MODU YARDIMCI FONKSİYONLARI
+// ANALİZ MODU İÇİN RENK KONTROLÜ
 const isValueRed = (key, val) => {
     if (val === null || val === undefined) return false;
     switch (key) {
@@ -117,38 +117,6 @@ const isValueRed = (key, val) => {
     }
 };
 
-const getCommentForUnit = (rawRecord) => {
-    const keysToCheck = [
-      { key: 'teslimPerformansi', type: 'percent', min: 95, close: 92.5 },
-      { key: 'adresAlimOrani', type: 'percent', min: 90, close: 87.5 },
-      { key: 'rotaOrani', type: 'percent', min: 85, close: 82.5 },
-      { key: 'tvsOrani', type: 'percent', min: 95, close: 92.5 },
-      { key: 'smsOrani', type: 'percent', min: 70, close: 67.5 },
-      { key: 'eAtfOrani', type: 'percent', min: 90, close: 87.5 },
-      { key: 'musteriSikayet', type: 'count', max: 0, close: 1 }
-    ];
-
-    let hasBad = false;
-    let hasClose = false;
-
-    for (let rule of keysToCheck) {
-       const val = rawRecord[rule.key];
-       if (val === null || val === undefined) continue;
-
-       if (rule.type === 'percent') {
-          if (val < rule.close) hasBad = true;
-          else if (val < rule.min) hasClose = true;
-       } else if (rule.type === 'count') {
-          if (val > rule.close) hasBad = true;
-          else if (val > rule.max) hasClose = true;
-       }
-    }
-
-    if (hasBad) return { text: "İncelenmeli", color: "text-rose-600 bg-rose-50 border-rose-200 dark:bg-rose-900/30 dark:border-rose-800" };
-    if (hasClose) return { text: "Orta Seviye", color: "text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800" };
-    return { text: "İyi Durumda", color: "text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800" };
-};
-
 const COL1_WIDTH = "w-[120px] min-w-[120px] max-w-[120px] sm:w-[150px] sm:min-w-[150px] sm:max-w-[150px]";
 const COL2_WIDTH = "w-[80px] min-w-[80px] max-w-[80px] sm:w-[90px] sm:min-w-[90px] sm:max-w-[90px]";
 const COL2_LEFT = "left-[120px] sm:left-[150px]";
@@ -157,7 +125,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [isShowYearAvg, setIsShowYearAvg] = useState(false);
-  const [isAnalysisMode, setIsAnalysisMode] = useState(false); // YENİ ANALİZ MODU DURUMU
+  const [isAnalysisMode, setIsAnalysisMode] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const [isInitialLoaded, setIsInitialLoaded] = useState(false);
@@ -183,7 +151,8 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         let targetData = [];
 
         if (isShowYearAvg) {
-            const yearData = allData.filter(d => d.year === parseInt(selectedYear) && !EXCLUDED_UNITS.includes(d.unit));
+            // Analiz modundaysa tüm birimleri dahil et, değilse hariç tutulanları filtrele
+            const yearData = allData.filter(d => d.year === parseInt(selectedYear) && (isAnalysisMode || !EXCLUDED_UNITS.includes(d.unit)));
             if (yearData.length === 0) return [];
 
             const unitGroups = {};
@@ -230,7 +199,8 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             });
 
         } else {
-            targetData = allData.filter(d => d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth) && !EXCLUDED_UNITS.includes(d.unit));
+            // Analiz modundaysa tüm birimleri dahil et, değilse hariç tutulanları filtrele
+            targetData = allData.filter(d => d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth) && (isAnalysisMode || !EXCLUDED_UNITS.includes(d.unit)));
         }
         
         if (targetData.length === 0) return [];
@@ -473,11 +443,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                               <tr>
                                   <th className={`p-2 sm:p-3 font-extrabold text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 truncate ${COL1_WIDTH}`}>Birim Adı</th>
                                   
-                                  {isAnalysisMode ? (
-                                      <th className={`p-2 sm:p-3 font-extrabold text-slate-700 dark:text-slate-300 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>
-                                          Yorum
-                                      </th>
-                                  ) : (
+                                  {!isAnalysisMode && (
                                       <>
                                           <th className={`p-2 sm:p-3 font-extrabold text-red-600 dark:text-red-400 text-center sticky bg-slate-100 dark:bg-slate-900 z-50 border-b border-slate-200 dark:border-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] ${COL2_WIDTH} ${COL2_LEFT}`}>Nihai Puan</th>
                                           <th className="p-2 sm:p-3 font-bold text-indigo-600 dark:text-indigo-400 text-center border-b border-slate-200 dark:border-slate-700">Ek Puanlar</th>
@@ -513,14 +479,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
                                               <div className="flex items-center">{rankIcon} {row.unit}</div>
                                           </td>
                                           
-                                          {isAnalysisMode ? (
-                                              <td className={`p-2 sm:p-3 text-center sticky z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
-                                                  {(() => {
-                                                      const comment = getCommentForUnit(row.rawRecord);
-                                                      return <span className={`px-2 py-1 rounded-md text-[9px] sm:text-[10px] font-bold border ${comment.color}`}>{comment.text}</span>;
-                                                  })()}
-                                              </td>
-                                          ) : (
+                                          {!isAnalysisMode && (
                                               <>
                                                   <td className={`p-2 sm:p-3 text-center font-black text-sm sm:text-base text-rose-600 dark:text-rose-400 sticky z-20 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${COL2_WIDTH} ${COL2_LEFT}`}>
                                                       {row.finalScore != null ? Number(row.finalScore).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}
