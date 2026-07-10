@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Zap, Key, ClipboardList, Trash2, AlertTriangle, Users, Gauge, BarChart2, CheckCircle2, Package, SatelliteDish } from "lucide-react";
+import { Grid, Save, LogOut, Plus, RotateCcw, Layers, RefreshCw, Truck, Zap, Key, ClipboardList, Trash2, AlertTriangle, Users, Gauge, BarChart2, CheckCircle2, Package, SatelliteDish, Download } from "lucide-react";
 import { UNITS, METRIC_TYPES, MONTH_NAMES } from "../utils/helpers";
 import { doc, writeBatch, collection, getDocs } from "firebase/firestore";
 import { db, appId } from "../config/firebase";
+
+// Excel aktarımı için kütüphane yükleyici
+const loadXlsxLibrary = () => new Promise((resolve, reject) => {
+    if (window.XLSX) return resolve(window.XLSX);
+    const script = document.createElement('script');
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    script.onload = () => resolve(window.XLSX);
+    script.onerror = reject;
+    document.head.appendChild(script);
+});
 
 const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], quantitiesData = [], fleetDailyKms = [], onSaveBatch, onSaveQuantities, onClose, availableYears, setAvailableYears, isSaving, isLoadingData }) => {
   const [activeTab, setActiveTab] = useState("performance"); 
@@ -23,6 +33,7 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
   const [pendingChanges, setPendingChanges] = useState(false);
   const [selection, setSelection] = useState({ start: null, end: null, isDragging: false });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isExporting, setIsExporting] = useState(false); // Excel export durumu
 
   const MONTH_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const FLEET_COUNTS_COLUMNS = ["ozmal", "ozMasHar", "kiralik", "destek", "motor", "parcaBasi"];
@@ -72,7 +83,6 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     { key: "count", label: "Adet", width: "w-24" }
   ];
 
-  // YENİ EKLENEN: vmhOrani sisteme dahil ediliyor
   const EXTENDED_METRICS = [
     ...METRIC_TYPES,
     ...(METRIC_TYPES.some(m => m.id === "teslimDusulen") ? [] : [{ id: "teslimDusulen", label: "Teslim Düşülen" }]),
@@ -112,6 +122,83 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
     }
     setPendingChanges(true);
   };
+
+  // ===================== EXCEL AKTARIM FONKSİYONU =====================
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+        const XLSXLib = await loadXlsxLibrary();
+        let headers = [];
+        let dataRows = [];
+        let sheetName = "";
+        let fileName = "";
+
+        if (activeTab === "performance") {
+            headers = ["Birim", ...MONTH_INDICES.map(m => MONTH_NAMES[m])];
+            dataRows = UNITS.map(unit => [
+                unit,
+                ...MONTH_INDICES.map(m => gridData[unit]?.[m] !== undefined && gridData[unit]?.[m] !== null ? gridData[unit][m] : "")
+            ]);
+            sheetName = "Yük Performans";
+            fileName = `Yük_Performans_${selectedMetric}_${selectedYear}.xlsx`;
+        } else if (activeTab === "fleetCounts") {
+            headers = ["Birim", "Özmal", "Öz.M.H", "Kiralık", "Destek", "Motor", "P.Başı"];
+            dataRows = UNITS.map(unit => [
+                unit,
+                fleetCountsGrid[unit]?.ozmal || "",
+                fleetCountsGrid[unit]?.ozMasHar || "",
+                fleetCountsGrid[unit]?.kiralik || "",
+                fleetCountsGrid[unit]?.destek || "",
+                fleetCountsGrid[unit]?.motor || "",
+                fleetCountsGrid[unit]?.parcaBasi || ""
+            ]);
+            sheetName = "Aylık Araç Adetleri";
+            fileName = `Aylık_Araç_Adetleri_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`;
+        } else if (activeTab === "personnel") {
+            headers = PERSONNEL_COLUMNS.map(c => c.label);
+            dataRows = personnelGrid.filter(r => r.unit || r.name).map(r => PERSONNEL_COLUMNS.map(c => r[c.key] || ""));
+            sheetName = "Personel Performans";
+            fileName = `Personel_Performans_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`;
+        } else if (activeTab === "quantities") {
+            headers = QUANTITIES_COLUMNS.map(c => c.label);
+            dataRows = quantitiesGrid.filter(r => r.name || r.tarih).map(r => QUANTITIES_COLUMNS.map(c => r[c.key] || ""));
+            sheetName = "Personel Adet Girişi";
+            fileName = `Personel_Adet_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`;
+        } else if (activeTab === "fleetMonthly") {
+            headers = FLEET_MONTHLY_COLUMNS.map(c => c.label);
+            dataRows = fleetMonthlyGrid.filter(r => r.plate || r.unit).map(r => FLEET_MONTHLY_COLUMNS.map(c => r[c.key] || ""));
+            sheetName = "Aylık Araç Listesi";
+            fileName = `Aylık_Araç_Listesi_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`;
+        } else if (activeTab === "kms") {
+            headers = KMS_COLUMNS.map(c => c.label);
+            dataRows = kmsGrid.filter(r => r.plate || r.unit).map(r => KMS_COLUMNS.map(c => r[c.key] || ""));
+            sheetName = "Günlük KM";
+            fileName = `Günlük_KM_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`;
+        } else if (activeTab === "ats") {
+            headers = ATS_COLUMNS.map(c => c.label);
+            dataRows = atsGrid.filter(r => r.plate).map(r => ATS_COLUMNS.map(c => r[c.key] || ""));
+            sheetName = "ATS Cihazı Olmayanlar";
+            fileName = `ATS_Olmayanlar_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`;
+        } else if (activeTab === "nihaiTeslim") {
+            headers = NIHAI_TESLIM_COLUMNS.map(c => c.label);
+            dataRows = nihaiTeslimGrid.filter(r => r.unit || r.score).map(r => NIHAI_TESLIM_COLUMNS.map(c => r[c.key] || ""));
+            sheetName = "Nihai Teslim Performansı";
+            fileName = `Nihai_Teslim_${MONTH_NAMES[selectedMonth]}_${selectedYear}.xlsx`;
+        }
+
+        const worksheet = XLSXLib.utils.aoa_to_sheet([headers, ...dataRows]);
+        const workbook = XLSXLib.utils.book_new();
+        XLSXLib.utils.book_append_sheet(workbook, worksheet, sheetName);
+        XLSXLib.writeFile(workbook, fileName);
+
+    } catch (error) {
+        console.error("Excel dışa aktarma hatası:", error);
+        alert("Excel dosyası oluşturulurken bir hata oluştu.");
+    } finally {
+        setIsExporting(false);
+    }
+  };
+  // ====================================================================
 
   useEffect(() => {
     if (activeTab !== "performance") return;
@@ -741,6 +828,9 @@ const AdminPanel = ({ allData = [], fleetMonthly = [], fleetMonthlyCounts = [], 
           <div><h2 className="text-lg font-bold">Veri Giriş Paneli</h2>{pendingChanges && <span className="text-xs bg-yellow-500 text-black px-2 py-0.5 rounded font-bold">Kaydedilmemiş Değişiklikler Var</span>}</div>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
+          <button onClick={handleExportExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg transition-colors flex items-center gap-2" disabled={isExporting}>
+            {isExporting ? <RefreshCw className="animate-spin" size={16} /> : <Download size={16} />} Excel'e Aktar
+          </button>
           <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg transition-colors flex items-center gap-2" disabled={isSaving}>{isSaving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />} Kaydet</button>
           <button onClick={onClose} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"><LogOut size={16} /> Çıkış</button>
         </div>
