@@ -5,8 +5,8 @@ import { UNITS, MONTH_NAMES } from "../utils/helpers";
 const currentYear = new Date().getFullYear();
 const availableYears = Array.from({ length: Math.max(3, currentYear - 2024 + 2) }, (_, i) => 2024 + i);
 
-// BÖLGE'yi özel olarak işleyeceğimiz için hariç tutulanlar listesinden çıkardık.
-const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN"];
+// BÖLGE'yi tekrar hariç tutulanlara ekledik, sıralama modunda görünmeyecek.
+const EXCLUDED_UNITS = ["MARMARİS İRT", "URLA", "AYDIN DDN", "TORBA DDN", "LODOS DDN", "KALABAK DDN", "BÖLGE"];
 
 const parseMetric = (val) => {
   if (val === undefined || val === null || val === "") return null;
@@ -71,7 +71,7 @@ const formatScoreDisplay = (base, rp, isBolge) => {
         if (base === null || base === undefined) return "-";
         const total = Number(base) + Number(rp || 0);
         const totalStr = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        if (!rp || isBolge) return totalStr; // Bölge için ek puanı göstermeye gerek yok
+        if (!rp || isBolge) return totalStr;
         
         const rpNum = Number(rp);
         const rpStr = rpNum > 0 ? `+${rpNum.toLocaleString('tr-TR')}` : rpNum.toLocaleString('tr-TR');
@@ -133,7 +133,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
   useEffect(() => {
     if (allData && allData.length > 0 && !isInitialLoaded) {
-      const validRecords = allData.filter(d => !EXCLUDED_UNITS.includes(d.unit) && d.unit !== "BÖLGE");
+      const validRecords = allData.filter(d => !EXCLUDED_UNITS.includes(d.unit));
       if (validRecords.length > 0) {
         const sortedRecords = [...validRecords].sort((a, b) => {
           if (a.year !== b.year) return b.year - a.year;
@@ -152,6 +152,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
         let targetData = [];
 
         if (isShowYearAvg) {
+            // Analiz modundaysa tüm birimleri dahil et, değilse EXCLUDED_UNITS filtrele (Bölge vb. gizle)
             const yearData = allData.filter(d => d.year === parseInt(selectedYear) && (isAnalysisMode || !EXCLUDED_UNITS.includes(d.unit)));
             if (yearData.length === 0) return [];
 
@@ -199,12 +200,13 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             });
 
         } else {
+            // Analiz modundaysa tüm birimleri dahil et, değilse EXCLUDED_UNITS filtrele (Bölge vb. gizle)
             targetData = allData.filter(d => d.year === parseInt(selectedYear) && d.month === parseInt(selectedMonth) && (isAnalysisMode || !EXCLUDED_UNITS.includes(d.unit)));
         }
         
         if (targetData.length === 0) return [];
 
-        // BÖLGE'yi ek puan ve bölgesel hacim hesaplamalarından (rekabetten) soyutluyoruz.
+        // BÖLGE'yi hesaplamalardan (rekabetten) soyutluyoruz.
         const normalBranches = targetData.filter(d => d.unit !== "BÖLGE");
         
         const regionalTotalIncoming = normalBranches.reduce((acc, curr) => acc + (parseMetric(curr.gelenKargo) || 0), 0);
@@ -246,7 +248,6 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             RANK_METRICS.forEach(m => {
                 const val = parseMetric(record[m.key]);
                 const base = val !== null ? val * m.weight : null;
-                // Bölge rekabet dışı olduğu için ek sıralama puanı (rp) almaz
                 const rp = (!isBolge && rankPointsMap[m.key] && rankPointsMap[m.key][record.unit]) ? rankPointsMap[m.key][record.unit] : 0;
                 if (base !== null) { finalScore += (base + rp); totalRankBonus += rp; }
                 details[m.key] = { base, rp };
@@ -289,19 +290,17 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
             }
         });
 
-        // Kalan normal şubeleri sırala
+        // Sadece analiz modu ise alfabetik sırala ve Bölgeyi başa koy
         if (isAnalysisMode) {
             finalList.sort((a, b) => a.unit.localeCompare(b.unit));
-        } else {
-            finalList.sort((a, b) => b.finalScore - a.finalScore);
+            if (bolgeProcessed) {
+                finalList.unshift(bolgeProcessed);
+            }
+            return finalList;
         }
 
-        // BÖLGE'yi her zaman en başa ekle (Sıralama dışı olarak)
-        if (bolgeProcessed) {
-            finalList.unshift(bolgeProcessed);
-        }
-
-        return finalList;
+        // Puanlama (Sıralama) modu ise
+        return finalList.sort((a, b) => b.finalScore - a.finalScore);
     } catch(e) {
         console.error("Sıralama hesaplanırken hata:", e);
         return [];
@@ -330,7 +329,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
         doc.setFontSize(15);
         doc.setTextColor(30, 58, 138); 
-        doc.text(`${reportTitleStr} (61 BİRİM)`, 14, 15);
+        doc.text(`${reportTitleStr}`, 14, 15);
 
         doc.setFontSize(9);
         doc.setTextColor(60);
@@ -496,7 +495,7 @@ const FinalRankingPage = ({ allData = [], onBack }) => {
 
                                   let rankIcon = null;
                                   if (row.isBolge) {
-                                      // Bölge için numara veya madalya yerine bir tire (-) veya boşluk gösteriyoruz
+                                      // Bölge için numara yerine tire
                                       rankIcon = <span className="text-indigo-500 dark:text-indigo-400 font-black mr-1 sm:mr-2">-</span>;
                                   } else {
                                       if (!isAnalysisMode) {
