@@ -453,7 +453,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
       if (vmh < TARGETS.vmhOrani) {
         text += "• Varış Merkezi Hatası (VMH) oranınız hedeflenen %1'in altında gerçekleşerek başarılı olmuştur.\n";
       } else {
-        text += `• Varış Merkezi Hatası (VMH) oranınız %${vmh} olarak gerçekleşmiş olup, hedeflenen %1'in üzerindedir. Bu alanda aksiyon alınması gerekmektedir.\n`;
+        text += `• Varış Merkezi Hatası (VMH) oranınız %${vmh} olarak gerçekleşmiş olup, hedeflenen %1'in altında olmasıdır.\n`;
       }
     }
 
@@ -470,7 +470,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
     if (c !== null) {
       if (c >= TARGETS.checkInOrani) text += "• Check-in oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (c >= 85) text += "• Check-in oranınız ortalama seviyelerde olup, iyileştirmeler yapılmalıdır.\n";
-      else text += "• Check-in oranınız başarısızdır, Mutlaka kargo teslimatlarından Check-in işleminin kurye tararafından gerçekleştirilmesi gerekmektedir.\n";
+      else text += "• Check-in oranınız başarısızdır.\n";
     }
     if (s !== null) {
       if (s >= TARGETS.smsOrani) text += "• SMS ile teslimat oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
@@ -480,7 +480,7 @@ const UnitDetail = ({ allData = [], quantitiesData = [], fleetMonthly = [], flee
     if (eatf !== null) {
       if (eatf >= TARGETS.eAtfOrani) text += "• E-atf oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
       else if (eatf >= 90) text += "• E-ATF oranınız ortalama seviyelerde olup, iyileştirmeler yapılmalıdır.\n";
-      else text += "• E-ATF oranınız başarısızdır, Mutlaka Adres Alım yapılan gönderilen için E-ATF Formu düzenlenmeli, kargo fatura kesiminde E-ATF ile fatura eşlemesi yapılmalıdır.\n";
+      else text += "• E-ATF oranınız başarısızdır.\n";
     }
     if (htf !== null) {
       if (htf >= TARGETS.htfOrani) text += "• HTF oranınız hedeflenen oranın üstünde gerçekleşmiştir.\n";
